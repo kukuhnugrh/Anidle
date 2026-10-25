@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
+  "regions": ["hnd1"],
   "rewrites": [{ "source": "/oauth/callback", "destination": "/api/oauth/callback" }]
 }
