@@ -65,13 +65,16 @@ Halaman `#/database` menampilkan semua judul yang bisa keluar di Anidle (`GET /a
 ## Struktur
 
 ```
-api/        Vercel Functions (export GET/POST, Web Request/Response). Lokal dijalankan oleh plugin di vite.config.ts
+api/        Satu-satunya Vercel Function: router.ts, yang meneruskan setiap /api/* ke routes/
+routes/     Handler API (export GET/POST, Web Request/Response), satu file per path: routes/anime/facets.ts = /api/anime/facets
 server/     db (libSQL), env, MAL API + OAuth, session/cookie, enkripsi token, logika puzzle
 shared/     logika murni + test: aturan pool, normalisasi judul + autocomplete, perbandingan Anidle, franchise
 pipeline/   CLI pengisi database + sources/ (jikan-edge) + rate limiter
 db/         schema.sql
 src/        React app
 ```
+
+Semua `/api/*` (dan `/oauth/callback`) di-rewrite ke `api/router.ts` oleh `vercel.json`; lokal, plugin di `vite.config.ts` melakukan hal yang sama. Alasannya batas paket Hobby: maksimal 12 Serverless Function per deployment, dan setiap file di `api/` dihitung satu function. Route baru cukup ditambah di `routes/` lalu didaftarkan di `ROUTES` pada `api/router.ts`.
 
 ## Perintah
 
