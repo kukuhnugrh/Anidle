@@ -13,7 +13,7 @@ Status: **M1 (pipeline data) dan M2 (mode Anidle) selesai.** Live di https://ani
 
 ## Jalan lokal
 
-Butuh Node 22+.
+Butuh **Node 24 LTS** (`.nvmrc`, `engines: 24.x`; Vercel juga menjalankan 24.x). Pakai patch terbaru, minimal 24.22.1, yang berisi perbaikan keamanan 21 Okt 2026 (termasuk CVE-2026-111497 di decoder Brotli). Update dependency keamanan datang otomatis lewat Dependabot (`.github/dependabot.yml`); cek manual dengan `npm audit`.
 
 ```bash
 npm install
