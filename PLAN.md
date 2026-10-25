@@ -11,7 +11,7 @@ Domain: `https://anidle.velvetaco.dev` · Repo GitHub terpisah dari portofolio �
    - Media **divalidasi saat pipeline**. Judul yang medianya rusak tidak masuk pool, jadi tidak ada ronde yang tidak bisa dijawab.
    - Satu request untuk satu game, lalu **semua media ronde di-preload** sebelum game mulai.
 3. **Jawaban dicek di server**: kunci jawaban tidak pernah dikirim ke browser (beda dengan mode screenshot aniguessr yang mengirim `accepted_titles`).
-4. **Private**: hanya username MAL di allowlist yang bisa main (juga karena media OP/ED disimpan ulang).
+4. **Terbuka, akun opsional**: siapa pun bisa main tanpa akun. Akun Anidle (username + password) menyimpan progres lintas perangkat; menghubungkan MAL membuka pool dari list completed.
 
 ## 2. Stack (semua gratis)
 
@@ -22,7 +22,7 @@ Domain: `https://anidle.velvetaco.dev` · Repo GitHub terpisah dari portofolio �
 | Media | **Cloudflare R2**, custom domain `media.velvetaco.dev` | 10 GB, egress gratis. Aktivasi mungkin minta kartu (cek saat daftar) |
 | Pipeline | **GitHub Actions** (jadwal mingguan + manual) atau PC lokal | Private repo: 2.000 menit/bulan. Run pertama sebaiknya di PC |
 | Proses media | `ffmpeg-static` (audio) + `sharp` (gambar) dari npm | ffmpeg belum ter-install di PC; paket npm ini menghindari install manual |
-| Login | **MAL OAuth2 PKCE `plain`** (port dari `MAL-WebAPI/server.js`) + cookie session ber-HMAC | App MAL **kedua** untuk produksi (MAL hanya izinkan 1 redirect URL per app) |
+| Login | Akun sendiri: username + password (scrypt) + cookie session ber-HMAC. Pemain anonim pakai cookie id acak. **MAL OAuth2 PKCE `plain`** hanya untuk *menghubungkan* akun MAL | App MAL **kedua** untuk produksi (MAL hanya izinkan 1 redirect URL per app) |
 | Test | Vitest untuk logika di `shared/` | |
 
 DNS `velvetaco.dev` sudah di Cloudflare (NS `mckinley`/`agustin.ns.cloudflare.com`, ada wildcard `*` ke portofolio):
@@ -65,14 +65,14 @@ Playground `D:\Personal Project\MAL-WebAPI` dipakai untuk uji coba query sebelum
 
 ## 5. Pool
 
-- **Completed teman**: per username, ambil semua halaman `animelist?status=completed`. List publik cukup Client ID; list private pakai refresh token teman tsb (didapat saat dia login sekali).
+- **Completed**: per username MAL, ambil semua halaman `animelist?status=completed`. List publik cukup Client ID; list private pakai token MAL akun yang sudah menghubungkannya. Pool bersama hanya dari `POOL_USERS`; akun lain yang menghubungkan MAL hanya mengisi pool `saya` miliknya.
 - **Top 100 per genre**: 18 genre utama jikan-edge (Action 1, Adventure 2, Avant Garde 5, Award Winning 46, Boys Love 28, Comedy 4, Drama 8, Fantasy 10, Girls Love 26, Gourmet 47, Horror 14, Mystery 7, Romance 22, Sci-Fi 24, Slice of Life 36, Sports 30, Supernatural 37, Suspense 41). Ambil 3–4 halaman per genre, buang `members < 30.000`, ambil 100 teratas.
 - **Filter global**: buang `media_type` `music`, `cm`, `pv`; buang explicit genre Hentai (12) dan Erotica (49). Ecchi tetap boleh.
 - Setiap judul menyimpan asalnya: `completed_by` (daftar username) dan `top_genres`. Dari sini bisa dibuat pilihan pool di mode unlimited:
   - `semua`: gabungan semua (dipakai puzzle harian),
   - `teman`: completed minimal 1 teman,
   - `bareng`: completed semua teman yang aktif,
-  - `saya`: completed user yang login,
+  - `saya`: completed akun MAL milik pemain (butuh MAL terhubung; begitu juga `teman` dan `bareng`),
   - `top-genre`: top 100 per genre, bisa dipilih genrenya.
 - **Franchise**: dihitung dari relasi MAL `prequel`/`sequel` (graph terhubung → `franchise_id`). Dipakai untuk aturan jawaban (lihat §8).
 
@@ -138,14 +138,15 @@ Puzzle harian **disimpan** saat pertama diminta (dipilih dari seed `tanggal+mode
 
 | Route | Fungsi |
 | --- | --- |
-| `GET /api/oauth/login` · `GET /api/oauth/callback` · `POST /api/logout` | Login MAL (popup + fallback redirect, seperti playground) |
-| `GET /api/me` | User login, status allowlist, URL `titles.json` terbaru |
-| `POST /api/sync` | Sync list completed user yang login (≤300 dtk cukup). Judul baru masuk `enrich_queue` |
+| `POST /api/auth/register` · `POST /api/auth/login` · `POST /api/logout` | Akun Anidle (username + password). Progres anonim di browser itu dipindah ke akun |
+| `GET /api/oauth/login` · `GET /api/oauth/callback` · `POST /api/mal/unlink` | Hubungkan / putuskan akun MAL (butuh akun Anidle) |
+| `GET /api/me` | Akun yang masuk + status MAL |
+| `POST /api/sync` | Sync list completed akun MAL yang terhubung. Judul baru masuk `enrich_queue` |
 | `GET /api/puzzle?mode=&date=` · `POST /api/puzzle/unlimited` | Puzzle tanpa jawaban: ronde + URL media R2 |
 | `POST /api/guess` | `{puzzleId, round, malId}` → benar/salah, petunjuk (Anidle), skor |
 | `GET /api/leaderboard?date=&mode=` | Skor teman per hari/mode |
 
-Semua route kecuali login butuh session cookie (`HttpOnly`, `Secure`, `SameSite=Lax`, HMAC `SESSION_SECRET`) dan username ada di allowlist.
+Puzzle, tebakan, dan daftar judul terbuka untuk semua orang; pemain diidentifikasi lewat session akun atau cookie anonim (`HttpOnly`, `SameSite=Lax`, `Secure` di HTTPS). Pool `teman`/`bareng`/`saya` butuh MAL terhubung (403 kalau belum).
 
 ## 10. Frontend
 
@@ -176,9 +177,7 @@ db/                  schema.sql + migrations
 | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | pipeline | API token R2 |
 | `MEDIA_BASE_URL` | api | `https://media.velvetaco.dev` |
 | `SESSION_SECRET`, `TOKEN_ENC_KEY` | api, pipeline | Acak 32 byte. Refresh token MAL dienkripsi AES-GCM |
-| `ALLOWED_USERS` | api, pipeline | Username MAL yang boleh main, dipisah koma |
-| `POOL_USERS` | pipeline | Username yang list completed-nya masuk pool. Default = `ALLOWED_USERS` |
-| `ANIDLE_DEV_LOGIN` | api (lokal) | `1` = aktifkan `/api/dev/login`. Selalu mati di Vercel |
+| `POOL_USERS` | api, pipeline | Username MAL yang list completed-nya membentuk pool bersama, dipisah koma |
 | `JIKAN_BASE_URL` | pipeline | Default `https://jikan.lucashdo.com` |
 
 ## 12. Keputusan (default dipilih, bisa diubah)
@@ -198,7 +197,7 @@ db/                  schema.sql + migrations
 | --- | --- | --- | --- |
 | M0 | Setup: repo GitHub, project Vercel, domain `anidle.velvetaco.dev`, DB Turso, bucket R2 + `media.velvetaco.dev`, app MAL kedua | `https://anidle.velvetaco.dev/api/health` membalas OK dan bisa query Turso | belum (butuh akun) |
 | M1 | Pipeline data (tanpa media): pool completed + top genre, enrich MAL + jikan-edge, franchise, simpan ke DB lokal lalu Turso. Bisa diulang tanpa duplikat, patuh rate limit | Laporan jumlah judul per sumber; detail beberapa judul cocok dengan MAL | ✓ lokal (pool 1.426 judul) |
-| M2 | Login MAL + allowlist + sync list, mode **Anidle** harian & unlimited, autocomplete, `/api/guess` | Teman bisa login dan main Anidle harian; progres tersimpan saat reload | ✓ lokal |
+| M2 | Akun (username + password) + main anonim + hubungkan MAL + sync list, mode **Anidle** harian & unlimited, autocomplete, `/api/guess` | Bisa main tanpa akun; teman bisa daftar, hubungkan MAL, dan main pool completed; progres tersimpan saat reload | ✓ lokal |
 | M3 | Pipeline media (cover, OP1, ED1) → R2, mode **Opening** & **Ending** dengan preload + fallback | Satu game dimulai < 3 dtk setelah preload di koneksi biasa; tidak ada ronde gagal | |
 | M4 | Mode **Karakter** | | |
 | M5 | Leaderboard, riwayat, share skor | | |
@@ -213,13 +212,13 @@ Catatan implementasi M1–M2 (beda dari rencana awal):
 ## 14. Risiko
 
 - **jikan-edge / AnimeThemes layanan pihak ketiga**: kalau mati, hanya update pool yang terganggu; game jalan dari data yang sudah disalin. Sumber dibungkus di `pipeline/sources/` supaya mudah diganti (mis. AniList untuk genre).
-- **List completed teman private**: butuh teman login sekali; refresh token disimpan terenkripsi dan di-refresh pipeline.
+- **List completed private**: butuh pemiliknya menghubungkan MAL sekali; token disimpan terenkripsi dan di-refresh otomatis.
 - **Run pertama media besar** (±14 GB download): di PC, bisa dicicil (pipeline melewati judul yang sudah `ok`).
-- **Hak cipta media OP/ED**: web tetap private (allowlist), tanpa iklan.
+- **Hak cipta media OP/ED**: web sekarang terbuka untuk umum (main anonim), jadi media M3 juga bisa diakses siapa pun. Tanpa iklan; kalau perlu, media bisa dibatasi ke akun yang masuk.
 - **Batas Vercel Hobby**: repo di akun GitHub pribadi (bukan organization); commit dari orang lain ke repo private bisa membuat deploy tertahan.
 
 ## 15. Yang dibutuhkan dari kamu
 
-1. Daftar username MAL teman, dan apakah list mereka publik (untuk `ALLOWED_USERS` / `POOL_USERS`).
+1. Daftar username MAL teman untuk `POOL_USERS`, dan apakah list mereka publik.
 2. Konfirmasi atau ubah default di §12.
 3. Untuk M0: akun Turso, Cloudflare (aktifkan R2), app MAL kedua dengan redirect `https://anidle.velvetaco.dev/oauth/callback`, repo GitHub kosong.

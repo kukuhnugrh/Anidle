@@ -33,10 +33,13 @@ async function stepGenres() {
   log(`genres: ${genres.length}`);
 }
 
+/** Shared pool (POOL_USERS) plus every account that linked MAL (their own `saya` pool). */
 async function stepCompleted() {
-  const users = poolUsers();
+  const linked = (await all<{ mal_username: string }>('SELECT mal_username FROM account WHERE mal_username IS NOT NULL')).map((r) => r.mal_username);
+  const byLower = new Map([...poolUsers(), ...linked].map((u) => [u.toLowerCase(), u]));
+  const users = [...byLower.values()];
   if (!users.length) {
-    log('completed: POOL_USERS / ALLOWED_USERS kosong, dilewati');
+    log('completed: POOL_USERS kosong dan belum ada akun yang menghubungkan MAL, dilewati');
     return;
   }
   for (const username of users) {

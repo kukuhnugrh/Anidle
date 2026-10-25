@@ -1,5 +1,8 @@
+import type { Account } from './accounts.js';
 import { decrypt, encrypt } from './crypto.js';
 import { all, db, nowIso, one, run } from './db.js';
+import { poolUsers } from './env.js';
+import { HttpError } from './http.js';
 import { completedIds, refreshTokens, type MalAuth, type MalMe, type MalTokens } from './mal.js';
 
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -19,6 +22,31 @@ export async function savePlayer(me: MalMe, tokens: MalTokens): Promise<void> {
        mal_user_id = excluded.mal_user_id, avatar = excluded.avatar, access_token_enc = excluded.access_token_enc,
        refresh_token_enc = excluded.refresh_token_enc, token_expires_at = excluded.token_expires_at`,
     [me.name, me.id, me.picture ?? null, encrypt(tokens.accessToken), encrypt(tokens.refreshToken), tokens.expiresAt, nowIso()],
+  );
+}
+
+/** Links a MAL account (after OAuth) to a web account. One MAL account belongs to one web account. */
+export async function linkMal(account: Account, me: MalMe, tokens: MalTokens): Promise<void> {
+  const owner = await one<{ id: number }>('SELECT id FROM account WHERE mal_username = ? AND id != ?', [me.name, account.id]);
+  if (owner) throw new HttpError(409, `Akun MAL ${me.name} sudah terhubung ke akun lain.`);
+  await savePlayer(me, tokens);
+  await run('UPDATE account SET mal_username = ? WHERE id = ?', [me.name, account.id]);
+}
+
+/**
+ * Forgets the link and the stored MAL tokens. The completed list stays only when it is part of the
+ * shared pool (POOL_USERS), where the pipeline keeps it up to date from the public list.
+ */
+export async function unlinkMal(account: Account): Promise<void> {
+  if (!account.malUsername) return;
+  const shared = poolUsers().some((u) => u.toLowerCase() === account.malUsername!.toLowerCase());
+  await db().batch(
+    [
+      { sql: 'UPDATE account SET mal_username = NULL WHERE id = ?', args: [account.id] },
+      { sql: 'UPDATE player SET access_token_enc = NULL, refresh_token_enc = NULL, token_expires_at = NULL WHERE username = ?', args: [account.malUsername] },
+      ...(shared ? [] : [{ sql: 'DELETE FROM completed WHERE username = ?', args: [account.malUsername] }]),
+    ],
+    'write',
   );
 }
 

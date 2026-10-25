@@ -43,6 +43,9 @@ export const POOL_LABELS: Record<Pool, string> = {
   top: 'Top 100 per genre',
 };
 
+/** Pools built from MAL completed lists: only accounts with a linked MAL account may play them. */
+export const POOL_NEEDS_MAL: Record<Pool, boolean> = { semua: false, teman: true, bareng: true, saya: true, top: false };
+
 export const ANIDLE_MAX_GUESSES = 10;
 
 /** Why a title can never be a puzzle answer, or null when it can. */

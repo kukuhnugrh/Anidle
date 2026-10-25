@@ -8,26 +8,13 @@ export function optionalEnv(name: string, fallback = ''): string {
   return process.env[name]?.trim() || fallback;
 }
 
-export function usernameList(name: string): string[] {
-  return optionalEnv(name)
+/**
+ * MAL usernames whose completed lists form the shared pools (daily, `semua`, `teman`, `bareng`).
+ * Other accounts that link MAL only get their own `saya` pool, so strangers cannot reshape the daily puzzle.
+ */
+export function poolUsers(): string[] {
+  return optionalEnv('POOL_USERS')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
 }
-
-export function allowedUsers(): string[] {
-  return usernameList('ALLOWED_USERS');
-}
-
-export function isAllowed(username: string): boolean {
-  const wanted = username.toLowerCase();
-  return allowedUsers().some((u) => u.toLowerCase() === wanted);
-}
-
-/** Usernames whose completed lists form the friends pool. */
-export function poolUsers(): string[] {
-  const explicit = usernameList('POOL_USERS');
-  return explicit.length ? explicit : allowedUsers();
-}
-
-export const isVercel = () => Boolean(process.env.VERCEL);

@@ -89,10 +89,19 @@ CREATE TABLE IF NOT EXISTS puzzle (
 
 CREATE TABLE IF NOT EXISTS play (
   puzzle_id    TEXT NOT NULL,
-  username     TEXT NOT NULL COLLATE NOCASE,
+  username     TEXT NOT NULL COLLATE NOCASE,  -- player key: 'u:<account id>' or 'a:<anonymous hex id>'
   guesses      TEXT NOT NULL DEFAULT '[]',  -- JSON mal_id[] in order
   solved       INTEGER NOT NULL DEFAULT 0,
   score        INTEGER,
   finished_at  TEXT,
   PRIMARY KEY (puzzle_id, username)
+);
+
+-- Web accounts (username + password). Linking MAL is optional and unlocks the completed-list pools.
+CREATE TABLE IF NOT EXISTS account (
+  id             INTEGER PRIMARY KEY,
+  username       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  password_hash  TEXT NOT NULL,                 -- scrypt$N$r$p$salt$hash
+  mal_username   TEXT UNIQUE COLLATE NOCASE,    -- player.username once linked
+  created_at     TEXT NOT NULL
 );

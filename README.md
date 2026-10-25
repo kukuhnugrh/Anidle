@@ -2,7 +2,14 @@
 
 Game tebak anime harian untuk saya dan teman-teman. Pool berisi anime *completed* dari list MAL pemain dan top 100 per genre. Rencana lengkap: [PLAN.md](PLAN.md).
 
-Status: **M1 (pipeline data) dan M2 (mode Anidle) selesai, jalan lokal.** Belum di-deploy (M0) dan belum ada media (M3).
+Status: **M1 (pipeline data) dan M2 (mode Anidle) selesai.** Live di https://anidle.velvetaco.dev. Belum ada media (M3).
+
+## Akun
+
+- **Tanpa akun**: langsung main. Progres disimpan di browser lewat cookie anonim `anidle_anon`.
+- **Akun Anidle** (username + password, hash scrypt): progres ikut ke semua perangkat. Saat daftar/masuk, progres anonim di browser itu dipindah ke akun.
+- **Hubungkan MAL** (opsional, butuh akun): membuka pool dari list completed (`teman`, `bareng`, `saya`). Lewat OAuth MAL, jadi list private ikut terbaca. Puzzle harian, pool `semua`, dan `top` terbuka untuk semua orang.
+- Pool bersama (harian, `semua`, `teman`, `bareng`) hanya memakai list `POOL_USERS`. Akun lain yang menghubungkan MAL hanya dapat pool `saya` miliknya, jadi orang asing tidak bisa mengubah puzzle harian.
 
 ## Jalan lokal
 
@@ -10,14 +17,12 @@ Butuh Node 22+.
 
 ```bash
 npm install
-cp .env.example .env          # isi MAL_CLIENT_ID/SECRET, SESSION_SECRET, TOKEN_ENC_KEY, ALLOWED_USERS
+cp .env.example .env          # isi MAL_CLIENT_ID/SECRET, SESSION_SECRET, TOKEN_ENC_KEY, POOL_USERS
 npm run pipeline              # isi database lokal data/anidle.db (±10 menit pertama kali)
 npm run dev                   # http://localhost:3000
 ```
 
-Login lokal:
-- **OAuth MAL**: App Redirect URL app MAL harus `http://localhost:3000/oauth/callback` (app playground sudah begitu).
-- **Tanpa OAuth**: set `ANIDLE_DEV_LOGIN=1`, lalu buka `/api/dev/login?user=<username di ALLOWED_USERS>`. Route ini selalu mati di Vercel.
+Menghubungkan MAL di lokal butuh App Redirect URL app MAL `http://localhost:3000/oauth/callback` (app playground sudah begitu).
 
 ## Pipeline
 
@@ -32,7 +37,7 @@ npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, la
 | Step | Isi |
 | --- | --- |
 | `genres` | 78 genre/explicit genre/theme/demographic dari jikan-edge |
-| `completed` | List completed setiap `POOL_USERS` (default `ALLOWED_USERS`). Pakai token pemain kalau dia sudah login (list private ikut), kalau belum lewat Client ID (list publik saja) |
+| `completed` | List completed setiap `POOL_USERS` dan setiap akun yang menghubungkan MAL. Pakai token MAL-nya kalau ada (list private ikut), kalau tidak lewat Client ID (list publik saja) |
 | `top` | Top 100 per 18 genre utama dari jikan-edge, urut skor, `members ≥ 30.000`, tanpa Music/CM/PV |
 | `enrich` | Detail MAL untuk judul baru / lebih tua dari 30 hari: judul alternatif, cover, tahun, skor, source, studio, genre, relasi. Hentai/Erotica dan music/CM/PV ditandai `excluded` |
 | `franchise` | Kelompok prequel/sequel (mis. semua season Shingeki no Kyojin satu franchise) |

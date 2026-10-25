@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { POOL_LABELS, POOLS, TOP_GENRES, type Pool } from '../shared/catalog';
+import { POOL_LABELS, POOL_NEEDS_MAL, POOLS, TOP_GENRES, type Pool } from '../shared/catalog';
 import { Anidle } from './Anidle';
-import { api, errorMessage, type Me, type PuzzleState } from './api';
+import { api, errorMessage, type Account, type PuzzleState } from './api';
+import { AuthPage } from './AuthPage';
 
-type Route = { view: 'home' } | { view: 'daily' } | { view: 'play'; id: string };
+type Route = { view: 'home' } | { view: 'daily' } | { view: 'play'; id: string } | { view: 'auth' };
 
 function readRoute(): Route {
   const hash = location.hash.replace(/^#\/?/, '');
   if (hash === 'daily') return { view: 'daily' };
+  if (hash === 'masuk') return { view: 'auth' };
   if (hash.startsWith('play/')) return { view: 'play', id: hash.slice('play/'.length) };
   return { view: 'home' };
 }
@@ -16,20 +18,33 @@ const go = (hash: string) => {
   location.hash = hash;
 };
 
+type Notice = { kind: 'ok' | 'error'; text: string } | null;
+
+/** One-shot message from the MAL link redirect (?mal=linked / ?mal_error=…), then cleaned from the URL. */
+function takeRedirectNotice(): Notice {
+  const params = new URLSearchParams(location.search);
+  const notice: Notice = params.get('mal_error')
+    ? { kind: 'error', text: `Gagal menghubungkan MAL: ${params.get('mal_error')}` }
+    : params.get('mal') === 'linked'
+      ? { kind: 'ok', text: 'Akun MAL terhubung. List completed kamu sudah disinkron.' }
+      : null;
+  if (location.search) history.replaceState(null, '', location.pathname + location.hash);
+  return notice;
+}
+
 export function App() {
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
+  const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [route, setRoute] = useState<Route>(readRoute);
-  const loginError = new URLSearchParams(location.search).get('login_error');
+  const [notice] = useState(takeRedirectNotice);
 
   useEffect(() => {
-    api.me().then((r) => setMe(r.user), () => setMe(null));
+    api.me().then((r) => setAccount(r.account), () => setAccount(null));
     const onHash = () => setRoute(readRoute());
     addEventListener('hashchange', onHash);
     return () => removeEventListener('hashchange', onHash);
   }, []);
 
-  if (me === undefined) return <div className="center muted">Memuat…</div>;
-  if (!me || !me.allowed) return <Login error={loginError ?? (me && !me.allowed ? `${me.username} belum ada di daftar pemain.` : null)} />;
+  if (account === undefined) return <div className="center muted">Memuat…</div>;
 
   return (
     <div className="app">
@@ -37,10 +52,24 @@ export function App() {
         <a className="brand" href="#/">
           Anidle
         </a>
-        <UserMenu me={me} onLogout={() => api.logout().then(() => setMe(null))} />
+        {account ? (
+          <AccountMenu account={account} onLogout={() => api.logout().then(() => setAccount(null))} />
+        ) : (
+          <a className="button small" href="#/masuk">
+            Masuk / Daftar
+          </a>
+        )}
       </header>
       <main>
-        {route.view === 'home' && <Home me={me} onSynced={(completed) => setMe({ ...me, completed, lastSyncAt: new Date().toISOString() })} />}
+        {route.view === 'home' && <Home account={account} onAccount={setAccount} initialNotice={notice} />}
+        {route.view === 'auth' && (
+          <AuthPage
+            onDone={(a) => {
+              setAccount(a);
+              go('#/');
+            }}
+          />
+        )}
         {route.view === 'daily' && <PuzzleLoader key="daily" />}
         {route.view === 'play' && <PuzzleLoader key={route.id} id={route.id} />}
       </main>
@@ -48,66 +77,62 @@ export function App() {
   );
 }
 
-function Login({ error }: { error: string | null }) {
-  return (
-    <div className="center login">
-      <h1>Anidle</h1>
-      <p className="muted">Tebak anime dari list completed kamu dan teman-teman.</p>
-      {error && <div className="error-box">{error}</div>}
-      <a className="button primary big" href="/api/oauth/login">
-        <span className="mal-mark">MAL</span> Login dengan MyAnimeList
-      </a>
-    </div>
-  );
-}
-
-function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
+function AccountMenu({ account, onLogout }: { account: Account; onLogout: () => void }) {
+  const avatar = account.mal?.avatar;
   return (
     <div className="user">
-      {me.avatar ? <img className="avatar" src={me.avatar} alt="" /> : <span className="avatar fallback">{me.username[0]?.toUpperCase()}</span>}
-      <span>{me.username}</span>
+      {avatar ? <img className="avatar" src={avatar} alt="" /> : <span className="avatar fallback">{account.username[0]?.toUpperCase()}</span>}
+      <span>{account.username}</span>
+      {account.mal && <span className="mal-badge" title={`Terhubung ke MAL: ${account.mal.username}`}>MAL</span>}
       <button className="ghost small" onClick={onLogout}>
-        Logout
+        Keluar
       </button>
     </div>
   );
 }
 
-function Home({ me, onSynced }: { me: Me; onSynced: (completed: number) => void }) {
+function Home({ account, onAccount, initialNotice }: { account: Account | null; onAccount: (a: Account | null) => void; initialNotice: Notice }) {
   const [pool, setPool] = useState<Pool>('semua');
   const [genreId, setGenreId] = useState<number | ''>('');
-  const [busy, setBusy] = useState<'unlimited' | 'sync' | null>(null);
-  const [message, setMessage] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [busy, setBusy] = useState<'unlimited' | 'sync' | 'unlink' | null>(null);
+  const [message, setMessage] = useState<Notice>(initialNotice);
+  const hasMal = Boolean(account?.mal);
+  const poolLocked = POOL_NEEDS_MAL[pool] && !hasMal;
 
-  const startUnlimited = async () => {
-    setBusy('unlimited');
+  const act = async (kind: NonNullable<typeof busy>, task: () => Promise<void>) => {
+    setBusy(kind);
     setMessage(null);
     try {
+      await task();
+    } catch (err) {
+      setMessage({ kind: 'error', text: errorMessage(err) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const startUnlimited = () =>
+    act('unlimited', async () => {
       const puzzle = await api.unlimited(pool, pool === 'top' && genreId !== '' ? genreId : undefined);
       go(`#/play/${puzzle.id}`);
-    } catch (err) {
-      setMessage({ kind: 'error', text: errorMessage(err) });
-    } finally {
-      setBusy(null);
-    }
-  };
+    });
 
-  const sync = async () => {
-    setBusy('sync');
-    setMessage(null);
-    try {
+  const sync = () =>
+    act('sync', async () => {
       const result = await api.sync();
-      onSynced(result.completed);
+      if (account?.mal) onAccount({ ...account, mal: { ...account.mal, completed: result.completed, lastSyncAt: new Date().toISOString() } });
       setMessage({
         kind: 'ok',
-        text: `${result.completed} anime completed tersinkron.${result.queued ? ` ${result.queued} judul baru masuk antrean dan siap setelah pipeline berikutnya.` : ''}`,
+        text: `${result.completed} anime completed tersinkron.${result.queued ? ` ${result.queued} judul baru masuk antrean dan siap setelah update data berikutnya.` : ''}`,
       });
-    } catch (err) {
-      setMessage({ kind: 'error', text: errorMessage(err) });
-    } finally {
-      setBusy(null);
-    }
-  };
+    });
+
+  const unlink = () =>
+    act('unlink', async () => {
+      if (!confirm('Putuskan akun MAL? Pool completed-mu tidak bisa dimainkan sampai dihubungkan lagi.')) return;
+      onAccount((await api.unlinkMal()).account);
+      setMessage({ kind: 'ok', text: 'Akun MAL diputus.' });
+    });
 
   return (
     <div className="home">
@@ -123,7 +148,7 @@ function Home({ me, onSynced }: { me: Me; onSynced: (completed: number) => void 
 
       <section className="card">
         <h2>Unlimited</h2>
-        <p className="muted">Puzzle acak sebanyak yang kamu mau. Tidak masuk leaderboard.</p>
+        <p className="muted">Puzzle acak sebanyak yang kamu mau.</p>
         <div className="form-row">
           <label>
             Pool
@@ -131,6 +156,7 @@ function Home({ me, onSynced }: { me: Me; onSynced: (completed: number) => void 
               {POOLS.map((p) => (
                 <option key={p} value={p}>
                   {POOL_LABELS[p]}
+                  {POOL_NEEDS_MAL[p] && !hasMal ? ' (butuh akun MAL)' : ''}
                 </option>
               ))}
             </select>
@@ -148,20 +174,48 @@ function Home({ me, onSynced }: { me: Me; onSynced: (completed: number) => void 
               </select>
             </label>
           )}
-          <button className="primary" disabled={busy !== null} onClick={startUnlimited}>
+          <button className="primary" disabled={busy !== null || poolLocked} onClick={startUnlimited}>
             {busy === 'unlimited' ? 'Membuat…' : 'Mulai'}
           </button>
         </div>
+        {poolLocked && (
+          <p className="muted small lock-hint">
+            Pool ini memakai list completed MAL. {account ? 'Hubungkan akun MAL di bawah dulu.' : <><a href="#/masuk">Masuk</a> lalu hubungkan akun MAL dulu.</>}
+          </p>
+        )}
       </section>
 
       <section className="card">
-        <h2>List MAL kamu</h2>
-        <p className="muted">
-          {me.completed} anime completed tercatat{me.lastSyncAt ? `, terakhir sinkron ${new Date(me.lastSyncAt).toLocaleString('id-ID')}` : ''}.
-        </p>
-        <button disabled={busy !== null} onClick={sync}>
-          {busy === 'sync' ? 'Menyinkron…' : 'Sinkron ulang dari MAL'}
-        </button>
+        <h2>Akun MAL</h2>
+        {!account && (
+          <p className="muted">
+            Main tanpa akun juga bisa. <a href="#/masuk">Masuk atau daftar</a> untuk menyimpan progres di semua perangkat dan menghubungkan akun MAL (membuka pool dari list completed).
+          </p>
+        )}
+        {account && !account.mal && (
+          <>
+            <p className="muted">Hubungkan akun MAL untuk membuka pool dari list completed (teman, bareng, saya). List private juga bisa dibaca.</p>
+            <a className="button mal-button" href="/api/oauth/login">
+              <span className="mal-mark">MAL</span> Hubungkan akun MAL
+            </a>
+          </>
+        )}
+        {account?.mal && (
+          <>
+            <p className="muted">
+              Terhubung ke <b>{account.mal.username}</b>: {account.mal.completed} anime completed
+              {account.mal.lastSyncAt ? `, terakhir sinkron ${new Date(account.mal.lastSyncAt).toLocaleString('id-ID')}` : ''}.
+            </p>
+            <div className="actions">
+              <button disabled={busy !== null} onClick={sync}>
+                {busy === 'sync' ? 'Menyinkron…' : 'Sinkron ulang dari MAL'}
+              </button>
+              <button className="ghost" disabled={busy !== null} onClick={unlink}>
+                Putuskan
+              </button>
+            </div>
+          </>
+        )}
       </section>
 
       {message && <div className={message.kind === 'ok' ? 'ok-box' : 'error-box'}>{message.text}</div>}

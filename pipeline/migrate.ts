@@ -1,6 +1,7 @@
 import './env.js';
 import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { db } from '../server/db.js';
 import { requireEnv } from '../server/env.js';
 
@@ -11,7 +12,7 @@ export async function migrate(): Promise<void> {
   await db().executeMultiple(readFileSync(new URL('../db/schema.sql', import.meta.url), 'utf8'));
 }
 
-if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await migrate();
   console.log('Schema OK:', requireEnv('TURSO_DATABASE_URL').replace(/\?.*/, ''));
 }

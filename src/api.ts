@@ -2,12 +2,16 @@ import type { AnidleFeedback } from '../shared/anidle';
 import type { Pool } from '../shared/catalog';
 import type { TitleEntry } from '../shared/normalize';
 
-export interface Me {
+export interface MalLink {
   username: string;
   avatar: string | null;
-  lastSyncAt: string | null;
   completed: number;
-  allowed: boolean;
+  lastSyncAt: string | null;
+}
+
+export interface Account {
+  username: string;
+  mal: MalLink | null;
 }
 
 export interface PuzzleState {
@@ -55,8 +59,11 @@ async function call<T>(path: string, init?: { method?: string; body?: unknown })
 }
 
 export const api = {
-  me: () => call<{ user: Me | null }>('/api/me'),
+  me: () => call<{ account: Account | null }>('/api/me'),
+  register: (username: string, password: string) => call<{ account: Account }>('/api/auth/register', { method: 'POST', body: { username, password } }),
+  login: (username: string, password: string) => call<{ account: Account }>('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => call('/api/logout', { method: 'POST' }),
+  unlinkMal: () => call<{ account: Account }>('/api/mal/unlink', { method: 'POST' }),
   sync: () => call<SyncResult>('/api/sync', { method: 'POST' }),
   titles: () => call<TitleEntry[]>('/api/titles'),
   daily: () => call<PuzzleState>('/api/puzzle?mode=anidle'),
