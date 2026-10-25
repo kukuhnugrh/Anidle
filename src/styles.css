@@ -1,0 +1,108 @@
+:root {
+  --bg: #0f1117;
+  --panel: #171a23;
+  --panel-2: #1f2330;
+  --border: #2b3040;
+  --fg: #e8eaf0;
+  --muted: #8d95a8;
+  --accent: #ee4266;
+  --accent-hi: #ff5c7e;
+  --mal: #2e51a2;
+  --ok: #2f9e5b;
+  --ok-bg: #173a26;
+  --partial: #c79a1e;
+  --partial-bg: #3c3216;
+  --bad: #b8434c;
+  --bad-bg: #3a1b1f;
+  --radius: 10px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+h1, h2, h3 { margin: 0 0 6px; line-height: 1.25; }
+h2 { font-size: 20px; }
+p { margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.small { font-size: 12.5px; }
+.center { min-height: 70vh; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; padding: 24px; }
+.center-text { text-align: center; }
+
+button, .button {
+  font: inherit; color: var(--fg); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+}
+button:hover:not(:disabled), .button:hover { border-color: var(--accent); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.primary:hover:not(:disabled) { background: var(--accent-hi); }
+.ghost { background: transparent; }
+.big { padding: 12px 22px; font-size: 16px; }
+button.small { padding: 4px 10px; font-size: 13px; }
+input, select {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+.error-box, .ok-box { padding: 10px 14px; border-radius: var(--radius); margin: 10px 0; }
+.error-box { background: var(--bad-bg); border: 1px solid var(--bad); color: #ffb3b9; }
+.ok-box { background: var(--ok-bg); border: 1px solid var(--ok); }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.brand { color: var(--accent); font-weight: 800; font-size: 20px; text-decoration: none; letter-spacing: .02em; }
+.user { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+.avatar.fallback { display: inline-grid; place-items: center; background: var(--mal); font-weight: 700; }
+main { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+.login h1 { font-size: 44px; color: var(--accent); }
+.mal-mark { background: #fff; color: var(--mal); font-weight: 800; font-size: 12px; padding: 3px 6px; border-radius: 4px; }
+.login .primary { background: var(--mal); border-color: var(--mal); }
+
+.home { display: grid; gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+.hero { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+.hero > div { flex: 1 1 360px; }
+.form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.form-row label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+
+.game-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.legend { display: flex; gap: 6px; align-items: center; }
+.legend .cell { padding: 2px 8px; min-height: 0; }
+
+.guess-input { position: relative; margin-bottom: 16px; }
+.guess-input input { width: 100%; font-size: 17px; padding: 13px 16px; }
+.suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 4px); list-style: none; margin: 0; padding: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); z-index: 10; box-shadow: 0 10px 30px rgb(0 0 0 / .45); }
+.suggestions button { width: 100%; justify-content: space-between; background: transparent; border-color: transparent; text-align: left; }
+.suggestions button.active { background: var(--panel-2); border-color: var(--border); }
+.suggestions .none { padding: 10px; }
+
+.guesses { display: grid; gap: 10px; }
+.guess { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; }
+.guess.correct { border-color: var(--ok); }
+.guess-title { font-weight: 700; margin-bottom: 8px; }
+.cells { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.cell { border-radius: 8px; padding: 6px 8px; min-height: 52px; display: grid; align-content: start; gap: 2px; border: 1px solid transparent; }
+.cell.list { grid-column: span 3; }
+.cell.ok { background: var(--ok-bg); border-color: var(--ok); }
+.cell.partial { background: var(--partial-bg); border-color: var(--partial); }
+.cell.bad { background: var(--bad-bg); border-color: var(--bad); }
+.cell.unknown { background: var(--panel-2); border-color: var(--border); }
+.cell-label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.cell-value { font-weight: 600; }
+.arrow { font-size: 17px; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: rgb(0 0 0 / .25); border: 1px solid var(--border); }
+.chip.hit { border-color: var(--ok); color: #9df0bf; }
+
+.result { display: flex; gap: 18px; align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.result.win { border-color: var(--ok); }
+.result.lose { border-color: var(--bad); }
+.result img { width: 120px; border-radius: 8px; }
+.result .score { font-size: 22px; font-weight: 800; color: var(--accent); margin: 6px 0 10px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .result { flex-direction: column; align-items: flex-start; }
+}
