@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { POOL_LABELS, POOL_NEEDS_MAL, POOLS, TOP_GENRES, type Pool } from '../shared/catalog';
+import { DIFFICULTY_LABELS, MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, type Difficulty, type Pool } from '../shared/catalog';
 import { Anidle } from './Anidle';
-import { api, errorMessage, type Account, type PuzzleState } from './api';
+import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type UnlimitedOptions } from './api';
 import { AuthPage } from './AuthPage';
 
 type Route = { view: 'home' } | { view: 'daily' } | { view: 'play'; id: string } | { view: 'auth' };
@@ -91,9 +91,22 @@ function AccountMenu({ account, onLogout }: { account: Account; onLogout: () => 
   );
 }
 
+/** Difficulty choices for unlimited, keyed for the <select>. */
+const DIFFICULTY_CHOICES: Record<string, { label: string; value: Difficulty[] }> = {
+  all: { label: 'Semua difficulty', value: [] },
+  'easy+medium': { label: 'Easy + Medium (seperti harian)', value: ['easy', 'medium'] },
+  easy: { label: DIFFICULTY_LABELS.easy, value: ['easy'] },
+  medium: { label: DIFFICULTY_LABELS.medium, value: ['medium'] },
+  hard: { label: DIFFICULTY_LABELS.hard, value: ['hard'] },
+};
+const choiceKey = (value: Difficulty[] = []) =>
+  Object.keys(DIFFICULTY_CHOICES).find((k) => DIFFICULTY_CHOICES[k]!.value.join() === [...value].sort().join()) ?? 'all';
+
 function Home({ account, onAccount, initialNotice }: { account: Account | null; onAccount: (a: Account | null) => void; initialNotice: Notice }) {
-  const [pool, setPool] = useState<Pool>('semua');
-  const [genreId, setGenreId] = useState<number | ''>('');
+  const [saved] = useState(savedUnlimited.load);
+  const [pool, setPool] = useState<Pool>(saved && (POOLS as readonly string[]).includes(saved.pool) ? saved.pool : 'semua');
+  const [genreId, setGenreId] = useState<number | ''>(saved?.genreId ?? '');
+  const [difficulty, setDifficulty] = useState(choiceKey(saved?.difficulties));
   const [busy, setBusy] = useState<'unlimited' | 'sync' | 'unlink' | null>(null);
   const [message, setMessage] = useState<Notice>(initialNotice);
   const hasMal = Boolean(account?.mal);
@@ -113,7 +126,9 @@ function Home({ account, onAccount, initialNotice }: { account: Account | null; 
 
   const startUnlimited = () =>
     act('unlimited', async () => {
-      const puzzle = await api.unlimited(pool, pool === 'top' && genreId !== '' ? genreId : undefined);
+      const options: UnlimitedOptions = { pool, genreId: genreId === '' ? undefined : genreId, difficulties: DIFFICULTY_CHOICES[difficulty]!.value };
+      const puzzle = await api.unlimited(options);
+      savedUnlimited.save(options);
       go(`#/play/${puzzle.id}`);
     });
 
@@ -139,7 +154,7 @@ function Home({ account, onAccount, initialNotice }: { account: Account | null; 
       <section className="card hero">
         <div>
           <h2>Anidle harian</h2>
-          <p className="muted">Satu anime untuk semua orang, ganti tiap 00:00 WIB. Setiap tebakan memberi petunjuk tahun, skor, studio, genre, theme, dan demographic.</p>
+          <p className="muted">Satu anime untuk semua orang, ganti tiap 00:00 WIB, selalu judul easy atau medium. Setiap tebakan memberi petunjuk tahun, skor, studio, genre, theme, dan demographic.</p>
         </div>
         <a className="button primary big" href="#/daily">
           Main hari ini
@@ -161,19 +176,27 @@ function Home({ account, onAccount, initialNotice }: { account: Account | null; 
               ))}
             </select>
           </label>
-          {pool === 'top' && (
-            <label>
-              Genre
-              <select value={genreId} onChange={(e) => setGenreId(e.target.value === '' ? '' : Number(e.target.value))}>
-                <option value="">Semua genre</option>
-                {TOP_GENRES.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <label>
+            Genre
+            <select value={genreId} onChange={(e) => setGenreId(e.target.value === '' ? '' : Number(e.target.value))}>
+              <option value="">Semua genre</option>
+              {MAIN_GENRES.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Difficulty
+            <select value={difficulty} onChange={(e) => setDifficulty(e.target.value)}>
+              {Object.entries(DIFFICULTY_CHOICES).map(([key, c]) => (
+                <option key={key} value={key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <button className="primary" disabled={busy !== null || poolLocked} onClick={startUnlimited}>
             {busy === 'unlimited' ? 'Membuat…' : 'Mulai'}
           </button>
@@ -241,5 +264,6 @@ function PuzzleLoader({ id }: { id?: string }) {
       </div>
     );
   if (!puzzle) return <div className="center muted">Memuat puzzle…</div>;
-  return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={() => api.unlimited(puzzle.pool).then((p) => go(`#/play/${p.id}`))} />;
+  const newUnlimited = () => api.unlimited(savedUnlimited.load() ?? { pool: puzzle.pool }).then((p) => go(`#/play/${p.id}`));
+  return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
 }

@@ -1,6 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { anidleScore, compareAnidle, type AnidleAnime, type AnidleFeedback } from '../shared/anidle.js';
-import { ANIDLE_MAX_GUESSES, POOL_NEEDS_MAL, POOLS, type GenreType, type Pool } from '../shared/catalog.js';
+import {
+  ANIDLE_MAX_GUESSES,
+  DAILY_DIFFICULTIES,
+  DIFFICULTIES,
+  difficultyOf,
+  EASY_MIN_MEMBERS,
+  MEDIUM_MIN_MEMBERS,
+  POOL_NEEDS_MAL,
+  POOLS,
+  type Difficulty,
+  type GenreType,
+  type Pool,
+} from '../shared/catalog.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
@@ -17,34 +29,55 @@ export interface PoolSpec {
   members: string[];
   /** The player's linked MAL username, for `saya`. */
   malUsername: string | null;
+  /** Any MAL genre id (genre, theme, demographic); applies to every pool. */
   genreId?: number;
+  /** Empty = every difficulty. */
+  difficulties: readonly Difficulty[];
 }
 
-/** SQL condition (on alias `a`) selecting the titles of a pool. Excluded titles never qualify. */
-function poolWhere({ pool, members, malUsername, genreId }: PoolSpec): { sql: string; args: Array<string | number> } {
-  const base = 'a.excluded IS NULL AND ';
+const DIFFICULTY_SQL: Record<Difficulty, string> = {
+  easy: `a.members >= ${EASY_MIN_MEMBERS}`,
+  medium: `a.members >= ${MEDIUM_MIN_MEMBERS} AND a.members < ${EASY_MIN_MEMBERS}`,
+  hard: `(a.members < ${MEDIUM_MIN_MEMBERS} OR a.members IS NULL)`,
+};
+
+/** Which titles a pool contains, before filters. */
+function poolSource({ pool, members, malUsername }: PoolSpec): { sql: string; args: Array<string | number> } {
   const marks = members.map(() => '?').join(',');
   const byFriend = members.length ? `EXISTS (SELECT 1 FROM completed c WHERE c.mal_id = a.mal_id AND c.username IN (${marks}))` : '0';
-  const inTop = (genre?: number) => `EXISTS (SELECT 1 FROM top_genre t WHERE t.mal_id = a.mal_id${genre ? ' AND t.genre_id = ?' : ''})`;
+  const popular = 'EXISTS (SELECT 1 FROM popular p WHERE p.mal_id = a.mal_id)';
   switch (pool) {
     case 'semua':
-      return { sql: `${base}(${byFriend} OR ${inTop()})`, args: members };
+      return { sql: `(${byFriend} OR ${popular})`, args: members };
     case 'teman':
-      return { sql: base + byFriend, args: members };
+      return { sql: byFriend, args: members };
     case 'bareng':
       // Completed by every member that has a list at all.
       if (!members.length) return { sql: '0', args: [] };
       return {
-        sql: `${base}${byFriend} AND (SELECT COUNT(DISTINCT c.username) FROM completed c WHERE c.mal_id = a.mal_id AND c.username IN (${marks}))
+        sql: `${byFriend} AND (SELECT COUNT(DISTINCT c.username) FROM completed c WHERE c.mal_id = a.mal_id AND c.username IN (${marks}))
               = (SELECT COUNT(DISTINCT username) FROM completed WHERE username IN (${marks}))`,
         args: [...members, ...members, ...members],
       };
     case 'saya':
       if (!malUsername) return { sql: '0', args: [] };
-      return { sql: `${base}EXISTS (SELECT 1 FROM completed c WHERE c.mal_id = a.mal_id AND c.username = ?)`, args: [malUsername] };
-    case 'top':
-      return { sql: base + inTop(genreId), args: genreId ? [genreId] : [] };
+      return { sql: 'EXISTS (SELECT 1 FROM completed c WHERE c.mal_id = a.mal_id AND c.username = ?)', args: [malUsername] };
+    case 'populer':
+      return { sql: popular, args: [] };
   }
+}
+
+/** SQL condition (on alias `a`) selecting the titles of a pool with its filters. Excluded titles never qualify. */
+function poolWhere(spec: PoolSpec): { sql: string; args: Array<string | number> } {
+  const source = poolSource(spec);
+  const parts = ['a.excluded IS NULL', source.sql];
+  const args = [...source.args];
+  if (spec.genreId) {
+    parts.push('EXISTS (SELECT 1 FROM anime_genre g WHERE g.mal_id = a.mal_id AND g.genre_id = ?)');
+    args.push(spec.genreId);
+  }
+  if (spec.difficulties.length) parts.push(`(${spec.difficulties.map((d) => `(${DIFFICULTY_SQL[d]})`).join(' OR ')})`);
+  return { sql: parts.join(' AND '), args };
 }
 
 export function parsePool(value: unknown): Pool {
@@ -52,10 +85,17 @@ export function parsePool(value: unknown): Pool {
   throw new HttpError(400, `Pool tidak dikenal: ${String(value)}`);
 }
 
+export function parseDifficulties(value: unknown): Difficulty[] {
+  if (value == null || value === '') return [];
+  const list = Array.isArray(value) ? value : [value];
+  for (const d of list) if (!(DIFFICULTIES as readonly unknown[]).includes(d)) throw new HttpError(400, `Difficulty tidak dikenal: ${String(d)}`);
+  return list as Difficulty[];
+}
+
 /** Pool spec for a player; completed-list pools need a linked MAL account. */
-export function poolSpec(pool: Pool, account: Account | null, genreId?: number): PoolSpec {
+export function poolSpec(pool: Pool, account: Account | null, filters: { genreId?: number; difficulties?: readonly Difficulty[] } = {}): PoolSpec {
   if (POOL_NEEDS_MAL[pool] && !account?.malUsername) throw new HttpError(403, 'Pool ini butuh akun MAL yang terhubung. Masuk lalu hubungkan akun MAL dulu.');
-  return { pool, members: poolUsers(), malUsername: account?.malUsername ?? null, genreId };
+  return { pool, members: poolUsers(), malUsername: account?.malUsername ?? null, genreId: filters.genreId, difficulties: filters.difficulties ?? [] };
 }
 
 export async function poolIds(spec: PoolSpec): Promise<number[]> {
@@ -92,20 +132,23 @@ interface AnimeRow {
   studios: string;
   franchise_id: number | null;
   cover_src: string | null;
+  members: number | null;
 }
 
-export async function loadAnidle(ids: number[]): Promise<Map<number, AnidleAnime & { cover: string | null }>> {
+type LoadedAnime = AnidleAnime & { cover: string | null; members: number | null };
+
+export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime>> {
   if (!ids.length) return new Map();
   const marks = ids.map(() => '?').join(',');
   const rows = await all<AnimeRow>(
-    `SELECT mal_id, title, media_type, year, season, num_episodes, score, source, studios, franchise_id, cover_src FROM anime WHERE mal_id IN (${marks})`,
+    `SELECT mal_id, title, media_type, year, season, num_episodes, score, source, studios, franchise_id, cover_src, members FROM anime WHERE mal_id IN (${marks})`,
     ids,
   );
   const genreRows = await all<{ mal_id: number; name: string; type: GenreType }>(
     `SELECT ag.mal_id, g.name, g.type FROM anime_genre ag JOIN genre g ON g.id = ag.genre_id WHERE ag.mal_id IN (${marks}) ORDER BY g.name`,
     ids,
   );
-  const out = new Map<number, AnidleAnime & { cover: string | null }>();
+  const out = new Map<number, LoadedAnime>();
   for (const r of rows) {
     out.set(Number(r.mal_id), {
       malId: Number(r.mal_id),
@@ -122,6 +165,7 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, AnidleAnime
       demographics: [],
       franchiseId: r.franchise_id == null ? null : Number(r.franchise_id),
       cover: r.cover_src,
+      members: r.members == null ? null : Number(r.members),
     });
   }
   for (const g of genreRows) {
@@ -155,7 +199,7 @@ export async function dailyPuzzle(mode: Mode): Promise<PuzzleRow> {
   const existing = await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]);
   if (existing) return existing;
 
-  const ids = await poolIds(poolSpec('semua', null));
+  const ids = await poolIds(poolSpec('semua', null, { difficulties: DAILY_DIFFICULTIES }));
   if (!ids.length) throw new HttpError(503, 'Pool masih kosong. Jalankan pipeline dulu.');
   const recent = new Set(
     (await all<{ answer_id: number }>('SELECT answer_id FROM puzzle WHERE mode = ? AND date IS NOT NULL ORDER BY date DESC LIMIT ?', [mode, RECENT_DAYS_WITHOUT_REPEAT])).map((r) =>
@@ -217,7 +261,7 @@ export interface PuzzleState {
   finished: boolean;
   score: number | null;
   /** Only once finished: the answer is never sent before that. */
-  answer: { malId: number; title: string; cover: string | null; year: number | null } | null;
+  answer: { malId: number; title: string; cover: string | null; year: number | null; members: number | null; difficulty: Difficulty } | null;
 }
 
 /** `playerKey` is play.username: 'u:<account id>' or 'a:<anonymous id>'. */
@@ -243,7 +287,9 @@ export async function puzzleState(puzzle: PuzzleRow, playerKey: string): Promise
     solved,
     finished,
     score: play?.score ?? null,
-    answer: finished ? { malId: answer.malId, title: answer.title, cover: answer.cover, year: answer.year } : null,
+    answer: finished
+      ? { malId: answer.malId, title: answer.title, cover: answer.cover, year: answer.year, members: answer.members, difficulty: difficultyOf(answer.members) }
+      : null,
   };
 }
 

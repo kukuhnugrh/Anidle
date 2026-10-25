@@ -1,5 +1,5 @@
 import type { AnidleFeedback } from '../shared/anidle';
-import type { Pool } from '../shared/catalog';
+import type { Difficulty, Pool } from '../shared/catalog';
 import type { TitleEntry } from '../shared/normalize';
 
 export interface MalLink {
@@ -24,8 +24,32 @@ export interface PuzzleState {
   solved: boolean;
   finished: boolean;
   score: number | null;
-  answer: { malId: number; title: string; cover: string | null; year: number | null } | null;
+  answer: { malId: number; title: string; cover: string | null; year: number | null; members: number | null; difficulty: Difficulty } | null;
 }
+
+export interface UnlimitedOptions {
+  pool: Pool;
+  genreId?: number;
+  /** Empty = every difficulty. */
+  difficulties?: Difficulty[];
+}
+
+const UNLIMITED_KEY = 'anidle:unlimited';
+
+/** Last unlimited settings, so "Main unlimited" after a game keeps the same pool and filters. */
+export const savedUnlimited = {
+  load(): UnlimitedOptions | null {
+    try {
+      const raw = localStorage.getItem(UNLIMITED_KEY);
+      return raw ? (JSON.parse(raw) as UnlimitedOptions) : null;
+    } catch {
+      return null;
+    }
+  },
+  save(options: UnlimitedOptions) {
+    localStorage.setItem(UNLIMITED_KEY, JSON.stringify(options));
+  },
+};
 
 export interface SyncResult {
   completed: number;
@@ -68,6 +92,6 @@ export const api = {
   titles: () => call<TitleEntry[]>('/api/titles'),
   daily: () => call<PuzzleState>('/api/puzzle?mode=anidle'),
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
-  unlimited: (pool: Pool, genreId?: number) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: { mode: 'anidle', pool, genreId } }),
+  unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: { mode: 'anidle', ...options } }),
   guess: (puzzleId: string, malId: number) => call<PuzzleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
 };

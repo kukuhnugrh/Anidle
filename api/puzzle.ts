@@ -1,5 +1,5 @@
 import { viewer } from '../server/accounts.js';
-import { dailyPuzzle, getPuzzle, MODES, parsePool, poolSpec, puzzleState, unlimitedPuzzle, type Mode } from '../server/game.js';
+import { dailyPuzzle, getPuzzle, MODES, parseDifficulties, parsePool, poolSpec, puzzleState, unlimitedPuzzle, type Mode } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
 
 function parseMode(value: unknown): Mode {
@@ -16,13 +16,13 @@ export const GET = route(async (req) => {
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);
 });
 
-/** New unlimited puzzle: { mode, pool, genreId? }. Completed-list pools need a linked MAL account. */
+/** New unlimited puzzle: { mode, pool, genreId?, difficulties? }. Completed-list pools need a linked MAL account. */
 export const POST = route(async (req) => {
   const me = await viewer(req);
-  const body = await readJson<{ mode?: unknown; pool?: unknown; genreId?: unknown }>(req);
+  const body = await readJson<{ mode?: unknown; pool?: unknown; genreId?: unknown; difficulties?: unknown }>(req);
   const genreId = body.genreId == null || body.genreId === '' ? undefined : Number(body.genreId);
   if (genreId !== undefined && !Number.isInteger(genreId)) throw new HttpError(400, 'genreId harus angka.');
-  const spec = poolSpec(parsePool(body.pool ?? 'semua'), me.account, genreId);
+  const spec = poolSpec(parsePool(body.pool ?? 'semua'), me.account, { genreId, difficulties: parseDifficulties(body.difficulties) });
   const puzzle = await unlimitedPuzzle(parseMode(body.mode ?? 'anidle'), spec, me.key);
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);
 });

@@ -1,21 +1,19 @@
 import './env.js';
-import { exclusionReason, TOP_GENRES, TOP_MIN_MEMBERS, TOP_PER_GENRE } from '../shared/catalog.js';
+import { EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason, MEDIUM_MIN_MEMBERS, POPULAR_MIN_MEMBERS } from '../shared/catalog.js';
 import { franchiseIds } from '../shared/franchise.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { poolUsers } from '../server/env.js';
-import { animeDetail, MalError } from '../server/mal.js';
+import { animeDetail, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { Limiter } from './limiter.js';
 import { migrate } from './migrate.js';
-import { animeGenres, topByGenre, type JikanSearchEntry } from './sources/jikanEdge.js';
+import { animeGenres } from './sources/jikanEdge.js';
 
 // MAL publishes no limit; ~3 req/s has been fine and is gentle.
 const malLimiter = new Limiter('mal', [{ ms: 1000, max: 3 }]);
 
 const REFRESH_AFTER_DAYS = 30;
-const MAX_TOP_PAGES = 10;
-// jikan-edge search `type` values that correspond to EXCLUDED_MEDIA_TYPES.
-const JIKAN_EXCLUDED_TYPES: Record<string, true> = { Music: true, CM: true, PV: true };
+const RANKING_PAGE = 500;
 
 const log = (...args: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...args);
 
@@ -53,32 +51,33 @@ async function stepCompleted() {
   }
 }
 
-function keepForTop(e: JikanSearchEntry): boolean {
-  return (e.members ?? 0) >= TOP_MIN_MEMBERS && !(e.type && JIKAN_EXCLUDED_TYPES[e.type]);
+interface RankingPage {
+  data: Array<{ node: { id: number; num_list_users?: number; media_type?: string }; ranking: { rank: number } }>;
+  paging?: { next?: string };
 }
 
-async function stepTop() {
-  for (const genre of TOP_GENRES) {
-    const picked: number[] = [];
-    const seen = new Set<number>();
-    for (let page = 1; page <= MAX_TOP_PAGES && picked.length < TOP_PER_GENRE; page++) {
-      const { entries, hasNextPage } = await topByGenre(genre.id, page);
-      for (const e of entries) {
-        if (picked.length >= TOP_PER_GENRE || seen.has(e.malId)) continue;
-        seen.add(e.malId);
-        if (keepForTop(e)) picked.push(e.malId);
-      }
-      if (!hasNextPage) break;
-    }
-    await db().batch(
-      [
-        { sql: 'DELETE FROM top_genre WHERE genre_id = ?', args: [genre.id] },
-        ...picked.map((malId, i) => ({ sql: 'INSERT INTO top_genre (genre_id, mal_id, rank) VALUES (?, ?, ?)', args: [genre.id, malId, i + 1] })),
-      ],
-      'write',
+/** MAL's popularity ranking (by members), down to POPULAR_MIN_MEMBERS. Replaces the whole `popular` table. */
+async function stepPopular() {
+  const picked: Array<{ id: number; rank: number }> = [];
+  for (let offset = 0; ; offset += RANKING_PAGE) {
+    const page = await malLimiter.schedule(() =>
+      malGet<RankingPage>('/anime/ranking', { ranking_type: 'bypopularity', limit: RANKING_PAGE, offset, fields: 'num_list_users,media_type' }),
     );
-    log(`top: ${genre.name} → ${picked.length}`);
+    for (const { node, ranking } of page.data) {
+      if ((node.num_list_users ?? 0) >= POPULAR_MIN_MEMBERS && !(node.media_type && EXCLUDED_MEDIA_TYPES[node.media_type])) {
+        picked.push({ id: node.id, rank: ranking.rank });
+      }
+    }
+    if ((page.data.at(-1)?.node.num_list_users ?? 0) < POPULAR_MIN_MEMBERS || !page.paging?.next) break;
   }
+  await db().batch(
+    [
+      { sql: 'DELETE FROM popular', args: [] },
+      ...picked.map((p) => ({ sql: 'INSERT OR IGNORE INTO popular (mal_id, rank) VALUES (?, ?)', args: [p.id, p.rank] })),
+    ],
+    'write',
+  );
+  log(`popular: ${picked.length} judul dengan ≥ ${POPULAR_MIN_MEMBERS.toLocaleString('id-ID')} member`);
 }
 
 /** Every title that is in some pool and has no fresh anime row. */
@@ -86,7 +85,7 @@ async function idsToEnrich(refreshAll: boolean): Promise<number[]> {
   const cutoff = new Date(Date.now() - REFRESH_AFTER_DAYS * 86_400_000).toISOString();
   const rows = await all<{ mal_id: number }>(
     `SELECT p.mal_id FROM (
-       SELECT mal_id FROM completed UNION SELECT mal_id FROM top_genre UNION SELECT mal_id FROM enrich_queue
+       SELECT mal_id FROM completed UNION SELECT mal_id FROM popular UNION SELECT mal_id FROM enrich_queue
      ) p LEFT JOIN anime a ON a.mal_id = p.mal_id
      WHERE ? OR a.mal_id IS NULL OR a.fetched_at < ?
      ORDER BY p.mal_id`,
@@ -107,7 +106,7 @@ async function enrichOne(id: number): Promise<'ok' | 'excluded' | 'gone'> {
     throw err;
   }
   const genres = d.genres ?? [];
-  const excluded = exclusionReason(d.media_type ?? null, genres.map((g) => g.id));
+  const excluded = exclusionReason(d.media_type ?? null, genres.map((g) => g.id), d.status ?? null);
   const alt = d.alternative_titles ?? {};
   await db().batch(
     [
@@ -194,21 +193,25 @@ async function stepFranchise() {
 }
 
 async function report() {
-  const [row] = await all<Record<string, number>>(`SELECT
+  const [row] = await all<Record<string, number>>(
+    `SELECT
       (SELECT COUNT(*) FROM anime) AS anime,
       (SELECT COUNT(*) FROM anime WHERE excluded IS NOT NULL) AS excluded,
       (SELECT COUNT(DISTINCT mal_id) FROM completed) AS completed_titles,
       (SELECT COUNT(DISTINCT username) FROM completed) AS players,
-      (SELECT COUNT(DISTINCT mal_id) FROM top_genre) AS top_titles,
-      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND (
-         EXISTS (SELECT 1 FROM completed c WHERE c.mal_id = a.mal_id) OR EXISTS (SELECT 1 FROM top_genre t WHERE t.mal_id = a.mal_id))) AS pool_semua,
-      (SELECT COUNT(*) FROM enrich_queue) AS queue`);
+      (SELECT COUNT(*) FROM popular) AS popular_titles,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND a.members >= ?) AS easy,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND a.members >= ? AND a.members < ?) AS medium,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND (a.members < ? OR a.members IS NULL)) AS hard,
+      (SELECT COUNT(*) FROM enrich_queue) AS queue`,
+    [EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS, EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS],
+  );
   log('ringkasan:', row);
 }
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'top', 'enrich', 'franchise'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -228,7 +231,7 @@ const started = Date.now();
 for (const step of steps) {
   if (step === 'genres') await stepGenres();
   if (step === 'completed') await stepCompleted();
-  if (step === 'top') await stepTop();
+  if (step === 'popular') await stepPopular();
   if (step === 'enrich') await stepEnrich(flag('refresh'), limit);
   if (step === 'franchise') await stepFranchise();
 }

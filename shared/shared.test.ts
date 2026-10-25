@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, summarizeAnidle, type AnidleAnime } from './anidle';
-import { exclusionReason } from './catalog';
+import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
 import { indexTitles, normalizeTitle, searchTitles } from './normalize';
 
@@ -65,6 +65,17 @@ describe('anidleScore', () => {
     expect(anidleScore(true, 4)).toBe(700);
     expect(anidleScore(true, 10)).toBe(100);
     expect(anidleScore(false, 10)).toBe(0);
+  });
+});
+
+describe('difficultyOf', () => {
+  it('buckets by MAL members, with unknown counted as hard', () => {
+    expect(difficultyOf(2_000_000)).toBe('easy');
+    expect(difficultyOf(500_000)).toBe('easy');
+    expect(difficultyOf(499_999)).toBe('medium');
+    expect(difficultyOf(200_000)).toBe('medium');
+    expect(difficultyOf(199_999)).toBe('hard');
+    expect(difficultyOf(null)).toBe('hard');
   });
 });
 
@@ -139,5 +150,7 @@ describe('exclusionReason', () => {
     expect(exclusionReason('music', [1])).toBe('media_type:music');
     expect(exclusionReason('ova', [12])).toBe('genre:12');
     expect(exclusionReason(null, [])).toBe('media_type:none');
+    expect(exclusionReason('tv', [1], 'not_yet_aired')).toBe('status:not_yet_aired');
+    expect(exclusionReason('tv', [1], 'currently_airing')).toBeNull();
   });
 });

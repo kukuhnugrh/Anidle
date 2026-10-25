@@ -61,13 +61,11 @@ CREATE TABLE IF NOT EXISTS completed (
 );
 CREATE INDEX IF NOT EXISTS completed_mal_id ON completed (mal_id);
 
-CREATE TABLE IF NOT EXISTS top_genre (
-  genre_id  INTEGER NOT NULL,
-  mal_id    INTEGER NOT NULL,
-  rank      INTEGER NOT NULL,
-  PRIMARY KEY (genre_id, mal_id)
+-- MAL popularity ranking down to POPULAR_MIN_MEMBERS (shared/catalog.ts): the "populer" pool.
+CREATE TABLE IF NOT EXISTS popular (
+  mal_id  INTEGER PRIMARY KEY,
+  rank    INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS top_genre_mal_id ON top_genre (mal_id);
 
 -- Titles that entered a pool (e.g. through /api/sync) but have no anime row yet.
 CREATE TABLE IF NOT EXISTS enrich_queue (
@@ -105,3 +103,10 @@ CREATE TABLE IF NOT EXISTS account (
   mal_username   TEXT UNIQUE COLLATE NOCASE,    -- player.username once linked
   created_at     TEXT NOT NULL
 );
+
+-- Replaced by `popular` (Oct 2026). Old unlimited puzzles keep working under the new pool name.
+DROP TABLE IF EXISTS top_genre;
+UPDATE puzzle SET pool = 'populer' WHERE pool = 'top';
+
+-- Backfill for rows enriched before unaired titles were excluded (shared/catalog.ts exclusionReason).
+UPDATE anime SET excluded = 'status:not_yet_aired' WHERE status = 'not_yet_aired' AND excluded IS NULL;

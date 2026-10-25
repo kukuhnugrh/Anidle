@@ -107,6 +107,11 @@ a { color: var(--accent-hi); }
 .chip.hit { border-color: var(--ok); color: #9df0bf; }
 .chip.miss { border-color: var(--bad); color: #ffb3b9; text-decoration: line-through; opacity: .85; }
 .chip.range { border-color: var(--partial); color: #f3d27a; }
+.answer-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.difficulty { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 1px 8px; border-radius: 999px; border: 1px solid; }
+.difficulty.easy { color: #9df0bf; border-color: var(--ok); }
+.difficulty.medium { color: #f3d27a; border-color: var(--partial); }
+.difficulty.hard { color: #ffb3b9; border-color: var(--bad); }
 
 .summary { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px; }
 .summary-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }

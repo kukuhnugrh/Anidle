@@ -1,6 +1,6 @@
 # Anidle
 
-Game tebak anime harian untuk saya dan teman-teman. Pool berisi anime *completed* dari list MAL pemain dan top 100 per genre. Rencana lengkap: [PLAN.md](PLAN.md).
+Game tebak anime harian untuk saya dan teman-teman. Pool berisi anime *completed* dari list MAL pemain dan anime populer di MAL (≥ 50 rb member), masing-masing dengan difficulty easy/medium/hard. Rencana lengkap: [PLAN.md](PLAN.md).
 
 Status: **M1 (pipeline data) dan M2 (mode Anidle) selesai.** Live di https://anidle.velvetaco.dev. Belum ada media (M3).
 
@@ -8,7 +8,7 @@ Status: **M1 (pipeline data) dan M2 (mode Anidle) selesai.** Live di https://ani
 
 - **Tanpa akun**: langsung main. Progres disimpan di browser lewat cookie anonim `anidle_anon`.
 - **Akun Anidle** (username + password, hash scrypt): progres ikut ke semua perangkat. Saat daftar/masuk, progres anonim di browser itu dipindah ke akun.
-- **Hubungkan MAL** (opsional, butuh akun): membuka pool dari list completed (`teman`, `bareng`, `saya`). Lewat OAuth MAL, jadi list private ikut terbaca. Puzzle harian, pool `semua`, dan `top` terbuka untuk semua orang.
+- **Hubungkan MAL** (opsional, butuh akun): membuka pool dari list completed (`teman`, `bareng`, `saya`). Lewat OAuth MAL, jadi list private ikut terbaca. Puzzle harian, pool `semua`, dan `populer` terbuka untuk semua orang.
 - Pool bersama (harian, `semua`, `teman`, `bareng`) hanya memakai list `POOL_USERS`. Akun lain yang menghubungkan MAL hanya dapat pool `saya` miliknya, jadi orang asing tidak bisa mengubah puzzle harian.
 
 ## Jalan lokal
@@ -38,18 +38,19 @@ npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, la
 | --- | --- |
 | `genres` | 78 genre/explicit genre/theme/demographic dari jikan-edge |
 | `completed` | List completed setiap `POOL_USERS` dan setiap akun yang menghubungkan MAL. Pakai token MAL-nya kalau ada (list private ikut), kalau tidak lewat Client ID (list publik saja) |
-| `top` | Top 100 per 18 genre utama dari jikan-edge, urut skor, `members ≥ 30.000`, tanpa Music/CM/PV |
-| `enrich` | Detail MAL untuk judul baru / lebih tua dari 30 hari: judul alternatif, cover, tahun, skor, source, studio, genre, relasi. Hentai/Erotica dan music/CM/PV ditandai `excluded` |
+| `popular` | Ranking popularitas resmi MAL (`ranking_type=bypopularity`) sampai `members ≥ 50.000`, tanpa Music/CM/PV |
+| `enrich` | Detail MAL untuk judul baru / lebih tua dari 30 hari: judul alternatif, cover, tahun, skor, jumlah member, source, studio, genre, relasi. Hentai/Erotica, music/CM/PV, dan judul yang belum tayang ditandai `excluded` (judul belum tayang masuk lagi setelah tayang, pada enrich berikutnya) |
 | `franchise` | Kelompok prequel/sequel (mis. semua season Shingeki no Kyojin satu franchise) |
 
 Bisa dijalankan ulang kapan saja; tidak membuat duplikat. Rate limit: MAL 3 req/dtk, jikan-edge 25 req/10 dtk dan 50 req/menit, dengan retry untuk timeout/429/5xx.
 
-Hasil run pertama (1 pemain, `Velvetaco`): 621 completed + 1.011 top genre → 1.453 anime, 27 dikecualikan, **pool 1.426 judul**. Avant Garde (34), Gourmet (58), Girls Love (63), dan Boys Love (75) tidak sampai 100 karena ambang 30.000 member.
+Hasil run Okt 2026 (1 pemain, `Velvetaco`): 621 completed + 3.701 populer → 3.842 anime, 78 dikecualikan (49 Hentai/Erotica, 29 belum tayang), **3.764 judul bisa dimainkan**: 537 easy, 888 medium, 2.339 hard. Pool harian (easy + medium) ±1.425 judul.
 
 ## Game
 
-- **Anidle harian**: satu jawaban untuk semua orang per tanggal WIB, dipilih deterministik dari pool `semua` dan tidak mengulang jawaban 60 hari terakhir. Disimpan di DB saat pertama diminta, jadi update pool di tengah hari tidak mengubahnya.
-- **Unlimited**: pool `semua`, `teman`, `bareng`, `saya`, atau `top` (bisa per genre). URL `#/play/<id>` bisa di-reload.
+- **Difficulty** dari jumlah member MAL: **easy** ≥ 500 rb, **medium** 200–500 rb, **hard** < 200 rb (ambang di `shared/catalog.ts`).
+- **Anidle harian**: satu jawaban untuk semua orang per tanggal WIB, dipilih deterministik dari pool `semua` **dengan difficulty easy atau medium saja**, dan tidak mengulang jawaban 60 hari terakhir. Disimpan di DB saat pertama diminta, jadi update pool di tengah hari tidak mengubahnya.
+- **Unlimited**: pool `semua`, `teman`, `bareng`, `saya`, atau `populer`, dengan filter genre (18 genre utama) dan difficulty. Pengaturan terakhir diingat browser. URL `#/play/<id>` bisa di-reload.
 - Setiap tebakan dibandingkan dengan jawaban: tipe, tahun ↑↓, season, episode ↑↓, skor ↑↓, source, studio, genre, theme, demographic (cocok/sebagian/beda). 10 tebakan, skor 1000 − 100 per tebakan tambahan. Satu franchise dianggap benar.
 - Jawaban dicek di server dan baru dikirim ke browser setelah game selesai.
 

@@ -5,7 +5,7 @@ Domain: `https://anidle.velvetaco.dev` · Repo GitHub terpisah dari portofolio �
 
 ## 1. Tujuan & prinsip
 
-1. **Pool anime terbatas**: hanya anime yang ada di list *completed* MAL teman-teman, dan/atau top 100 per genre.
+1. **Pool anime terbatas**: anime di list *completed* MAL teman-teman, dan anime populer di MAL (≥ 50 rb member). Setiap anime punya difficulty dari jumlah member; puzzle harian hanya easy + medium.
 2. **Tidak lemot, tidak gagal fetch**: masalah utama aniguessr. Prinsipnya:
    - Saat main **tidak ada request ke MAL / jikan-edge / AnimeThemes**. Semua data dan media sudah disalin ke database & storage sendiri.
    - Media **divalidasi saat pipeline**. Judul yang medianya rusak tidak masuk pool, jadi tidak ada ronde yang tidak bisa dijawab.
@@ -36,7 +36,7 @@ DNS `velvetaco.dev` sudah di Cloudflare (NS `mckinley`/`agustin.ns.cloudflare.co
 flowchart LR
   subgraph Pipeline["Pipeline (GitHub Actions / PC)"]
     MAL[MAL API v2<br/>list completed + detail] --> P[pool]
-    JE[jikan-edge /v1<br/>top 100 per genre, themes,<br/>demographics, karakter] --> P
+    JE[jikan-edge /v1<br/>genres, themes,<br/>demographics, karakter] --> P
     P --> EN[enrich]
     AT[AnimeThemes API<br/>OP/ED] --> EN
     EN --> MED[media: download → ffmpeg/sharp → validasi]
@@ -66,17 +66,16 @@ Playground `D:\Personal Project\MAL-WebAPI` dipakai untuk uji coba query sebelum
 ## 5. Pool
 
 - **Completed**: per username MAL, ambil semua halaman `animelist?status=completed`. List publik cukup Client ID; list private pakai token MAL akun yang sudah menghubungkannya. Pool bersama hanya dari `POOL_USERS`; akun lain yang menghubungkan MAL hanya mengisi pool `saya` miliknya.
-- **Top 100 per genre**: 18 genre utama jikan-edge (Action 1, Adventure 2, Avant Garde 5, Award Winning 46, Boys Love 28, Comedy 4, Drama 8, Fantasy 10, Girls Love 26, Gourmet 47, Horror 14, Mystery 7, Romance 22, Sci-Fi 24, Slice of Life 36, Sports 30, Supernatural 37, Suspense 41). Ambil 3–4 halaman per genre, buang `members < 30.000`, ambil 100 teratas.
+- **Populer**: ranking popularitas resmi MAL (`GET /v2/anime/ranking?ranking_type=bypopularity`, 500 per halaman) sampai `members < 50.000` (±3.700 judul per Okt 2026). Menggantikan "top 100 per genre" yang terlalu banyak berisi judul obscure.
 - **Filter global**: buang `media_type` `music`, `cm`, `pv`; buang explicit genre Hentai (12) dan Erotica (49). Ecchi tetap boleh.
-- Setiap judul menyimpan asalnya: `completed_by` (daftar username) dan `top_genres`. Dari sini bisa dibuat pilihan pool di mode unlimited:
-  - `semua`: gabungan semua (dipakai puzzle harian),
+- **Difficulty** dari `anime.members`: easy ≥ 500 rb (±540 judul), medium 200–500 rb (±890), hard < 200 rb. Dihitung saat query, jadi ikut berubah setiap enrich memperbarui jumlah member.
+- Pool di mode unlimited (semua bisa difilter genre dan difficulty):
+  - `semua`: completed `POOL_USERS` + populer. Puzzle harian = `semua` dengan difficulty easy + medium,
   - `teman`: completed minimal 1 teman,
   - `bareng`: completed semua teman yang aktif,
   - `saya`: completed akun MAL milik pemain (butuh MAL terhubung; begitu juga `teman` dan `bareng`),
-  - `top-genre`: top 100 per genre, bisa dipilih genrenya.
+  - `populer`: hanya ranking populer MAL.
 - **Franchise**: dihitung dari relasi MAL `prequel`/`sequel` (graph terhubung → `franchise_id`). Dipakai untuk aturan jawaban (lihat §8).
-
-Estimasi: 18 × 100 = ≤1.800 judul (banyak dobel) + list completed teman → ratusan sampai ±2.000 judul.
 
 ## 6. Media
 
@@ -111,7 +110,7 @@ theme_song(id PK, mal_id, kind OP|ED, seq, title, artist, audio_key, status ok|b
 character(id PK, mal_id, name, role, favorites, image_key, status)
 player(username PK, mal_user_id, avatar, allowed, refresh_token_enc, token_expires_at, last_sync_at)
 completed(username, mal_id, finished_at, PK(username, mal_id))
-top_genre(genre_id, mal_id, rank, PK(genre_id, mal_id))
+popular(mal_id PK, rank)                        -- ranking popularitas MAL sampai 50 rb member
 enrich_queue(mal_id PK, reason, added_at)      -- judul baru dari "sync list", diproses pipeline berikutnya
 puzzle(id PK, date NULL, mode, pool, rounds JSON, created_at)   -- UNIQUE(date, mode) untuk harian
 play(id PK, puzzle_id, username, round, guesses JSON, score, finished_at)
@@ -184,9 +183,9 @@ db/                  schema.sql + migrations
 
 | Pertanyaan | Default | Alternatif |
 | --- | --- | --- |
-| "Setiap genre" untuk top 100 | 18 genre utama saja | + themes/demographics (pool jauh lebih besar) |
+| Pool populer | Ranking popularitas MAL sampai `members ≥ 50.000` | Ambang lain |
 | Season 2/3 | Entri MAL terpisah di pool; jawaban satu franchise dianggap benar | Hanya entri persis yang benar |
-| Ambang popularitas top genre | `members ≥ 30.000` | Lebih ketat/longgar |
+| Difficulty | easy ≥ 500 rb, medium 200–500 rb, hard < 200 rb member; harian = easy + medium | Ambang lain |
 | Konten | Tanpa Hentai/Erotica | Ikutkan dengan toggle |
 | Zona waktu puzzle harian | WIB (UTC+7) | UTC |
 | Mode pertama | Anidle (tanpa media), lalu Opening/Ending | Opening dulu |
@@ -196,7 +195,7 @@ db/                  schema.sql + migrations
 | # | Isi | Selesai kalau | Status |
 | --- | --- | --- | --- |
 | M0 | Setup: repo GitHub, project Vercel, domain `anidle.velvetaco.dev`, DB Turso, bucket R2 + `media.velvetaco.dev`, app MAL kedua | `https://anidle.velvetaco.dev/api/health` membalas OK dan bisa query Turso | belum (butuh akun) |
-| M1 | Pipeline data (tanpa media): pool completed + top genre, enrich MAL + jikan-edge, franchise, simpan ke DB lokal lalu Turso. Bisa diulang tanpa duplikat, patuh rate limit | Laporan jumlah judul per sumber; detail beberapa judul cocok dengan MAL | ✓ lokal (pool 1.426 judul) |
+| M1 | Pipeline data (tanpa media): pool completed + populer MAL, difficulty, enrich MAL + jikan-edge, franchise, simpan ke DB lokal lalu Turso. Bisa diulang tanpa duplikat, patuh rate limit | Laporan jumlah judul per sumber; detail beberapa judul cocok dengan MAL | ✓ |
 | M2 | Akun (username + password) + main anonim + hubungkan MAL + sync list, mode **Anidle** harian & unlimited, autocomplete, `/api/guess` | Bisa main tanpa akun; teman bisa daftar, hubungkan MAL, dan main pool completed; progres tersimpan saat reload | ✓ lokal |
 | M3 | Pipeline media (cover, OP1, ED1) → R2, mode **Opening** & **Ending** dengan preload + fallback | Satu game dimulai < 3 dtk setelah preload di koneksi biasa; tidak ada ronde gagal | |
 | M4 | Mode **Karakter** | | |

@@ -21,23 +21,3 @@ export async function animeGenres(): Promise<JikanGenre[]> {
   const res = await jikanLimiter.schedule(() => getJson<{ data: JikanGenre[] }>(`${base()}/v1/genres/anime`));
   return res.data;
 }
-
-export interface JikanSearchEntry {
-  malId: number;
-  title: string;
-  type: string | null;
-  score: number | null;
-  members: number | null;
-}
-
-export interface SearchPage {
-  entries: JikanSearchEntry[];
-  hasNextPage: boolean;
-}
-
-/** One page (50 entries) of anime with a genre, best score first. */
-export async function topByGenre(genreId: number, page: number): Promise<SearchPage> {
-  const url = `${base()}/v1/anime?genres=${genreId}&order_by=score&sort=desc&page=${page}`;
-  const res = await jikanLimiter.schedule(() => getJson<{ data: JikanSearchEntry[]; meta: { pagination?: { hasNextPage?: boolean } } }>(url));
-  return { entries: res.data, hasNextPage: Boolean(res.meta.pagination?.hasNextPage) };
-}

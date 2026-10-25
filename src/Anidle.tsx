@@ -222,7 +222,11 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: PuzzleSta
           <div>
             <div className="muted small">{puzzle.solved ? `Benar dalam ${puzzle.guesses.length} tebakan` : 'Tebakan habis. Jawabannya:'}</div>
             <h3>{puzzle.answer.title}</h3>
-            <div className="muted">{puzzle.answer.year ?? ''}</div>
+            <div className="muted answer-meta">
+              {puzzle.answer.year ?? ''}
+              <span className={`difficulty ${puzzle.answer.difficulty}`}>{puzzle.answer.difficulty}</span>
+              {puzzle.answer.members != null && <span>{puzzle.answer.members.toLocaleString('id-ID')} member</span>}
+            </div>
             <div className="score">{puzzle.score ?? 0} poin</div>
             <div className="actions">
               <a className="button" href={`https://myanimelist.net/anime/${puzzle.answer.malId}`} target="_blank" rel="noreferrer">
