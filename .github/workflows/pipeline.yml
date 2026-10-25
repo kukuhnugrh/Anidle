@@ -1,0 +1,57 @@
+# Weekly data + media update against Turso/R2, so the pool stays fresh without the PC.
+# Secrets (Settings → Secrets and variables → Actions): MAL_CLIENT_ID, MAL_CLIENT_SECRET,
+# TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, TOKEN_ENC_KEY, POOL_USERS, R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+# R2_SECRET_ACCESS_KEY, R2_BUCKET. The run summary lists media counts and new broken media.
+name: pipeline
+
+on:
+  schedule:
+    # Mondays 20:00 UTC = Tuesday 03:00 WIB, far from the 00:00 WIB daily rollover.
+    - cron: '0 20 * * 1'
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: 'Steps (space separated), e.g. "completed enrich". Empty = all.'
+        required: false
+        default: ''
+      flags:
+        description: 'Extra flags, e.g. "--refresh" or "--limit=200".'
+        required: false
+        default: ''
+
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      MAL_CLIENT_ID: ${{ secrets.MAL_CLIENT_ID }}
+      MAL_CLIENT_SECRET: ${{ secrets.MAL_CLIENT_SECRET }}
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+      POOL_USERS: ${{ secrets.POOL_USERS }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      MEDIA_BASE_URL: https://media.velvetaco.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Inputs go through env, never straight into the script, so they cannot inject shell.
+      - name: Run pipeline
+        env:
+          STEPS: ${{ inputs.steps }}
+          FLAGS: ${{ inputs.flags }}
+        run: npm run pipeline -- $STEPS $FLAGS
