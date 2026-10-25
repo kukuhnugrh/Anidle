@@ -6,6 +6,8 @@ import type { Mode } from '../shared/modes';
 import { RoundGame } from './RoundGame';
 import { AuthPage } from './AuthPage';
 import { Database } from './Database';
+import { HistoryPage } from './HistoryPage';
+import { LeaderboardPage } from './Leaderboard';
 import { Home } from './Home';
 import { MenuIcon } from './icons';
 import { go, readRoute } from './route';
@@ -81,6 +83,8 @@ export function App() {
           {route.view === 'unlimited' && <Unlimited account={account} />}
           {route.view === 'database' && <Database />}
           {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
+          {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
+          {route.view === 'history' && <HistoryPage account={account} />}
           {route.view === 'auth' && (
             <AuthPage
               onDone={(a) => {

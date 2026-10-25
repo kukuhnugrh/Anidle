@@ -5,6 +5,7 @@ import { api, errorMessage, type RoundState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
 import { PauseIcon, PlayIcon, SkipIcon } from './icons';
+import { roundShareText, ShareButton } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 
@@ -310,6 +311,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             </p>
           </div>
           <div className="actions">
+            <ShareButton text={roundShareText(puzzle)} />
             <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
               Main {MODE_LABELS[puzzle.mode]} unlimited
             </button>

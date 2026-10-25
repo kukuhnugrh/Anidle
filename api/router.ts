@@ -6,6 +6,8 @@ import * as authLogin from '../routes/auth/login.js';
 import * as authRegister from '../routes/auth/register.js';
 import * as guess from '../routes/guess.js';
 import * as health from '../routes/health.js';
+import * as history from '../routes/history.js';
+import * as leaderboard from '../routes/leaderboard.js';
 import * as logout from '../routes/logout.js';
 import * as malUnlink from '../routes/mal/unlink.js';
 import * as me from '../routes/me.js';
@@ -28,6 +30,8 @@ const ROUTES: Record<string, RouteModule> = {
   'auth/register': authRegister,
   guess,
   health,
+  history,
+  leaderboard,
   logout,
   'mal/unlink': malUnlink,
   me,

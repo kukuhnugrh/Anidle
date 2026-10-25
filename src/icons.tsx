@@ -118,3 +118,24 @@ export const UsersIcon = () => (
     <path d="M15.5 5.3a3.5 3.5 0 0 1 0 6.4M17.5 15.4c2 .7 3.3 2.3 4 4.6" />
   </Icon>
 );
+
+export const TrophyIcon = () => (
+  <Icon>
+    <path d="M7.5 4h9v5a4.5 4.5 0 0 1-9 0z" />
+    <path d="M7.5 6H4.5v1.5A3 3 0 0 0 7.5 10.5M16.5 6h3v1.5a3 3 0 0 1-3 3M12 13.5V17M8.5 20.5h7M9.5 17h5v3.5h-5z" />
+  </Icon>
+);
+
+export const ClockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Icon>
+);
+
+export const ShareIcon = () => (
+  <Icon>
+    <path d="M12 15V3.5M7.5 8 12 3.5 16.5 8" />
+    <path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5" />
+  </Icon>
+);

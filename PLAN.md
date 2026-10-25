@@ -199,7 +199,7 @@ db/                  schema.sql + migrations
 | M2 | Akun (username + password) + main anonim + hubungkan MAL + sync list, mode **Anidle** harian & unlimited, autocomplete, `/api/guess` | Bisa main tanpa akun; teman bisa daftar, hubungkan MAL, dan main pool completed; progres tersimpan saat reload | ✓ lokal |
 | M3 | Pipeline media (cover, OP1, ED1) → R2, mode **Opening** & **Ending** dengan preload + fallback | Satu game dimulai < 3 dtk setelah preload di koneksi biasa; tidak ada ronde gagal | ✓ |
 | M4 | Mode **Karakter** | 4 portrait per judul di R2, 3 ronde, preload + fallback sama dengan Opening/Ending | ✓ |
-| M5 | Leaderboard, riwayat, share skor | | |
+| M5 | Leaderboard, riwayat, share skor | Leaderboard harian per mode + total, statistik + streak per mode, teks share tanpa spoiler | ✓ |
 | M6 | Screenshot dari video OP/ED + halaman admin untuk menandai media jelek | | |
 | M7 | GitHub Actions mingguan, proses `enrich_queue`, laporan media broken | Pipeline jalan otomatis tanpa PC | |
 

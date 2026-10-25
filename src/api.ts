@@ -1,13 +1,14 @@
 import type { AnidleState } from '../server/game';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
+import type { History, Leaderboard } from '../server/stats';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
 import type { TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AnidleState, PuzzleState, RoundState };
+export type { AnidleState, History, Leaderboard, PuzzleState, RoundState };
 
 export interface MalLink {
   username: string;
@@ -96,5 +97,7 @@ export const api = {
     call<RoundState>('/api/guess', { method: 'POST', body: malId == null ? { puzzleId, round, skip: true } : { puzzleId, round, malId } }),
   replaceRound: (puzzleId: string, round: number) => call<RoundState>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
+  leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),
+  history: () => call<History>('/api/history'),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
 };

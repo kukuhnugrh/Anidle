@@ -4,6 +4,7 @@ import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type AnidleState } from './api';
 import { GuessInput } from './GuessInput';
 import { fmtDate, pretty } from './format';
+import { anidleShareText, ShareButton } from './share';
 
 const ARROW: Record<Direction, string> = { equal: '', higher: '↑', lower: '↓', unknown: '' };
 const DIRECTION_HINT: Record<Direction, string> = {
@@ -230,6 +231,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
             </div>
             <div className="score">{puzzle.score ?? 0} poin</div>
             <div className="actions">
+              <ShareButton text={anidleShareText(puzzle)} />
               <a className="button" href={`https://myanimelist.net/anime/${puzzle.answer.malId}`} target="_blank" rel="noreferrer">
                 Buka di MAL ↗
               </a>

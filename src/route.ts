@@ -1,7 +1,7 @@
 import { MODES, type Mode } from '../shared/modes';
 
 export type Route =
-  | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' }
+  | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' }
   | { view: 'daily'; mode: Mode }
   | { view: 'play'; id: string };
 export type View = Route['view'];
@@ -12,6 +12,8 @@ const PATHS: Record<string, Exclude<View, 'play' | 'daily'>> = {
   database: 'database',
   akun: 'account',
   masuk: 'auth',
+  leaderboard: 'leaderboard',
+  riwayat: 'history',
 };
 
 /** Daily puzzle of a mode: `#/daily` is Anidle (the first mode, kept for old links), `#/daily/opening`… */

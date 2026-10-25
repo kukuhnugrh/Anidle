@@ -1,6 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
 import { requireEnv } from '../server/env.js';
-import { UpstreamError } from './limiter.js';
+
+/** R2 refused a request (credentials, bucket). Never the media source's fault. */
+export class R2Error extends Error {}
 
 // Cloudflare R2 speaks the S3 API. The pipeline only puts and deletes single objects, so this signs
 // AWS Signature V4 by hand instead of pulling in the AWS SDK.
@@ -39,7 +41,7 @@ async function send(method: 'PUT' | 'DELETE', key: string, body: Uint8Array<Arra
     body,
     signal: AbortSignal.timeout(60_000),
   });
-  if (!res.ok) throw new UpstreamError(res.status, `R2 ${method} ${key}: ${res.status} ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw new R2Error(`R2 ${method} ${key}: ${res.status} ${(await res.text()).slice(0, 200)}`);
   return res;
 }
 

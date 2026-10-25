@@ -5,7 +5,7 @@ import { CHARACTERS_PER_TITLE, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { Limiter, UpstreamError } from './limiter.js';
 import { putObject } from './r2.js';
-import { firstThemes, type FirstThemes, type ThemeSource } from './sources/animeThemes.js';
+import { firstThemes, type ThemeSource } from './sources/animeThemes.js';
 import { animeCharacters } from './sources/jikanEdge.js';
 
 /** Clips are 30 s from the first sound; anything shorter than this is a broken source. */
@@ -132,6 +132,12 @@ async function save(malId: number, kind: MediaKind, row: { status: MediaRow['sta
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 300);
 
 /**
+ * The source itself is bad (ffmpeg rejects it, output fails validation, or its host answers 4xx), so
+ * the title is marked broken. Anything else (network, R2, database) is transient and only skipped.
+ */
+const isSourceFault = (err: unknown) => err instanceof MediaError || (err instanceof UpstreamError && err.status >= 400 && err.status < 500 && err.status !== 429);
+
+/**
  * Copies cover + first OP + first ED of every playable title to R2, most popular first (so the daily
  * pool is covered before the long tail). Re-runs skip what is already ok; missing/broken sources are
  * retried after RECHECK_DAYS, or always with --refresh.
@@ -161,44 +167,45 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
   // Limiters pace each host; enough workers keep the AnimeThemes API near its 80/min budget.
   const workers = Array.from({ length: 8 }, async () => {
     for (let job = queue.pop(); job; job = queue.pop()) {
-      if (job.cover) {
-        if (!job.coverSrc) await save(job.id, 'cover', { status: 'missing' });
-        else
-          try {
-            await save(job.id, 'cover', { status: 'ok', key: await processImage(job.coverSrc, 'cover', COVER_WIDTH), source: job.coverSrc });
-            count('cover', 'ok');
-          } catch (err) {
-            await save(job.id, 'cover', { status: 'broken', source: job.coverSrc, error: errorText(err) });
-            count('cover', 'broken');
-          }
-      }
-      if (job.themes) {
-        let themes: FirstThemes;
-        try {
-          themes = await firstThemes(job.id);
-        } catch (err) {
-          log(`media: ${job.id} AnimeThemes GAGAL: ${errorText(err)}`);
-          count('op', 'api-error');
-          continue;
+      try {
+        if (job.cover) {
+          if (!job.coverSrc) await save(job.id, 'cover', { status: 'missing' });
+          else
+            try {
+              await save(job.id, 'cover', { status: 'ok', key: await processImage(job.coverSrc, 'cover', COVER_WIDTH), source: job.coverSrc });
+              count('cover', 'ok');
+            } catch (err) {
+              if (!isSourceFault(err)) throw err;
+              await save(job.id, 'cover', { status: 'broken', source: job.coverSrc, error: errorText(err) });
+              count('cover', 'broken');
+            }
         }
-        for (const kind of ['op', 'ed'] as const) {
-          const theme = themes[kind];
-          const prev = byKey.get(`${job.id}:${kind}`);
-          if (!refreshAll && prev?.status === 'ok' && prev.source_url === theme?.audioUrl) continue;
-          if (!theme) {
-            await save(job.id, kind, { status: 'missing' });
-            count(kind, 'missing');
-            continue;
-          }
-          try {
-            await save(job.id, kind, { status: 'ok', key: await processAudio(theme.audioUrl), source: theme.audioUrl, theme });
-            count(kind, 'ok');
-          } catch (err) {
-            await save(job.id, kind, { status: 'broken', source: theme.audioUrl, theme, error: errorText(err) });
-            count(kind, 'broken');
-            log(`media: ${job.id} ${theme.label} rusak: ${errorText(err)}`);
+        if (job.themes) {
+          const themes = await firstThemes(job.id);
+          for (const kind of ['op', 'ed'] as const) {
+            const theme = themes[kind];
+            const prev = byKey.get(`${job.id}:${kind}`);
+            if (!refreshAll && prev?.status === 'ok' && prev.source_url === theme?.audioUrl) continue;
+            if (!theme) {
+              await save(job.id, kind, { status: 'missing' });
+              count(kind, 'missing');
+              continue;
+            }
+            try {
+              await save(job.id, kind, { status: 'ok', key: await processAudio(theme.audioUrl), source: theme.audioUrl, theme });
+              count(kind, 'ok');
+            } catch (err) {
+              if (!isSourceFault(err)) throw err;
+              await save(job.id, kind, { status: 'broken', source: theme.audioUrl, theme, error: errorText(err) });
+              count(kind, 'broken');
+              log(`media: ${job.id} ${theme.label} rusak: ${errorText(err)}`);
+            }
           }
         }
+      } catch (err) {
+        // Network, R2 or database trouble: nothing is marked, so the next run tries this title again.
+        counts.skipped = (counts.skipped ?? 0) + 1;
+        log(`media: ${job.id} dilewati (${errorText(err)})`);
       }
       if (++done % 25 === 0) log(`media: ${done}/${jobs.length}`, counts);
     }
@@ -230,7 +237,7 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
     .reverse();
   const total = queue.length;
   log(`characters: ${total} judul`);
-  const counts = { ok: 0, missing: 0, broken: 0, failed: 0 };
+  const counts = { ok: 0, missing: 0, broken: 0, skipped: 0 };
   let done = 0;
   // jikan-edge allows 50 requests a minute; portraits come from MAL's CDN in parallel.
   const workers = Array.from({ length: 4 }, async () => {
@@ -260,13 +267,15 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
             await save(id, 'chars', { status: 'ok' });
             counts.ok++;
           } catch (err) {
+            if (!isSourceFault(err)) throw err;
             await save(id, 'chars', { status: 'broken', error: errorText(err) });
             counts.broken++;
           }
         }
       } catch (err) {
-        counts.failed++;
-        log(`characters: ${id} GAGAL: ${errorText(err)}`);
+        // Network, R2 or database trouble: nothing is marked, so the next run tries this title again.
+        counts.skipped++;
+        log(`characters: ${id} dilewati (${errorText(err)})`);
       }
       if (++done % 50 === 0) log(`characters: ${done}/${total}`, counts);
     }

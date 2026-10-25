@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Account } from './api';
-import { CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UsersIcon } from './icons';
+import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode. */
@@ -20,6 +20,13 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
     items: [
       { id: 'unlimited', href: '#/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
       { id: 'database', href: '#/database', label: 'Database', Icon: DatabaseIcon },
+    ],
+  },
+  {
+    title: 'Komunitas',
+    items: [
+      { id: 'leaderboard', href: '#/leaderboard', label: 'Leaderboard', Icon: TrophyIcon },
+      { id: 'history', href: '#/riwayat', label: 'Riwayat', Icon: ClockIcon },
     ],
   },
 ];

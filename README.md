@@ -2,7 +2,7 @@
 
 Game tebak anime harian untuk saya dan teman-teman. Pool berisi anime *completed* dari list MAL pemain dan anime populer di MAL (≥ 50 rb member), masing-masing dengan difficulty easy/medium/hard. Rencana lengkap: [PLAN.md](PLAN.md).
 
-Status: **M1–M4 selesai**: pipeline data, mode Anidle, media di R2 + mode Opening/Ending, mode Karakter. Live di https://anidle.velvetaco.dev.
+Status: **M1–M5 selesai**: pipeline data, mode Anidle, media di R2 + mode Opening/Ending, mode Karakter, leaderboard + riwayat + share. Live di https://anidle.velvetaco.dev.
 
 ## Akun
 
@@ -56,6 +56,7 @@ Hasil run Okt 2026 (1 pemain, `Velvetaco`): 621 completed + 3.701 populer → 3.
 - **Anidle**: setiap tebakan dibandingkan dengan jawaban: tipe, tahun ↑↓, season, episode ↑↓, skor ↑↓, source, studio, genre, theme, demographic (cocok/sebagian/beda). 10 tebakan, skor 1000 − 100 per tebakan tambahan.
 - **Opening / Ending / Karakter** (mode ronde): 3 ronde dari franchise berbeda, hanya judul yang medianya `ok` di R2. Opening/Ending: klip terbuka 1 → 3 → 6 → 12 → 30 dtk. Karakter: 4 portrait dibuka satu per satu, karakter paling terkenal terakhir; nama karakter baru muncul setelah ronde selesai. Tiap tebakan salah atau "lewati" membuka tahap berikutnya; benar di percobaan pertama = 500 poin, lalu turun rata per tahap (Opening/Ending 500/400/300/200/100, Karakter 500/375/250/125). Semua media di-preload sebelum ronde pertama; kalau satu ronde gagal dimuat ada "Coba lagi", dan di puzzle unlimited milik sendiri ronde yang belum ditebak bisa diganti (`POST /api/puzzle/replace`).
 - Satu franchise dianggap benar. Jawaban dicek di server dan baru dikirim ke browser setelah game (atau ronde) selesai. Cover jawaban diambil dari R2 kalau sudah disalin, kalau belum dari CDN MAL.
+- **Leaderboard** (`#/leaderboard`, `GET /api/leaderboard?date=`): skor puzzle harian per tanggal WIB, per mode dan total, hanya akun (pemain anonim tidak punya nama). **Riwayat** (`#/riwayat`, `GET /api/history`): per mode jumlah main, persentase tertebak/sempurna, streak harian, rata-rata dan skor terbaik, plus 60 puzzle terakhir (bisa dibuka lagi). **Bagikan hasil**: teks tanpa spoiler ala Wordle (warna per kolom petunjuk / per percobaan ronde), lewat share sheet HP atau clipboard.
 
 ## Database
 
