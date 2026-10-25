@@ -1,7 +1,7 @@
-import { DIFFICULTIES, type Difficulty } from '../shared/catalog.js';
-import { DB_MAX_GENRES, DB_SORTS, type DbSort } from '../shared/database.js';
-import { listAnime } from '../server/database.js';
-import { HttpError, json, route } from '../server/http.js';
+import { DIFFICULTIES, type Difficulty } from '../../shared/catalog.js';
+import { DB_MAX_GENRES, DB_SORTS, type DbSort } from '../../shared/database.js';
+import { listAnime } from '../../server/database.js';
+import { HttpError, json, route } from '../../server/http.js';
 
 const text = (value: string | null, max = 100) => {
   const v = value?.trim();

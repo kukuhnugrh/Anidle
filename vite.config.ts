@@ -31,8 +31,10 @@ function devApi(root: string): Plugin {
           res.setHeader('content-type', 'application/json; charset=utf-8');
           res.end(JSON.stringify(body));
         };
-        const file = path.join(root, `${url.pathname.slice(1)}.ts`);
-        if (!existsSync(file)) return send(404, { error: `No function for ${url.pathname}` });
+        // Same lookup as Vercel: api/foo.ts, then api/foo/index.ts.
+        const base = path.join(root, url.pathname.slice(1));
+        const file = [`${base}.ts`, path.join(base, 'index.ts')].find((f) => existsSync(f));
+        if (!file) return send(404, { error: `No function for ${url.pathname}` });
         try {
           const mod = await server.ssrLoadModule(file);
           const method = req.method ?? 'GET';
