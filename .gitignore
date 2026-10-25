@@ -1,11 +1,36 @@
+# Dependencies & build output
 node_modules/
 dist/
+*.tsbuildinfo
+
+# Local data: SQLite database, pipeline media working files (M3)
 data/
-.vitest/
+media-cache/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Secrets: never commit. .env.example is the template.
 .env
 .env.*
 !.env.example
+.mal-token.json
+
+# Tooling
 .vercel/
+.turbo/
+.vitest/
+coverage/
+
+# Logs
 *.log
+npm-debug.log*
+
+# Editor & OS
+.vscode/
+.idea/
+*.swp
 .DS_Store
 Thumbs.db
+desktop.ini
