@@ -1,10 +1,10 @@
-import { isThemeMode } from '../shared/modes.js';
+import { isRoundMode } from '../shared/modes.js';
 import { anidleState, type AnidleState, type PuzzleRow } from './game.js';
-import { themeState, type ThemeState } from './themes.js';
+import { roundState, type RoundState } from './rounds.js';
 
-export type PuzzleState = AnidleState | ThemeState;
+export type PuzzleState = AnidleState | RoundState;
 
 /** The player's view of any puzzle, by mode. */
 export function puzzleState(puzzle: PuzzleRow, playerKey: string): Promise<PuzzleState> {
-  return isThemeMode(puzzle.mode) ? themeState(puzzle, puzzle.mode, playerKey) : anidleState(puzzle, playerKey);
+  return isRoundMode(puzzle.mode) ? roundState(puzzle, puzzle.mode, playerKey) : anidleState(puzzle, playerKey);
 }

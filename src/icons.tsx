@@ -110,3 +110,11 @@ export const SkipIcon = () => (
     <path d="M5.5 6l8 6-8 6zM17.5 6v12" />
   </Icon>
 );
+
+export const UsersIcon = () => (
+  <Icon>
+    <circle cx="9" cy="8.5" r="3.5" />
+    <path d="M2.5 20c1.2-3.2 3.6-5 6.5-5s5.3 1.8 6.5 5" />
+    <path d="M15.5 5.3a3.5 3.5 0 0 1 0 6.4M17.5 15.4c2 .7 3.3 2.3 4 4.6" />
+  </Icon>
+);

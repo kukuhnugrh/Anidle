@@ -186,7 +186,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 }
 .countdown { font-size: 34px; font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 
-.daily-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.daily-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .mode-card {
   position: relative; display: grid; gap: 6px; align-content: start; padding: 20px; border-radius: var(--radius); color: var(--fg);
   background: linear-gradient(180deg, rgb(124 58 237 / .1), transparent 60%), var(--surface); border: 1px solid var(--accent-line);
@@ -228,7 +228,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .option.selected { background: var(--accent-soft); border-color: var(--accent-2); box-shadow: inset 0 0 0 1px var(--accent-2); }
 .lock { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); border: 1px solid var(--border-strong); border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
 .segmented { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 12px; }
-.segmented.modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.segmented.modes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .segmented button { display: grid; gap: 0; padding: 8px 6px; background: transparent; border-color: transparent; text-align: center; }
 .segmented button span { font-size: 11px; font-weight: 500; color: var(--faint); }
 .segmented button.selected { background: linear-gradient(135deg, var(--accent-2), var(--accent-deep)); border-color: rgb(167 139 250 / .35); box-shadow: var(--glow); }
@@ -326,8 +326,17 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .result h3 { font-size: 22px; margin: 2px 0 6px; }
 .result .score { font-size: 26px; font-weight: 800; margin: 8px 0 14px; background: linear-gradient(90deg, #c4b5fd, #8b5cf6); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
-/* ------------------------------------------------------------------ song modes */
-.theme-game { display: grid; gap: 16px; }
+/* ------------------------------------------------------------------ round modes (Opening, Ending, Karakter) */
+.round-game { display: grid; gap: 16px; }
+.portraits { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.portrait { margin: 0; display: grid; gap: 6px; }
+.portrait img, .portrait-lock { width: 100%; aspect-ratio: 225 / 350; border-radius: 12px; object-fit: cover; display: block; }
+.portrait img { animation: rise .3s ease-out; box-shadow: 0 14px 30px -16px rgb(0 0 0 / .9); }
+.portrait-lock {
+  display: grid; place-items: center; font-size: 28px; font-weight: 800; color: var(--faint);
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 10px, var(--surface) 10px 20px); border: 1px dashed var(--border-strong);
+}
+.portrait figcaption { font-size: 12.5px; font-weight: 600; text-align: center; color: var(--muted); }
 .round-tabs { display: flex; gap: 6px; }
 .round-tab { display: grid; gap: 0; min-width: 84px; padding: 6px 12px; background: var(--surface); text-align: center; }
 .round-tab span { font-size: 11px; font-weight: 600; color: var(--muted); }
@@ -402,6 +411,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 /* ------------------------------------------------------------------ responsive */
 @media (max-width: 1100px) {
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .daily-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
@@ -434,9 +444,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
   .card { padding: 18px; }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .segmented button:first-child { grid-column: span 2; }
-  .segmented.modes { grid-template-columns: 1fr; }
+  .segmented.modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .segmented.modes button:first-child { grid-column: auto; }
   .daily-grid { grid-template-columns: 1fr; }
+  .portraits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .round-tabs { width: 100%; }
   .round-tab { flex: 1; min-width: 0; }
   .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }

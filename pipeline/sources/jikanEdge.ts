@@ -21,3 +21,17 @@ export async function animeGenres(): Promise<JikanGenre[]> {
   const res = await jikanLimiter.schedule(() => getJson<{ data: JikanGenre[] }>(`${base()}/v1/genres/anime`));
   return res.data;
 }
+
+export interface JikanCharacter {
+  malId: number;
+  name: string;
+  imageUrl: string | null;
+  /** Main | Supporting */
+  role: string | null;
+  favorites: number | null;
+}
+
+export async function animeCharacters(malId: number): Promise<JikanCharacter[]> {
+  const res = await jikanLimiter.schedule(() => getJson<{ data?: JikanCharacter[] } | JikanCharacter[]>(`${base()}/v1/anime/${malId}/characters`));
+  return Array.isArray(res) ? res : (res.data ?? []);
+}

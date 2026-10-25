@@ -3,7 +3,7 @@ import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
 import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } from './api';
 import type { Mode } from '../shared/modes';
-import { ThemeGame } from './ThemeGame';
+import { RoundGame } from './RoundGame';
 import { AuthPage } from './AuthPage';
 import { Database } from './Database';
 import { Home } from './Home';
@@ -125,6 +125,6 @@ function PuzzleLoader(props: { daily: Mode } | { id: string }) {
   return puzzle.mode === 'anidle' ? (
     <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
   ) : (
-    <ThemeGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
+    <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
   );
 }

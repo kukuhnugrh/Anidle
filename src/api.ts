@@ -1,13 +1,13 @@
 import type { AnidleState } from '../server/game';
 import type { PuzzleState } from '../server/puzzles';
-import type { ThemeState } from '../server/themes';
+import type { RoundState } from '../server/rounds';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
 import type { TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AnidleState, PuzzleState, ThemeState };
+export type { AnidleState, PuzzleState, RoundState };
 
 export interface MalLink {
   username: string;
@@ -37,7 +37,7 @@ export const savedUnlimited = {
     try {
       const raw = localStorage.getItem(UNLIMITED_KEY);
       const saved = raw ? (JSON.parse(raw) as Partial<UnlimitedOptions>) : null;
-      // Settings saved before song modes existed have no mode.
+      // Settings saved before round modes existed have no mode.
       return saved?.pool ? { ...saved, mode: saved.mode ?? 'anidle', pool: saved.pool } : null;
     } catch {
       return null;
@@ -91,10 +91,10 @@ export const api = {
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
   guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
-  /** `malId` null = skip to the next clip stage. */
-  themeGuess: (puzzleId: string, round: number, malId: number | null) =>
-    call<ThemeState>('/api/guess', { method: 'POST', body: malId == null ? { puzzleId, round, skip: true } : { puzzleId, round, malId } }),
-  replaceRound: (puzzleId: string, round: number) => call<ThemeState>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
+  /** `malId` null = skip to the next stage. */
+  roundGuess: (puzzleId: string, round: number, malId: number | null) =>
+    call<RoundState>('/api/guess', { method: 'POST', body: malId == null ? { puzzleId, round, skip: true } : { puzzleId, round, malId } }),
+  replaceRound: (puzzleId: string, round: number) => call<RoundState>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
 };

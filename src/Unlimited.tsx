@@ -5,7 +5,7 @@ import { api, errorMessage, savedUnlimited, type Account, type UnlimitedOptions 
 import { ArrowIcon } from './icons';
 import { go } from './route';
 
-const MODE_HINTS: Record<Mode, string> = { anidle: 'tebak dari petunjuk', opening: '3 ronde lagu opening', ending: '3 ronde lagu ending' };
+const MODE_HINTS: Record<Mode, string> = { anidle: 'tebak dari petunjuk', opening: '3 ronde lagu opening', ending: '3 ronde lagu ending', character: '3 ronde, 4 karakter' };
 
 const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: Difficulty[] }> = {
   all: { label: 'Semua', hint: 'semua judul', value: [] },

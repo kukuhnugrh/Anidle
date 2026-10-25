@@ -2,7 +2,7 @@ import { useEffect, useState, type ComponentType } from 'react';
 import { MODES, MODE_LABELS, todayWib, WIB_OFFSET_MS, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
 import { fmtDate } from './format';
-import { ArrowIcon, DatabaseIcon, DiscIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon } from './icons';
+import { ArrowIcon, DatabaseIcon, DiscIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
 import { dailyHref } from './route';
 
 const DAY_MS = 86_400_000;
@@ -24,9 +24,10 @@ const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
   anidle: { Icon: PuzzleIcon, text: 'Tebak dari petunjuk tahun, skor, studio, genre, theme, dan demographic. 10 tebakan.' },
   opening: { Icon: MusicIcon, text: '3 ronde opening. Potongan lagu makin panjang tiap tebakan salah: 1, 3, 6, 12, 30 detik.' },
   ending: { Icon: DiscIcon, text: '3 ronde ending, aturan sama dengan Opening. Biasanya lebih susah.' },
+  character: { Icon: UsersIcon, text: '3 ronde, tiap ronde 4 karakter dibuka satu per satu. Yang paling terkenal muncul terakhir.' },
 };
 
-/** A daily puzzle that could not load (e.g. the song pool is still empty). */
+/** A daily puzzle that could not load (e.g. the mode's pool is still empty). */
 type DailyResult = PuzzleState | 'unavailable' | null;
 
 function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean } {
@@ -44,7 +45,7 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
 }
 
 export function Home({ account }: { account: Account | null }) {
-  const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null });
+  const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null });
   useEffect(() => {
     for (const mode of MODES)
       api.daily(mode).then(
@@ -59,7 +60,7 @@ export function Home({ account }: { account: Account | null }) {
         <div className="hero-body">
           <span className="eyebrow">Puzzle harian · {fmtDate(todayWib())}</span>
           <h1>Tebak anime hari ini</h1>
-          <p>Tiga mode, satu set puzzle yang sama untuk semua orang. Puzzle harian selalu judul easy atau medium, jadi aman buat pemanasan.</p>
+          <p>Empat mode, satu set puzzle yang sama untuk semua orang. Puzzle harian selalu judul easy atau medium, jadi aman buat pemanasan.</p>
         </div>
         <div className="hero-clock">
           <span className="eyebrow">Puzzle baru dalam</span>

@@ -1,58 +1,89 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS, ROUND_POINTS } from '../shared/modes';
-import { api, errorMessage, type ThemeState } from './api';
+import { MAX_ROUND_POINTS, MODE_LABELS, roundPoints, type RoundMode } from '../shared/modes';
+import { api, errorMessage, type RoundState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
 import { PauseIcon, PlayIcon, SkipIcon } from './icons';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 
-/** Gives up on a clip that has not become playable in this long (the file is ~360 KB). */
+/** Gives up on a round whose media has not become usable in this long (a clip is ~360 KB, a portrait ~25 KB). */
 const PRELOAD_TIMEOUT_MS = 20_000;
 
+const INTRO: Record<RoundMode, string> = {
+  opening: 'Tebak anime dari opening-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.',
+  ending: 'Tebak anime dari ending-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.',
+  character: 'Tebak anime dari karakternya. Tebakan salah atau lewati membuka karakter berikutnya; yang paling terkenal muncul terakhir.',
+};
+
+const isAudio = (mode: RoundMode) => mode !== 'character';
+
 /**
- * One <audio> per round, loaded up front so a round never waits on the network. A round whose URL
- * changes (replaced after an error) is loaded again; the others keep their element.
+ * Loads every round's media up front so a round never waits on the network: one <audio> per round
+ * for song modes, decoded images for Karakter. A round whose URLs change (replaced after an error)
+ * loads again; the others keep what they have.
  */
-function useClips(urls: string[]) {
+function useRoundMedia(mode: RoundMode, media: string[][]) {
   const clips = useRef<HTMLAudioElement[]>([]);
-  const [status, setStatus] = useState<LoadStatus[]>(() => urls.map(() => 'loading'));
+  const loadedKey = useRef<string[]>([]);
+  const [status, setStatus] = useState<LoadStatus[]>(() => media.map(() => 'loading'));
 
-  const load = useCallback((i: number, url: string) => {
-    clips.current[i]?.pause();
-    const audio = new Audio();
-    audio.preload = 'auto';
-    clips.current[i] = audio;
-    setStatus((s) => s.with(i, 'loading'));
-    const settle = (result: LoadStatus) => {
-      clearTimeout(timer);
-      audio.oncanplaythrough = audio.onerror = null;
-      if (clips.current[i] === audio) setStatus((s) => s.with(i, result));
-    };
-    const timer = setTimeout(() => settle('error'), PRELOAD_TIMEOUT_MS);
-    audio.oncanplaythrough = () => settle('ready');
-    audio.onerror = () => settle('error');
-    audio.src = url;
-    audio.load();
-  }, []);
+  const load = useCallback(
+    (i: number, urls: string[]) => {
+      loadedKey.current[i] = urls.join('|');
+      setStatus((s) => s.with(i, 'loading'));
+      const settle = (result: LoadStatus) => {
+        clearTimeout(timer);
+        if (loadedKey.current[i] === urls.join('|')) setStatus((s) => s.with(i, result));
+      };
+      const timer = setTimeout(() => settle('error'), PRELOAD_TIMEOUT_MS);
+      let ready: Promise<unknown>;
+      if (isAudio(mode)) {
+        clips.current[i]?.pause();
+        const audio = new Audio();
+        audio.preload = 'auto';
+        clips.current[i] = audio;
+        const { promise, resolve, reject } = Promise.withResolvers<void>();
+        audio.oncanplaythrough = () => resolve();
+        audio.onerror = () => reject(new Error('audio'));
+        audio.src = urls[0]!;
+        audio.load();
+        ready = promise;
+      } else {
+        ready = Promise.all(
+          urls.map((url) => {
+            const img = new Image();
+            img.src = url;
+            return img.decode();
+          }),
+        );
+      }
+      ready.then(
+        () => settle('ready'),
+        () => settle('error'),
+      );
+    },
+    [mode],
+  );
 
-  // `key` is the content of `urls`, so the effect runs when a URL changes, not on every new array.
-  const key = urls.join('|');
+  // `key` is the content of `media`, so the effect runs when a URL changes, not on every new array.
+  const key = media.map((m) => m.join('|')).join('||');
   useEffect(() => {
-    urls.forEach((url, i) => {
-      if (clips.current[i]?.src !== url) load(i, url);
+    media.forEach((urls, i) => {
+      if (loadedKey.current[i] !== urls.join('|')) load(i, urls);
     });
   }, [key, load]);
   useEffect(() => () => clips.current.forEach((a) => a.pause()), []);
 
-  return { clips, status, retry: (i: number) => load(i, urls[i]!) };
+  return { clips, status, retry: (i: number) => load(i, media[i]!) };
 }
 
-function ClipPlayer({ audio, seconds, stages, total }: { audio: HTMLAudioElement | undefined; seconds: number; stages: readonly number[]; total: number }) {
+function ClipPlayer({ audio, seconds, stages }: { audio: HTMLAudioElement | undefined; seconds: number; stages: readonly number[] }) {
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(false);
   const frame = useRef(0);
+  const total = stages.at(-1)!;
 
   const stop = useCallback(() => {
     cancelAnimationFrame(frame.current);
@@ -107,22 +138,36 @@ function ClipPlayer({ audio, seconds, stages, total }: { audio: HTMLAudioElement
   );
 }
 
-export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeState; onChange: (p: ThemeState) => void; onNewUnlimited: () => Promise<void> }) {
-  const urls = useMemo(() => puzzle.rounds.map((r) => r.audio), [puzzle.rounds]);
-  const { clips, status, retry } = useClips(urls);
+function Portraits({ urls, shown, names }: { urls: string[]; shown: number; names: string[] | null }) {
+  return (
+    <div className="portraits">
+      {urls.map((url, i) => (
+        <figure key={url} className={`portrait${i < shown ? ' open' : ''}`}>
+          {i < shown ? <img src={url} alt="" /> : <span className="portrait-lock">{i + 1}</span>}
+          {names && <figcaption>{names[i]}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundState; onChange: (p: RoundState) => void; onNewUnlimited: () => Promise<void> }) {
+  const media = useMemo(() => puzzle.rounds.map((r) => r.media), [puzzle.rounds]);
+  const { clips, status, retry } = useRoundMedia(puzzle.mode, media);
   const [view, setView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loaded = status.filter((s) => s !== 'loading').length;
-  const allSettled = loaded === status.length;
+  const settled = status.filter((s) => s !== 'loading').length;
   const round = puzzle.rounds[view]!;
   const isCurrent = view === puzzle.current;
-  const unlocked = round.finished ? puzzle.clipStages.at(-1)! : puzzle.clipStages[round.attempts.length]!;
-  const nextStage = puzzle.clipStages[round.attempts.length + 1];
+  const stages = puzzle.stages;
+  const unlocked = round.finished ? stages.at(-1)! : stages[round.attempts.length]!;
+  const next = stages[round.attempts.length + 1];
   const exclude = useMemo(() => new Set(round.attempts.flatMap((a) => (a ? [a.malId] : []))), [round.attempts]);
+  const audio = isAudio(puzzle.mode);
 
-  const send = async (task: () => Promise<ThemeState>) => {
+  const send = async (task: () => Promise<RoundState>) => {
     setSending(true);
     setError(null);
     try {
@@ -134,30 +179,28 @@ export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeS
     }
   };
 
-  const replace = () => send(() => api.replaceRound(puzzle.id, view));
-
-  if (!allSettled && !puzzle.finished)
+  if (settled < status.length && !puzzle.finished)
     return (
       <div className="center">
         <div className="preload">
           <span className="eyebrow">Menyiapkan {MODE_LABELS[puzzle.mode]}</span>
           <div className="preload-bar">
-            <span style={{ width: `${(loaded / status.length) * 100}%` }} />
+            <span style={{ width: `${(settled / status.length) * 100}%` }} />
           </div>
           <span className="muted small">
-            Memuat audio {loaded}/{status.length}
+            Memuat ronde {settled}/{status.length}
           </span>
         </div>
       </div>
     );
 
   return (
-    <div className="theme-game">
+    <div className="round-game">
       <header className="page-head game-head">
         <div>
           <span className="eyebrow">{puzzle.date ? `Harian · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
-          <p className="muted small">Tebak anime dari {puzzle.mode === 'opening' ? 'opening' : 'ending'}-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.</p>
+          <p className="muted small">{INTRO[puzzle.mode]}</p>
         </div>
         <div className="round-tabs" role="tablist">
           {puzzle.rounds.map((r, i) => (
@@ -178,11 +221,11 @@ export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeS
 
       {status[view] === 'error' ? (
         <div className="card load-error">
-          <p>Audio ronde ini gagal dimuat.</p>
+          <p>Media ronde ini gagal dimuat.</p>
           <div className="actions">
             <button onClick={() => retry(view)}>Coba lagi</button>
             {puzzle.canReplace && !round.attempts.length && !round.finished && (
-              <button className="primary" disabled={sending} onClick={replace}>
+              <button className="primary" disabled={sending} onClick={() => send(() => api.replaceRound(puzzle.id, view))}>
                 Ganti dengan judul lain
               </button>
             )}
@@ -190,17 +233,21 @@ export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeS
         </div>
       ) : (
         <section className="card stage-card">
-          <ClipPlayer audio={status[view] === 'ready' ? clips.current[view] : undefined} seconds={unlocked} stages={puzzle.clipStages} total={puzzle.clipStages.at(-1)!} />
+          {audio ? (
+            <ClipPlayer audio={status[view] === 'ready' ? clips.current[view] : undefined} seconds={unlocked} stages={stages} />
+          ) : (
+            <Portraits urls={round.media} shown={unlocked} names={round.answer ? round.answer.characters.map((c) => c.name) : null} />
+          )}
           {!round.finished && isCurrent && (
             <div className="stage-controls">
-              <GuessInput exclude={exclude} disabled={sending} onPick={(malId) => send(() => api.themeGuess(puzzle.id, view, malId))} />
+              <GuessInput exclude={exclude} disabled={sending} onPick={(malId) => send(() => api.roundGuess(puzzle.id, view, malId))} />
               <div className="stage-actions">
                 <span className="muted small">
-                  Percobaan {round.attempts.length + 1}/{puzzle.clipStages.length} · benar sekarang = {ROUND_POINTS[round.attempts.length]} poin
+                  Percobaan {round.attempts.length + 1}/{stages.length} · benar sekarang = {roundPoints(round.attempts.length, stages.length)} poin
                 </span>
-                <button className="ghost" disabled={sending} onClick={() => send(() => api.themeGuess(puzzle.id, view, null))}>
+                <button className="ghost" disabled={sending} onClick={() => send(() => api.roundGuess(puzzle.id, view, null))}>
                   <SkipIcon />
-                  {nextStage ? `Lewati (+${nextStage - unlocked} dtk)` : 'Menyerah'}
+                  {next === undefined ? 'Menyerah' : audio ? `Lewati (+${next - unlocked} dtk)` : 'Lewati (+1 karakter)'}
                 </button>
               </div>
             </div>
@@ -216,9 +263,9 @@ export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeS
           <div>
             <div className="muted small">{round.solved ? `Benar di percobaan ${round.attempts.length}` : 'Jawabannya:'}</div>
             <h3>{round.answer.title}</h3>
-            <div className="song">
-              {[round.answer.song.label, round.answer.song.title && `“${round.answer.song.title}”`, round.answer.song.artist].filter(Boolean).join(' · ')}
-            </div>
+            {round.answer.song && (
+              <div className="song">{[round.answer.song.label, round.answer.song.title && `“${round.answer.song.title}”`, round.answer.song.artist].filter(Boolean).join(' · ')}</div>
+            )}
             <div className="muted answer-meta">
               {round.answer.year ?? ''}
               <span className={`difficulty ${round.answer.difficulty}`}>{round.answer.difficulty}</span>
@@ -244,7 +291,7 @@ export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeS
             const correct = round.solved && i === round.attempts.length - 1;
             return (
               <li key={i} className={correct ? 'ok' : a ? 'bad' : 'skip'}>
-                <span className="attempt-stage">{puzzle.clipStages[i]} dtk</span>
+                <span className="attempt-stage">{audio ? `${stages[i]} dtk` : `${stages[i]} karakter`}</span>
                 <span>{a ? a.title : 'Dilewati'}</span>
                 <span className="attempt-mark">{correct ? '✓' : a ? '✗' : '→'}</span>
               </li>
@@ -259,7 +306,7 @@ export function ThemeGame({ puzzle, onChange, onNewUnlimited }: { puzzle: ThemeS
             <span className="eyebrow">Selesai</span>
             <h2>{puzzle.score ?? 0} poin</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} dari {puzzle.rounds.length} ronde benar · maksimal {ROUND_POINTS[0]! * puzzle.rounds.length} poin
+              {puzzle.rounds.filter((r) => r.solved).length} dari {puzzle.rounds.length} ronde benar · maksimal {MAX_ROUND_POINTS * puzzle.rounds.length} poin
             </p>
           </div>
           <div className="actions">

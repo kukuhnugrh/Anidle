@@ -1,4 +1,4 @@
-// Game modes and the rules of the multi-round song modes (PLAN.md §8).
+// Game modes and the rules of the multi-round modes (PLAN.md §8).
 
 /** Daily puzzles roll over at 00:00 WIB (UTC+7). */
 export const WIB_OFFSET_MS = 7 * 3_600_000;
@@ -8,25 +8,35 @@ export function todayWib(now = Date.now()): string {
   return new Date(now + WIB_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export const MODES = ['anidle', 'opening', 'ending'] as const;
+export const MODES = ['anidle', 'opening', 'ending', 'character'] as const;
 export type Mode = (typeof MODES)[number];
-export type ThemeMode = Exclude<Mode, 'anidle'>;
+/** Modes played as ROUND_COUNT rounds, each revealing more media per attempt. */
+export type RoundMode = Exclude<Mode, 'anidle'>;
 
-export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending' };
+export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Karakter' };
 
-/** The media kind (anime_media.kind) a song mode plays. */
-export const THEME_MEDIA: Record<ThemeMode, 'op' | 'ed'> = { opening: 'op', ending: 'ed' };
+/** anime_media.kind: what the pipeline copied to R2 for a title. */
+export type MediaKind = 'cover' | 'op' | 'ed' | 'chars';
 
-export const isThemeMode = (mode: Mode): mode is ThemeMode => mode !== 'anidle';
+export const isRoundMode = (mode: Mode): mode is RoundMode => mode !== 'anidle';
 
-export const THEME_ROUNDS = 3;
+export const ROUND_COUNT = 3;
 
-/** Seconds of the clip unlocked per attempt: each wrong guess or skip opens the next stage. */
-export const CLIP_STAGES: readonly number[] = [1, 3, 6, 12, 30];
+/**
+ * Per round mode: the media a title needs, and what each attempt unlocks. Song modes unlock seconds
+ * of the clip; Karakter unlocks portraits (slot 0 first, the most popular character last).
+ */
+export const ROUND_MODES: Record<RoundMode, { media: Exclude<MediaKind, 'cover'>; stages: readonly number[] }> = {
+  opening: { media: 'op', stages: [1, 3, 6, 12, 30] },
+  ending: { media: 'ed', stages: [1, 3, 6, 12, 30] },
+  character: { media: 'chars', stages: [1, 2, 3, 4] },
+};
 
-/** Points for a round solved on attempt `index` (0-based); a round that runs out of attempts scores 0. */
-export const ROUND_POINTS: readonly number[] = [500, 400, 300, 200, 100];
+export const CHARACTERS_PER_TITLE = 4;
 
-export function roundPoints(solvedAt: number | null): number {
-  return solvedAt == null ? 0 : (ROUND_POINTS[solvedAt] ?? 0);
+export const MAX_ROUND_POINTS = 500;
+
+/** Points for a round solved on attempt `solvedAt` (0-based) out of `stages`; unsolved = 0. 5 stages: 500/400/300/200/100. */
+export function roundPoints(solvedAt: number | null, stages: number): number {
+  return solvedAt == null || solvedAt >= stages ? 0 : Math.round((MAX_ROUND_POINTS * (stages - solvedAt)) / stages);
 }

@@ -6,7 +6,7 @@ import { poolUsers } from '../server/env.js';
 import { animeDetail, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { Limiter } from './limiter.js';
-import { stepMedia } from './media.js';
+import { stepCharacters, stepMedia } from './media.js';
 import { migrate } from './migrate.js';
 import { animeGenres } from './sources/jikanEdge.js';
 
@@ -208,6 +208,7 @@ async function report() {
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'cover' AND status = 'ok') AS cover_ok,
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'op' AND status = 'ok') AS op_ok,
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'ed' AND status = 'ok') AS ed_ok,
+      (SELECT COUNT(*) FROM anime_media WHERE kind = 'chars' AND status = 'ok') AS chars_ok,
       (SELECT COUNT(*) FROM anime_media WHERE status = 'broken') AS media_broken`,
     [EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS, EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS],
   );
@@ -216,7 +217,7 @@ async function report() {
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media', 'characters'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -240,6 +241,7 @@ for (const step of steps) {
   if (step === 'enrich') await stepEnrich(flag('refresh'), limit);
   if (step === 'franchise') await stepFranchise();
   if (step === 'media') await stepMedia(flag('refresh'), limit);
+  if (step === 'characters') await stepCharacters(flag('refresh'), limit);
 }
 await report();
 log(`selesai dalam ${Math.round((Date.now() - started) / 1000)} dtk`);

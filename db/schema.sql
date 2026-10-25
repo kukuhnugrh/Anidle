@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS puzzle_round (
 -- only use titles whose row is ok.
 CREATE TABLE IF NOT EXISTS anime_media (
   mal_id      INTEGER NOT NULL,
-  kind        TEXT NOT NULL,   -- cover | op | ed
+  kind        TEXT NOT NULL,   -- cover | op | ed | chars (portraits in anime_character)
   status      TEXT NOT NULL,   -- ok | missing (no source) | broken (source failed processing/validation)
   r2_key      TEXT,            -- object key under MEDIA_BASE_URL, content-hashed
   source_url  TEXT,
@@ -109,6 +109,19 @@ CREATE TABLE IF NOT EXISTS anime_media (
   PRIMARY KEY (mal_id, kind)
 );
 CREATE INDEX IF NOT EXISTS anime_media_usable ON anime_media (kind, status);
+
+-- Karakter portraits (pipeline step `characters`), shown slot 0 first. A title is usable when its
+-- anime_media row of kind 'chars' is ok.
+CREATE TABLE IF NOT EXISTS anime_character (
+  mal_id     INTEGER NOT NULL,
+  slot       INTEGER NOT NULL,
+  char_id    INTEGER NOT NULL,
+  name       TEXT NOT NULL,
+  role       TEXT,
+  favorites  INTEGER,
+  r2_key     TEXT NOT NULL,
+  PRIMARY KEY (mal_id, slot)
+);
 
 CREATE TABLE IF NOT EXISTS play (
   puzzle_id    TEXT NOT NULL,

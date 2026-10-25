@@ -13,7 +13,7 @@ import {
   type GenreType,
   type Pool,
 } from '../shared/catalog.js';
-import { isThemeMode, MODES, THEME_MEDIA, THEME_ROUNDS, todayWib, type Mode } from '../shared/modes.js';
+import { isRoundMode, MODES, ROUND_COUNT, ROUND_MODES, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
@@ -37,8 +37,8 @@ export interface PoolSpec {
   genreId?: number;
   /** Empty = every difficulty. */
   difficulties: readonly Difficulty[];
-  /** Only titles whose media of this kind is in R2 (song modes). */
-  media?: 'op' | 'ed';
+  /** Only titles whose media of this kind is in R2 (round modes). */
+  media?: MediaKind;
 }
 
 /** Difficulty condition on alias `a` (thresholds from shared/catalog.ts). */
@@ -118,7 +118,7 @@ export function poolSpec(pool: Pool, account: Account | null, mode: Mode, filter
     malUsername: account?.malUsername ?? null,
     genreId: filters.genreId,
     difficulties: filters.difficulties ?? [],
-    media: isThemeMode(mode) ? THEME_MEDIA[mode] : undefined,
+    media: isRoundMode(mode) ? ROUND_MODES[mode].media : undefined,
   };
 }
 
@@ -232,15 +232,15 @@ export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
 
 const RECENT_DAYS_WITHOUT_REPEAT = 60;
 
-/** Answers per puzzle: Anidle has one, song modes one per round. */
-const ANSWERS: Record<Mode, number> = { anidle: 1, opening: THEME_ROUNDS, ending: THEME_ROUNDS };
+/** Answers per puzzle: Anidle has one, round modes one per round. */
+const ANSWERS: Record<Mode, number> = { anidle: 1, opening: ROUND_COUNT, ending: ROUND_COUNT, character: ROUND_COUNT };
 
 export interface PuzzleRow {
   id: string;
   date: string | null;
   mode: Mode;
   pool: Pool;
-  /** The answer of Anidle, round 0 of song modes (all rounds are in puzzle_round). */
+  /** The answer of Anidle, round 0 of round modes (all rounds are in puzzle_round). */
   answer_id: number;
   created_by: string | null;
   /** JSON PuzzleOptions of an unlimited puzzle. */
@@ -288,7 +288,7 @@ export async function dailyPuzzle(mode: Mode): Promise<PuzzleRow> {
   );
   const fresh = titles.filter((t) => !recent.has(t.malId));
   const count = ANSWERS[mode];
-  // Draw 0 keeps the seed Anidle has always used, so its daily answers did not change with song modes.
+  // Draw 0 keeps the seed Anidle has always used, so its daily answers did not change with round modes.
   const seeded = (n: number, size: number) => Number(seedOf(n ? `${date}:${mode}:${n}` : `${date}:${mode}`) % BigInt(size));
   const answers = pickTitles(fresh.length >= count * 5 ? fresh : titles, count, seeded);
 
@@ -296,7 +296,7 @@ export async function dailyPuzzle(mode: Mode): Promise<PuzzleRow> {
   // requests computed the same answers, so the rounds go to whichever puzzle row won.
   await run('INSERT OR IGNORE INTO puzzle (id, date, mode, pool, answer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), date, mode, 'semua', answers[0]!, nowIso()]);
   const row = (await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]))!;
-  if (isThemeMode(mode)) await db().batch(roundInserts(row.id, answers), 'write');
+  if (isRoundMode(mode)) await db().batch(roundInserts(row.id, answers), 'write');
   return row;
 }
 
@@ -311,7 +311,7 @@ export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: Puzzl
         sql: 'INSERT INTO puzzle (id, date, mode, pool, answer_id, created_by, options, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         args: [row.id, row.date, row.mode, row.pool, row.answer_id, row.created_by, row.options, nowIso()],
       },
-      ...(isThemeMode(mode) ? roundInserts(row.id, answers) : []),
+      ...(isRoundMode(mode) ? roundInserts(row.id, answers) : []),
     ],
     'write',
   );

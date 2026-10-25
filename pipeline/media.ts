@@ -1,17 +1,18 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import ffmpegPath from 'ffmpeg-static';
-import { all, nowIso, run } from '../server/db.js';
+import { CHARACTERS_PER_TITLE, type MediaKind } from '../shared/modes.js';
+import { all, db, nowIso, run } from '../server/db.js';
 import { Limiter, UpstreamError } from './limiter.js';
 import { putObject } from './r2.js';
-import { firstThemes, type FirstThemes, type ThemeKind, type ThemeSource } from './sources/animeThemes.js';
-
-export type MediaKind = 'cover' | ThemeKind;
+import { firstThemes, type FirstThemes, type ThemeSource } from './sources/animeThemes.js';
+import { animeCharacters } from './sources/jikanEdge.js';
 
 /** Clips are 30 s from the first sound; anything shorter than this is a broken source. */
 const CLIP_SECONDS = 30;
 const MIN_CLIP_SECONDS = 20;
 const COVER_WIDTH = 400;
+const PORTRAIT_WIDTH = 300;
 /** Titles whose source was missing or broken are looked at again after this long. */
 const RECHECK_DAYS = 30;
 
@@ -97,14 +98,15 @@ async function processAudio(url: string): Promise<string> {
   return key;
 }
 
-async function processCover(url: string): Promise<string> {
+/** Any MAL CDN image → WebP at most `width` wide, stored under v1/<dir>/<content hash>.webp. */
+async function processImage(url: string, dir: string, width: number): Promise<string> {
   const source = await download(malCdn, url);
   // image2pipe, not the webp muxer: that one patches the RIFF size by seeking back, which a pipe
   // cannot do, and browsers reject the resulting size-0 header.
-  const { out } = await ffmpeg(['-i', 'pipe:0', '-vf', `scale='min(${COVER_WIDTH},iw)':-2`, '-c:v', 'libwebp', '-quality', '82', '-f', 'image2pipe', 'pipe:1'], source);
+  const { out } = await ffmpeg(['-i', 'pipe:0', '-vf', `scale='min(${width},iw)':-2`, '-c:v', 'libwebp', '-quality', '82', '-f', 'image2pipe', 'pipe:1'], source);
   const riffSize = out.length >= 12 ? new DataView(out.buffer).getUint32(4, true) : 0;
-  if (out.length < 2_000 || riffSize !== out.length - 8) throw new MediaError(`cover rusak (${out.length} B, RIFF ${riffSize})`);
-  const key = contentKey('cover', out, 'webp');
+  if (out.length < 1_000 || riffSize !== out.length - 8) throw new MediaError(`gambar rusak (${out.length} B, RIFF ${riffSize})`);
+  const key = contentKey(dir, out, 'webp');
   await putObject(key, out, 'image/webp');
   return key;
 }
@@ -163,7 +165,7 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
         if (!job.coverSrc) await save(job.id, 'cover', { status: 'missing' });
         else
           try {
-            await save(job.id, 'cover', { status: 'ok', key: await processCover(job.coverSrc), source: job.coverSrc });
+            await save(job.id, 'cover', { status: 'ok', key: await processImage(job.coverSrc, 'cover', COVER_WIDTH), source: job.coverSrc });
             count('cover', 'ok');
           } catch (err) {
             await save(job.id, 'cover', { status: 'broken', source: job.coverSrc, error: errorText(err) });
@@ -203,4 +205,72 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   log('media:', counts);
+}
+
+/** MAL's "no picture" placeholder, e.g. .../images/questionmark_23.gif */
+const isPlaceholder = (url: string | null) => !url || url.includes('questionmark');
+
+/**
+ * Karakter mode: CHARACTERS_PER_TITLE portraits per title from jikan-edge, Main roles first, then by
+ * MAL favorites. Stored so slot 0 (the least known of them) is shown first and the best known last.
+ * Titles with fewer usable portraits are `missing` and stay out of the mode.
+ */
+export async function stepCharacters(refreshAll: boolean, limit: number) {
+  const anime = await all<{ mal_id: number }>('SELECT mal_id FROM anime WHERE excluded IS NULL ORDER BY members DESC');
+  const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'chars'`);
+  const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
+  const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
+  const queue = anime
+    .map((a) => Number(a.mal_id))
+    .filter((id) => {
+      const row = byId.get(id);
+      return refreshAll || !row || (row.status !== 'ok' && row.checked_at < stale);
+    })
+    .slice(0, limit)
+    .reverse();
+  const total = queue.length;
+  log(`characters: ${total} judul`);
+  const counts = { ok: 0, missing: 0, broken: 0, failed: 0 };
+  let done = 0;
+  // jikan-edge allows 50 requests a minute; portraits come from MAL's CDN in parallel.
+  const workers = Array.from({ length: 4 }, async () => {
+    for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+      try {
+        const picked = (await animeCharacters(id))
+          .filter((c) => !isPlaceholder(c.imageUrl))
+          .sort((a, b) => Number(b.role === 'Main') - Number(a.role === 'Main') || (b.favorites ?? 0) - (a.favorites ?? 0))
+          .slice(0, CHARACTERS_PER_TITLE)
+          .reverse();
+        if (picked.length < CHARACTERS_PER_TITLE) {
+          await save(id, 'chars', { status: 'missing', error: `${picked.length} karakter bergambar` });
+          counts.missing++;
+        } else {
+          try {
+            const keys = await Promise.all(picked.map((c) => processImage(c.imageUrl!, 'char', PORTRAIT_WIDTH)));
+            await db().batch(
+              [
+                { sql: 'DELETE FROM anime_character WHERE mal_id = ?', args: [id] },
+                ...picked.map((c, slot) => ({
+                  sql: 'INSERT INTO anime_character (mal_id, slot, char_id, name, role, favorites, r2_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                  args: [id, slot, c.malId, c.name, c.role, c.favorites, keys[slot]!],
+                })),
+              ],
+              'write',
+            );
+            await save(id, 'chars', { status: 'ok' });
+            counts.ok++;
+          } catch (err) {
+            await save(id, 'chars', { status: 'broken', error: errorText(err) });
+            counts.broken++;
+          }
+        }
+      } catch (err) {
+        counts.failed++;
+        log(`characters: ${id} GAGAL: ${errorText(err)}`);
+      }
+      if (++done % 50 === 0) log(`characters: ${done}/${total}`, counts);
+    }
+  });
+  await Promise.all(workers);
+  log('characters:', counts);
 }
