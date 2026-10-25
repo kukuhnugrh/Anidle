@@ -41,9 +41,7 @@ const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` 
 export function Brand() {
   return (
     <a className="brand" href="#/">
-      <span className="brand-mark" aria-hidden="true">
-        A
-      </span>
+      <img className="brand-mark" src="/logo-128.png" alt="" />
       Anidle
     </a>
   );
