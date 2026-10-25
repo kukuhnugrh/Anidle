@@ -200,15 +200,17 @@ db/                  schema.sql + migrations
 | M3 | Pipeline media (cover, OP1, ED1) → R2, mode **Opening** & **Ending** dengan preload + fallback | Satu game dimulai < 3 dtk setelah preload di koneksi biasa; tidak ada ronde gagal | ✓ |
 | M4 | Mode **Karakter** | 4 portrait per judul di R2, 3 ronde, preload + fallback sama dengan Opening/Ending | ✓ |
 | M5 | Leaderboard, riwayat, share skor | Leaderboard harian per mode + total, statistik + streak per mode, teks share tanpa spoiler | ✓ |
-| M6 | Screenshot dari video OP/ED + halaman admin untuk menandai media jelek | | |
-| M7 | GitHub Actions mingguan, proses `enrich_queue`, laporan media broken | Pipeline jalan otomatis tanpa PC | |
+| M6 | Screenshot dari video OP/ED + halaman admin untuk menandai media jelek | Mode Screenshot harian/unlimited; admin bisa melihat dan menolak/memulihkan media per judul | ✓ |
+| M7 | GitHub Actions mingguan, proses `enrich_queue`, laporan media broken | Pipeline jalan otomatis tanpa PC | ✓ (butuh secrets) |
 
-Catatan implementasi M1–M3 (beda dari rencana awal):
+Catatan implementasi M1–M7 (beda dari rencana awal):
 - Daftar judul autocomplete tetap lewat `/api/titles` (±3.760 judul, ETag, di-cache browser), tidak dipindah ke R2: sudah cepat, dan file di R2 butuh langkah tambahan untuk memberi tahu API nama file terbaru.
 - Cover dan klip OP/ED disalin ke R2 dengan nama file = hash isi (`v1/cover/<hash>.webp`, `v1/audio/<hash>.mp3`), bukan `mal_id`, jadi URL media tidak membocorkan jawaban. Status per judul di `anime_media` (bukan `theme_song`). Cover yang belum tersalin tetap memakai CDN MAL.
 - Klip: 30 dtk mulai dari bunyi pertama (`silenceremove`), hanya 1,6 MB awal file AnimeThemes yang diunduh.
 - Fallback ronde: klip yang gagal dimuat bisa dicoba lagi; di puzzle unlimited milik sendiri, ronde yang belum ditebak bisa diganti judul lain. Puzzle harian tidak bisa diganti (berlaku untuk semua orang).
 - State OAuth (state + PKCE verifier) disimpan di cookie bertanda tangan, karena serverless tidak punya memori antar request.
+- Screenshot: **satu** frame per judul (bukan 3–5), dibuka lewat zoom 4× → penuh. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi 3–5 frame × ±1.400 judul terlalu berat untuk host video AnimeThemes; hanya judul easy + medium yang diproses.
+- Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
 
 ## 14. Risiko
 

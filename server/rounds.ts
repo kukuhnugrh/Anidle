@@ -20,8 +20,8 @@ import {
 import { HttpError } from './http.js';
 import { mediaUrl } from './media.js';
 
-// Round modes (Opening, Ending, Karakter): ROUND_COUNT rounds, each attempt unlocks the next stage of
-// ROUND_MODES[mode].stages. Stored per player in play.guesses as number[][] (one list per round, 0 = skip).
+// Round modes (Opening, Ending, Karakter, Screenshot): ROUND_COUNT rounds, each attempt unlocks the next
+// stage of ROUND_MODES[mode].stages. Stored per player in play.guesses as number[][] (one list per round, 0 = skip).
 
 export interface SongInfo {
   /** AnimeThemes slug, e.g. OP1 */
@@ -43,7 +43,7 @@ export interface RoundAnswer extends AnswerInfo {
 }
 
 export interface RoundPlayState {
-  /** Opening/Ending: [the 30 s clip]. Karakter: portraits in reveal order; the player sees the unlocked ones. */
+  /** Opening/Ending: [the 30 s clip]. Karakter: portraits in reveal order. Screenshot: [one frame]. */
   media: string[];
   /** Wrong guesses, skips (null) and, when solved, the correct guess last. */
   attempts: Array<{ malId: number; title: string } | null>;
@@ -92,6 +92,10 @@ async function loadRounds(puzzleId: string, mode: RoundMode): Promise<LoadedRoun
       const chars = byTitle.get(malId) ?? [];
       return { malId, media: chars.map((c) => mediaUrl(c.r2_key)), song: null, characters: chars.map((c) => ({ name: c.name, role: c.role })) };
     });
+  } else if (mode === 'screenshot') {
+    const rows = await all<{ mal_id: number; r2_key: string }>(`SELECT mal_id, r2_key FROM anime_screenshot WHERE mal_id IN (${marks}) ORDER BY slot`, ids);
+    const byTitle = Map.groupBy(rows, (r) => Number(r.mal_id));
+    loaded = ids.map((malId) => ({ malId, media: (byTitle.get(malId) ?? []).map((s) => mediaUrl(s.r2_key)), song: null, characters: [] }));
   } else {
     const rows = await all<{ mal_id: number; r2_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
       `SELECT mal_id, r2_key, label, song_title, artist FROM anime_media WHERE kind = ? AND mal_id IN (${marks})`,

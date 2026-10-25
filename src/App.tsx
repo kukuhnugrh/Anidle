@@ -5,6 +5,7 @@ import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } fro
 import type { Mode } from '../shared/modes';
 import { RoundGame } from './RoundGame';
 import { AuthPage } from './AuthPage';
+import { AdminPage } from './AdminPage';
 import { Database } from './Database';
 import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
@@ -28,12 +29,26 @@ function takeRedirectNotice(): Notice {
 
 export function App() {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
+  const [admin, setAdmin] = useState(false);
   const [route, setRoute] = useState(readRoute);
   const [notice] = useState(takeRedirectNotice);
   const [navOpen, setNavOpen] = useState(false);
 
+  // The admin flag follows the session, so it is re-read after logging in.
+  const refreshMe = useCallback(
+    () =>
+      api.me().then(
+        (r) => {
+          setAccount(r.account);
+          setAdmin(r.admin);
+        },
+        () => setAccount(null),
+      ),
+    [],
+  );
+
   useEffect(() => {
-    api.me().then((r) => setAccount(r.account), () => setAccount(null));
+    void refreshMe();
     const onHash = () => {
       setRoute(readRoute());
       setNavOpen(false);
@@ -46,7 +61,7 @@ export function App() {
       removeEventListener('hashchange', onHash);
       removeEventListener('keydown', onKey);
     };
-  }, []);
+  }, [refreshMe]);
 
   if (account === undefined)
     return (
@@ -60,11 +75,13 @@ export function App() {
       <Sidebar
         route={route}
         account={account}
+        admin={admin}
         open={navOpen}
         onClose={() => setNavOpen(false)}
         onLogout={() =>
           api.logout().then(() => {
             setAccount(null);
+            setAdmin(false);
             go('#/');
           })
         }
@@ -85,10 +102,12 @@ export function App() {
           {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
           {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
           {route.view === 'history' && <HistoryPage account={account} />}
+          {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">Halaman ini khusus admin.</div>)}
           {route.view === 'auth' && (
             <AuthPage
               onDone={(a) => {
                 setAccount(a);
+                void refreshMe();
                 go('#/');
               }}
             />

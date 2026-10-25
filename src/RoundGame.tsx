@@ -16,9 +16,26 @@ const INTRO: Record<RoundMode, string> = {
   opening: 'Tebak anime dari opening-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.',
   ending: 'Tebak anime dari ending-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.',
   character: 'Tebak anime dari karakternya. Tebakan salah atau lewati membuka karakter berikutnya; yang paling terkenal muncul terakhir.',
+  screenshot: 'Tebak anime dari satu adegan opening-nya. Mulai dari potongan zoom 4×; tebakan salah atau lewati memperkecil zoom.',
 };
 
-const isAudio = (mode: RoundMode) => mode !== 'character';
+/** How a stage reads in the attempt list: "6 dtk", "2 karakter", "zoom 2.5×". */
+const STAGE_LABEL: Record<RoundMode, (stage: number) => string> = {
+  opening: (s) => `${s} dtk`,
+  ending: (s) => `${s} dtk`,
+  character: (s) => `${s} karakter`,
+  screenshot: (s) => (s === 1 ? 'penuh' : `zoom ${s}×`),
+};
+
+/** The skip button: what the next stage adds. */
+const SKIP_LABEL: Record<RoundMode, (unlocked: number, next: number) => string> = {
+  opening: (unlocked, next) => `Lewati (+${next - unlocked} dtk)`,
+  ending: (unlocked, next) => `Lewati (+${next - unlocked} dtk)`,
+  character: () => 'Lewati (+1 karakter)',
+  screenshot: (_unlocked, next) => (next === 1 ? 'Lewati (gambar penuh)' : `Lewati (zoom ${next}×)`),
+};
+
+const isAudio = (mode: RoundMode) => mode === 'opening' || mode === 'ending';
 
 /**
  * Loads every round's media up front so a round never waits on the network: one <audio> per round
@@ -152,6 +169,19 @@ function Portraits({ urls, shown, names }: { urls: string[]; shown: number; name
   );
 }
 
+/** One frame shown at `zoom` (1 = whole frame) around a focus point derived from its URL, so it stays put. */
+function ZoomShot({ url, zoom }: { url: string; zoom: number }) {
+  const hash = [...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const x = 30 + (hash % 41);
+  const y = 30 + ((hash >>> 8) % 41);
+  return (
+    <div className="shot">
+      <img src={url} alt="" style={{ transform: `scale(${zoom})`, transformOrigin: `${x}% ${y}%` }} />
+      <span className="shot-zoom">{zoom === 1 ? 'penuh' : `${zoom}×`}</span>
+    </div>
+  );
+}
+
 export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundState; onChange: (p: RoundState) => void; onNewUnlimited: () => Promise<void> }) {
   const media = useMemo(() => puzzle.rounds.map((r) => r.media), [puzzle.rounds]);
   const { clips, status, retry } = useRoundMedia(puzzle.mode, media);
@@ -236,6 +266,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <section className="card stage-card">
           {audio ? (
             <ClipPlayer audio={status[view] === 'ready' ? clips.current[view] : undefined} seconds={unlocked} stages={stages} />
+          ) : puzzle.mode === 'screenshot' ? (
+            <ZoomShot url={round.media[0]!} zoom={unlocked} />
           ) : (
             <Portraits urls={round.media} shown={unlocked} names={round.answer ? round.answer.characters.map((c) => c.name) : null} />
           )}
@@ -248,7 +280,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
                 </span>
                 <button className="ghost" disabled={sending} onClick={() => send(() => api.roundGuess(puzzle.id, view, null))}>
                   <SkipIcon />
-                  {next === undefined ? 'Menyerah' : audio ? `Lewati (+${next - unlocked} dtk)` : 'Lewati (+1 karakter)'}
+                  {next === undefined ? 'Menyerah' : SKIP_LABEL[puzzle.mode](unlocked, next)}
                 </button>
               </div>
             </div>
@@ -292,7 +324,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             const correct = round.solved && i === round.attempts.length - 1;
             return (
               <li key={i} className={correct ? 'ok' : a ? 'bad' : 'skip'}>
-                <span className="attempt-stage">{audio ? `${stages[i]} dtk` : `${stages[i]} karakter`}</span>
+                <span className="attempt-stage">{STAGE_LABEL[puzzle.mode](stages[i]!)}</span>
                 <span>{a ? a.title : 'Dilewati'}</span>
                 <span className="attempt-mark">{correct ? '✓' : a ? '✗' : '→'}</span>
               </li>

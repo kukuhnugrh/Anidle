@@ -8,7 +8,7 @@ interface ApiTheme {
   sequence: number | null;
   slug: string;
   song?: { title?: string | null; artists?: Array<{ name: string }> } | null;
-  animethemeentries?: Array<{ nsfw?: boolean; videos?: Array<{ audio?: { link?: string } | null }> }>;
+  animethemeentries?: Array<{ nsfw?: boolean; videos?: Array<{ link?: string; resolution?: number | null; audio?: { link?: string } | null }> }>;
 }
 
 export interface ThemeSource {
@@ -17,6 +17,8 @@ export interface ThemeSource {
   title: string | null;
   artist: string | null;
   audioUrl: string;
+  /** The smallest video of the same entry (screenshots); null when it has none. */
+  videoUrl: string | null;
 }
 
 export type ThemeKind = 'op' | 'ed';
@@ -41,12 +43,14 @@ export async function firstThemes(malId: number): Promise<FirstThemes> {
       for (const entry of theme.animethemeentries ?? []) {
         if (entry.nsfw) continue;
         const link = entry.videos?.find((v) => v.audio?.link)?.audio?.link;
+        const video = [...(entry.videos ?? [])].filter((v) => v.link).sort((a, b) => (a.resolution ?? 9999) - (b.resolution ?? 9999))[0];
         if (link)
           return {
             label: theme.slug,
             title: theme.song?.title ?? null,
             artist: theme.song?.artists?.map((a) => a.name).join(', ') || null,
             audioUrl: link,
+            videoUrl: video?.link ?? null,
           };
       }
     }

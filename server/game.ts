@@ -233,7 +233,7 @@ export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
 const RECENT_DAYS_WITHOUT_REPEAT = 60;
 
 /** Answers per puzzle: Anidle has one, round modes one per round. */
-const ANSWERS: Record<Mode, number> = { anidle: 1, opening: ROUND_COUNT, ending: ROUND_COUNT, character: ROUND_COUNT };
+const ANSWERS: Record<Mode, number> = { anidle: 1, opening: ROUND_COUNT, ending: ROUND_COUNT, character: ROUND_COUNT, screenshot: ROUND_COUNT };
 
 export interface PuzzleRow {
   id: string;

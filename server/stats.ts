@@ -36,7 +36,7 @@ export async function leaderboard(date: string): Promise<Leaderboard> {
      ORDER BY g.score DESC, g.finished_at ASC`,
     [date],
   );
-  const modes: Record<Mode, LeaderboardEntry[]> = { anidle: [], opening: [], ending: [], character: [] };
+  const modes: Record<Mode, LeaderboardEntry[]> = { anidle: [], opening: [], ending: [], character: [], screenshot: [] };
   const totals = new Map<string, { username: string; avatar: string | null; score: number; modes: number }>();
   for (const r of rows) {
     const entry: LeaderboardEntry = {
@@ -134,7 +134,13 @@ export async function history(playerKey: string): Promise<History> {
       ...streaks(daily.map((r) => r.date!)),
     };
   };
-  const stats: Record<Mode, ModeStats> = { anidle: modeStats('anidle'), opening: modeStats('opening'), ending: modeStats('ending'), character: modeStats('character') };
+  const stats: Record<Mode, ModeStats> = {
+    anidle: modeStats('anidle'),
+    opening: modeStats('opening'),
+    ending: modeStats('ending'),
+    character: modeStats('character'),
+    screenshot: modeStats('screenshot'),
+  };
 
   return {
     stats,

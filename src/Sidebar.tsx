@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react';
 import type { Account } from './api';
-import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
+import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode. */
@@ -13,6 +13,7 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
       { id: 'daily:opening', href: dailyHref('opening'), label: 'Opening', Icon: MusicIcon },
       { id: 'daily:ending', href: dailyHref('ending'), label: 'Ending', Icon: DiscIcon },
       { id: 'daily:character', href: dailyHref('character'), label: 'Karakter', Icon: UsersIcon },
+      { id: 'daily:screenshot', href: dailyHref('screenshot'), label: 'Screenshot', Icon: ImageIcon },
     ],
   },
   {
@@ -30,6 +31,9 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
     ],
   },
 ];
+
+/** Only for ADMIN_USERS (the server checks again on every admin request). */
+const ADMIN_SECTION = { title: 'Admin', items: [{ id: 'admin', href: '#/admin', label: 'Review media', Icon: ShieldIcon }] };
 
 /** An unlimited puzzle in progress belongs to the Unlimited entry. */
 const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view);
@@ -53,8 +57,9 @@ export function Avatar({ account }: { account: Account }) {
   );
 }
 
-export function Sidebar({ route, account, open, onClose, onLogout }: { route: Route; account: Account | null; open: boolean; onClose: () => void; onLogout: () => void }) {
+export function Sidebar({ route, account, admin, open, onClose, onLogout }: { route: Route; account: Account | null; admin: boolean; open: boolean; onClose: () => void; onLogout: () => void }) {
   const current = navId(route);
+  const sections = admin ? [...NAV, ADMIN_SECTION] : NAV;
   return (
     <>
       <aside className={`sidebar${open ? ' open' : ''}`}>
@@ -65,7 +70,7 @@ export function Sidebar({ route, account, open, onClose, onLogout }: { route: Ro
           </button>
         </div>
         <nav className="sidebar-nav">
-          {NAV.map((section) => (
+          {sections.map((section) => (
             <div key={section.title} className="nav-section">
               <div className="nav-title">{section.title}</div>
               {section.items.map(({ id, href, label, Icon }) => (

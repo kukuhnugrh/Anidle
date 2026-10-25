@@ -2,13 +2,14 @@ import type { AnidleState } from '../server/game';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
 import type { History, Leaderboard } from '../server/stats';
+import type { AdminPage } from '../server/admin';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
 import type { TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AnidleState, History, Leaderboard, PuzzleState, RoundState };
+export type { AdminPage, AnidleState, History, Leaderboard, PuzzleState, RoundState };
 
 export interface MalLink {
   username: string;
@@ -81,7 +82,7 @@ async function call<T>(path: string, init?: { method?: string; body?: unknown })
 }
 
 export const api = {
-  me: () => call<{ account: Account | null }>('/api/me'),
+  me: () => call<{ account: Account | null; admin: boolean }>('/api/me'),
   register: (username: string, password: string) => call<{ account: Account }>('/api/auth/register', { method: 'POST', body: { username, password } }),
   login: (username: string, password: string) => call<{ account: Account }>('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => call('/api/logout', { method: 'POST' }),
@@ -99,5 +100,7 @@ export const api = {
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),
   history: () => call<History>('/api/history'),
+  adminMedia: (query: string) => call<AdminPage>(`/api/admin/media?${query}`),
+  setMediaStatus: (malId: number, kind: string, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { malId, kind, action } }),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
 };

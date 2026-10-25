@@ -8,15 +8,20 @@ export function todayWib(now = Date.now()): string {
   return new Date(now + WIB_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export const MODES = ['anidle', 'opening', 'ending', 'character'] as const;
+export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot'] as const;
 export type Mode = (typeof MODES)[number];
 /** Modes played as ROUND_COUNT rounds, each revealing more media per attempt. */
 export type RoundMode = Exclude<Mode, 'anidle'>;
 
-export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Karakter' };
+export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Karakter', screenshot: 'Screenshot' };
 
 /** anime_media.kind: what the pipeline copied to R2 for a title. */
-export type MediaKind = 'cover' | 'op' | 'ed' | 'chars';
+export const MEDIA_KINDS = ['cover', 'op', 'ed', 'chars', 'shots'] as const;
+export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+/** anime_media.status. Pools use ok only; rejected = turned down by an admin. */
+export const MEDIA_STATUSES = ['ok', 'missing', 'broken', 'rejected'] as const;
+export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 
 export const isRoundMode = (mode: Mode): mode is RoundMode => mode !== 'anidle';
 
@@ -24,12 +29,14 @@ export const ROUND_COUNT = 3;
 
 /**
  * Per round mode: the media a title needs, and what each attempt unlocks. Song modes unlock seconds
- * of the clip; Karakter unlocks portraits (slot 0 first, the most popular character last).
+ * of the clip; Karakter unlocks portraits (slot 0 first, the most popular character last); Screenshot
+ * zooms out of one frame of the opening (4× crop → full frame).
  */
 export const ROUND_MODES: Record<RoundMode, { media: Exclude<MediaKind, 'cover'>; stages: readonly number[] }> = {
   opening: { media: 'op', stages: [1, 3, 6, 12, 30] },
   ending: { media: 'ed', stages: [1, 3, 6, 12, 30] },
   character: { media: 'chars', stages: [1, 2, 3, 4] },
+  screenshot: { media: 'shots', stages: [4, 2.5, 1.6, 1] },
 };
 
 export const CHARACTERS_PER_TITLE = 4;

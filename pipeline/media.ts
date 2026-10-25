@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import ffmpegPath from 'ffmpeg-static';
+import { MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { CHARACTERS_PER_TITLE, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
-import { Limiter, UpstreamError } from './limiter.js';
+import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { putObject } from './r2.js';
 import { firstThemes, type ThemeSource } from './sources/animeThemes.js';
 import { animeCharacters } from './sources/jikanEdge.js';
@@ -27,6 +28,8 @@ interface FfmpegResult {
   out: Uint8Array<ArrayBuffer>;
   /** Last `time=` ffmpeg reported: the length of what it encoded. */
   seconds: number;
+  /** The last 4000 characters of stderr (filter metadata such as signalstats). */
+  log: string;
 }
 
 /** Runs ffmpeg with `input` on stdin (or a URL in args) and returns stdout plus the encoded length. */
@@ -52,7 +55,7 @@ function ffmpeg(args: string[], input?: Uint8Array): Promise<FfmpegResult> {
       at += c.length;
     }
     const t = [...err.matchAll(/time=(\d+):(\d+):([\d.]+)/g)].at(-1);
-    resolve({ out, seconds: t ? Number(t[1]) * 3600 + Number(t[2]) * 60 + Number(t[3]) : 0 });
+    resolve({ out, seconds: t ? Number(t[1]) * 3600 + Number(t[2]) * 60 + Number(t[3]) : 0, log: err });
   });
   child.stdin.on('error', () => {}); // ffmpeg may close stdin early; the exit code reports real failures
   child.stdin.end(input);
@@ -114,10 +117,17 @@ async function processImage(url: string, dir: string, width: number): Promise<st
 interface MediaRow {
   mal_id: number;
   kind: MediaKind;
-  status: 'ok' | 'missing' | 'broken';
+  status: 'ok' | 'missing' | 'broken' | 'rejected';
   source_url: string | null;
   checked_at: string;
 }
+
+/**
+ * Whether a title's media of one kind needs (re)processing: never processed, or missing/broken and not
+ * looked at since `stale`. ok and admin-rejected rows are only redone with --refresh.
+ */
+const isDue = (row: MediaRow | undefined, refreshAll: boolean, stale: string) =>
+  refreshAll || !row || ((row.status === 'missing' || row.status === 'broken') && row.checked_at < stale);
 
 async function save(malId: number, kind: MediaKind, row: { status: MediaRow['status']; key?: string | null; source?: string | null; theme?: ThemeSource | null; error?: string | null }) {
   await run(
@@ -147,7 +157,7 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
   const rows = await all<MediaRow>('SELECT mal_id, kind, status, source_url, checked_at FROM anime_media');
   const byKey = new Map(rows.map((r) => [`${r.mal_id}:${r.kind}`, r]));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
-  const due = (row: MediaRow | undefined) => refreshAll || !row || (row.status !== 'ok' && row.checked_at < stale);
+  const due = (row: MediaRow | undefined) => isDue(row, refreshAll, stale);
 
   const jobs = anime
     .map((a) => ({
@@ -185,7 +195,8 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
           for (const kind of ['op', 'ed'] as const) {
             const theme = themes[kind];
             const prev = byKey.get(`${job.id}:${kind}`);
-            if (!refreshAll && prev?.status === 'ok' && prev.source_url === theme?.audioUrl) continue;
+            // Same source as last time and already decided (ok, or rejected by an admin): nothing to do.
+            if (!refreshAll && (prev?.status === 'ok' || prev?.status === 'rejected') && prev.source_url === theme?.audioUrl) continue;
             if (!theme) {
               await save(job.id, kind, { status: 'missing' });
               count(kind, 'missing');
@@ -229,10 +240,7 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const queue = anime
     .map((a) => Number(a.mal_id))
-    .filter((id) => {
-      const row = byId.get(id);
-      return refreshAll || !row || (row.status !== 'ok' && row.checked_at < stale);
-    })
+    .filter((id) => isDue(byId.get(id), refreshAll, stale))
     .slice(0, limit)
     .reverse();
   const total = queue.length;
@@ -282,4 +290,106 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   log('characters:', counts);
+}
+
+/** Seconds into the opening to try, in order: the middle first, away from the title card at the start. */
+const SHOT_TIMES = [45, 32, 58, 22];
+const SCREENSHOT_WIDTH = 960;
+
+interface Frame {
+  out: Uint8Array<ArrayBuffer>;
+  at: number;
+}
+
+/**
+ * One frame of the opening's video: ffmpeg seeks over HTTP to each candidate time and keeps the first
+ * frame that is neither near-black/near-white nor flat (signalstats mean and 10–90 % luma spread).
+ * The video host answers 5xx under load and a cut-off read fails decoding, so an ffmpeg failure is
+ * retried and, if it persists, reported as transient (the title is skipped, not marked broken).
+ */
+async function pickFrame(videoUrl: string): Promise<Frame | null> {
+  for (const at of SHOT_TIMES) {
+    let result: FfmpegResult | null = null;
+    for (let attempt = 1; !result; attempt++) {
+      try {
+        result = await ffmpeg([
+          '-ss', String(at), '-rw_timeout', '60000000', '-i', videoUrl, '-frames:v', '1',
+          '-vf', `scale='min(${SCREENSHOT_WIDTH},iw)':-2,signalstats,metadata=print`,
+          '-c:v', 'libwebp', '-quality', '80', '-f', 'image2pipe', 'pipe:1',
+        ]);
+      } catch (err) {
+        if (!(err instanceof MediaError)) throw err;
+        if (attempt >= 3) throw new Error(err.message);
+        await sleep(10_000 * attempt);
+      }
+    }
+    const stat = (name: string) => Number(result.log.match(new RegExp(`signalstats\\.${name}=([\\d.]+)`))?.[1] ?? NaN);
+    const mean = stat('YAVG');
+    const spread = stat('YHIGH') - stat('YLOW');
+    if (result.out.length > 8_000 && mean >= 40 && mean <= 220 && spread >= 50) return { out: result.out, at };
+  }
+  return null;
+}
+
+/**
+ * Screenshot mode: one frame per title from its first opening's video (the smallest file AnimeThemes
+ * has), WebP 960 wide at v1/shot/<hash>.webp. Seeking a 1080p video over HTTP costs ~25 s and a few MB
+ * per frame, so only easy + medium titles (≥ MEDIUM_MIN_MEMBERS, the daily pool) are processed.
+ */
+export async function stepScreenshots(refreshAll: boolean, limit: number) {
+  const anime = await all<{ mal_id: number }>('SELECT mal_id FROM anime WHERE excluded IS NULL AND members >= ? ORDER BY members DESC', [MEDIUM_MIN_MEMBERS]);
+  const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'shots'`);
+  const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
+  const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
+  const queue = anime
+    .map((a) => Number(a.mal_id))
+    .filter((id) => isDue(byId.get(id), refreshAll, stale))
+    .slice(0, limit)
+    .reverse();
+  const total = queue.length;
+  log(`screenshots: ${total} judul`);
+  const counts = { ok: 0, missing: 0, broken: 0, skipped: 0 };
+  let done = 0;
+  // Video seeks are the heavy part; a few in parallel keeps AnimeThemes' file host comfortable.
+  const workers = Array.from({ length: 3 }, async () => {
+    for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+      try {
+        const video = (await firstThemes(id)).op?.videoUrl ?? null;
+        if (!video) {
+          await save(id, 'shots', { status: 'missing', error: 'tidak ada video opening' });
+          counts.missing++;
+        } else {
+          try {
+            const frame = await pickFrame(video);
+            if (!frame) {
+              await save(id, 'shots', { status: 'missing', source: video, error: 'tidak ada frame yang layak' });
+              counts.missing++;
+            } else {
+              const key = contentKey('shot', frame.out, 'webp');
+              await putObject(key, frame.out, 'image/webp');
+              await db().batch(
+                [
+                  { sql: 'DELETE FROM anime_screenshot WHERE mal_id = ?', args: [id] },
+                  { sql: 'INSERT INTO anime_screenshot (mal_id, slot, r2_key, at_seconds) VALUES (?, 0, ?, ?)', args: [id, key, frame.at] },
+                ],
+                'write',
+              );
+              await save(id, 'shots', { status: 'ok', source: video });
+              counts.ok++;
+            }
+          } catch (err) {
+            if (!isSourceFault(err)) throw err;
+            await save(id, 'shots', { status: 'broken', source: video, error: errorText(err) });
+            counts.broken++;
+          }
+        }
+      } catch (err) {
+        counts.skipped++;
+        log(`screenshots: ${id} dilewati (${errorText(err)})`);
+      }
+      if (++done % 25 === 0) log(`screenshots: ${done}/${total}`, counts);
+    }
+  });
+  await Promise.all(workers);
+  log('screenshots:', counts);
 }

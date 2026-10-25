@@ -1,4 +1,5 @@
 import './env.js';
+import { appendFileSync } from 'node:fs';
 import { EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason, MEDIUM_MIN_MEMBERS, POPULAR_MIN_MEMBERS } from '../shared/catalog.js';
 import { franchiseIds } from '../shared/franchise.js';
 import { all, db, nowIso, run } from '../server/db.js';
@@ -6,7 +7,7 @@ import { poolUsers } from '../server/env.js';
 import { animeDetail, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { Limiter } from './limiter.js';
-import { stepCharacters, stepMedia } from './media.js';
+import { stepCharacters, stepMedia, stepScreenshots } from './media.js';
 import { migrate } from './migrate.js';
 import { animeGenres } from './sources/jikanEdge.js';
 
@@ -209,15 +210,46 @@ async function report() {
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'op' AND status = 'ok') AS op_ok,
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'ed' AND status = 'ok') AS ed_ok,
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'chars' AND status = 'ok') AS chars_ok,
+      (SELECT COUNT(*) FROM anime_media WHERE kind = 'shots' AND status = 'ok') AS shots_ok,
       (SELECT COUNT(*) FROM anime_media WHERE status = 'broken') AS media_broken`,
     [EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS, EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS],
   );
   log('ringkasan:', row);
+  await writeActionsSummary(row ?? {});
+}
+
+/**
+ * In GitHub Actions: counts plus media that broke in this run, as markdown in the job summary
+ * (GITHUB_STEP_SUMMARY), so a weekly run shows what needs a look without reading the log.
+ */
+async function writeActionsSummary(row: Record<string, number>) {
+  const file = process.env.GITHUB_STEP_SUMMARY;
+  if (!file) return;
+  const broken = await all<{ mal_id: number; title: string; kind: string; error: string | null }>(
+    `SELECT m.mal_id, a.title, m.kind, m.error FROM anime_media m JOIN anime a ON a.mal_id = m.mal_id
+     WHERE m.status = 'broken' AND m.checked_at >= ? ORDER BY a.members DESC LIMIT 50`,
+    [new Date(started).toISOString()],
+  );
+  const lines = [
+    '## Anidle pipeline',
+    '',
+    '| | |',
+    '| --- | --- |',
+    ...Object.entries(row).map(([k, v]) => `| ${k} | ${v} |`),
+    '',
+    `### Media rusak di run ini (${broken.length})`,
+    '',
+    ...(broken.length
+      ? ['| MAL | Judul | Media | Error |', '| --- | --- | --- | --- |', ...broken.map((b) => `| ${b.mal_id} | ${b.title.replace(/\|/g, '/')} | ${b.kind} | ${(b.error ?? '').replace(/\|/g, '/')} |`)]
+      : ['Tidak ada.']),
+    '',
+  ];
+  appendFileSync(file, lines.join('\n'));
 }
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media', 'characters'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media', 'characters', 'screenshots'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -242,6 +274,7 @@ for (const step of steps) {
   if (step === 'franchise') await stepFranchise();
   if (step === 'media') await stepMedia(flag('refresh'), limit);
   if (step === 'characters') await stepCharacters(flag('refresh'), limit);
+  if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
 }
 await report();
 log(`selesai dalam ${Math.round((Date.now() - started) / 1000)} dtk`);

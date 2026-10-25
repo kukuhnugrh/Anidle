@@ -139,3 +139,18 @@ export const ShareIcon = () => (
     <path d="M5 12.5V19a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6.5" />
   </Icon>
 );
+
+export const ImageIcon = () => (
+  <Icon>
+    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+    <circle cx="9" cy="10" r="1.8" />
+    <path d="M4 17.5l5-4.5 3.5 3 3-2.5 4.5 4" />
+  </Icon>
+);
+
+export const ShieldIcon = () => (
+  <Icon>
+    <path d="M12 3.5 19 6v5.5c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6z" />
+    <path d="M9 12l2 2 4-4" />
+  </Icon>
+);

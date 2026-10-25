@@ -97,8 +97,8 @@ CREATE TABLE IF NOT EXISTS puzzle_round (
 -- only use titles whose row is ok.
 CREATE TABLE IF NOT EXISTS anime_media (
   mal_id      INTEGER NOT NULL,
-  kind        TEXT NOT NULL,   -- cover | op | ed | chars (portraits in anime_character)
-  status      TEXT NOT NULL,   -- ok | missing (no source) | broken (source failed processing/validation)
+  kind        TEXT NOT NULL,   -- cover | op | ed | chars (anime_character) | shots (anime_screenshot)
+  status      TEXT NOT NULL,   -- ok | missing (no source) | broken (failed processing/validation) | rejected (by an admin)
   r2_key      TEXT,            -- object key under MEDIA_BASE_URL, content-hashed
   source_url  TEXT,
   label       TEXT,            -- AnimeThemes slug, e.g. OP1
@@ -120,6 +120,16 @@ CREATE TABLE IF NOT EXISTS anime_character (
   role       TEXT,
   favorites  INTEGER,
   r2_key     TEXT NOT NULL,
+  PRIMARY KEY (mal_id, slot)
+);
+
+-- Screenshot mode: frames from the first opening's video (pipeline step `screenshots`). A title is
+-- usable when its anime_media row of kind 'shots' is ok.
+CREATE TABLE IF NOT EXISTS anime_screenshot (
+  mal_id      INTEGER NOT NULL,
+  slot        INTEGER NOT NULL,
+  r2_key      TEXT NOT NULL,
+  at_seconds  REAL NOT NULL,
   PRIMARY KEY (mal_id, slot)
 );
 

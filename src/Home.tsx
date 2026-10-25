@@ -2,7 +2,7 @@ import { useEffect, useState, type ComponentType } from 'react';
 import { MODES, MODE_LABELS, todayWib, WIB_OFFSET_MS, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
 import { fmtDate } from './format';
-import { ArrowIcon, DatabaseIcon, DiscIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
+import { ArrowIcon, DatabaseIcon, DiscIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
 import { dailyHref } from './route';
 
 const DAY_MS = 86_400_000;
@@ -25,6 +25,7 @@ const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
   opening: { Icon: MusicIcon, text: '3 ronde opening. Potongan lagu makin panjang tiap tebakan salah: 1, 3, 6, 12, 30 detik.' },
   ending: { Icon: DiscIcon, text: '3 ronde ending, aturan sama dengan Opening. Biasanya lebih susah.' },
   character: { Icon: UsersIcon, text: '3 ronde, tiap ronde 4 karakter dibuka satu per satu. Yang paling terkenal muncul terakhir.' },
+  screenshot: { Icon: ImageIcon, text: '3 ronde, satu adegan dari opening. Mulai dari potongan zoom 4×, makin jauh tiap tebakan salah.' },
 };
 
 /** A daily puzzle that could not load (e.g. the mode's pool is still empty). */
@@ -45,7 +46,7 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
 }
 
 export function Home({ account }: { account: Account | null }) {
-  const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null });
+  const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
   useEffect(() => {
     for (const mode of MODES)
       api.daily(mode).then(
