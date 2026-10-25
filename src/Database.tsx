@@ -138,11 +138,12 @@ export function Database() {
   );
 
   return (
-    <div className="database">
-      <div className="db-head">
-        <h2>Database anime</h2>
-        <p className="muted small">Semua judul yang bisa keluar di Anidle. Klik genre, theme, demographic, atau studio di kartu untuk memfilter.</p>
-      </div>
+    <div className="database stack">
+      <header className="page-head">
+        <span className="eyebrow">Jelajah</span>
+        <h1>Database anime</h1>
+        <p className="muted">Semua judul yang bisa keluar di Anidle. Klik genre, theme, demographic, atau studio di kartu untuk memfilter.</p>
+      </header>
 
       <section className="card db-filters">
         <label className="db-search">

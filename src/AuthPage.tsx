@@ -25,6 +25,13 @@ export function AuthPage({ onDone }: { onDone: (account: Account) => void }) {
   return (
     <div className="auth-page">
       <form className="card auth-card" onSubmit={submit}>
+        <div className="auth-head">
+          <span className="brand-mark" aria-hidden="true">
+            A
+          </span>
+          <h1>{mode === 'login' ? 'Selamat datang kembali' : 'Buat akun Anidle'}</h1>
+          <p className="muted small">{mode === 'login' ? 'Masuk untuk melanjutkan progres di perangkat mana pun.' : 'Gratis. Cukup username dan password.'}</p>
+        </div>
         <div className="tabs">
           <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
             Masuk

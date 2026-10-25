@@ -3,7 +3,7 @@ import { summarizeAnidle, type AnidleFeedback, type Direction, type ListClue, ty
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type PuzzleState } from './api';
 import { GuessInput } from './GuessInput';
-import { pretty } from './format';
+import { fmtDate, pretty } from './format';
 
 const ARROW: Record<Direction, string> = { equal: '', higher: '↑', lower: '↓', unknown: '' };
 const DIRECTION_HINT: Record<Direction, string> = {
@@ -196,20 +196,26 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: PuzzleSta
 
   return (
     <div className="anidle">
-      <div className="game-head">
+      <header className="page-head game-head">
         <div>
-          <h2>{puzzle.date ? `Anidle ${puzzle.date}` : 'Anidle unlimited'}</h2>
-          <p className="muted small">
-            Pool: {POOL_LABELS[puzzle.pool]} · {puzzle.finished ? 'selesai' : `sisa ${left} tebakan`}
-          </p>
+          <span className="eyebrow">{puzzle.date ? `Harian · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
+          <h1>Anidle</h1>
+          <div className="progress" title={puzzle.finished ? 'Selesai' : `Sisa ${left} tebakan`}>
+            <span className="pips" aria-hidden="true">
+              {Array.from({ length: puzzle.maxGuesses }, (_, i) => (
+                <span key={i} className={`pip${i < puzzle.guesses.length ? (puzzle.guesses[i]!.correct ? ' hit' : ' used') : ''}`} />
+              ))}
+            </span>
+            <span className="muted small">{puzzle.finished ? 'selesai' : `sisa ${left} dari ${puzzle.maxGuesses} tebakan`}</span>
+          </div>
         </div>
         <div className="legend small">
-          <span className="cell ok">cocok</span>
-          <span className="cell partial">sebagian</span>
-          <span className="cell bad">beda</span>
+          <span className="tag ok">cocok</span>
+          <span className="tag partial">sebagian</span>
+          <span className="tag bad">beda</span>
           <span className="muted">↑↓ arah jawaban</span>
         </div>
-      </div>
+      </header>
 
       {puzzle.finished && puzzle.answer ? (
         <div className={`result ${puzzle.solved ? 'win' : 'lose'}`}>
@@ -246,7 +252,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: PuzzleSta
         {[...puzzle.guesses].reverse().map((g) => (
           <GuessRow key={g.malId} g={g} />
         ))}
-        {!puzzle.guesses.length && <p className="muted center-text">Ketik judul anime, pilih dari daftar, lalu lihat petunjuknya.</p>}
+        {!puzzle.guesses.length && <p className="empty muted">Ketik judul anime, pilih dari daftar, lalu lihat petunjuknya.</p>}
       </div>
     </div>
   );

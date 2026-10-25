@@ -6,7 +6,7 @@ import { OAUTH_COOKIE, type OAuthPending } from '../../server/oauth.js';
 import { linkMal, syncCompleted } from '../../server/players.js';
 
 const back = (req: Request, error: string | null) =>
-  redirect(error ? `/?mal_error=${encodeURIComponent(error)}` : '/?mal=linked', [setCookie(req, OAUTH_COOKIE, '', 0)]);
+  redirect(error ? `/?mal_error=${encodeURIComponent(error)}#/akun` : '/?mal=linked#/akun', [setCookie(req, OAUTH_COOKIE, '', 0)]);
 
 // Reached through the /oauth/callback rewrite (vercel.json / vite.config.ts).
 export const GET = route(async (req) => {
