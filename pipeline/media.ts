@@ -10,16 +10,12 @@ import { putObject } from './r2.js';
 import { firstThemes, type ThemeSource } from './sources/animeThemes.js';
 import { animeCharacters, characterDetail } from './sources/jikanEdge.js';
 
-/** Clips are 30 s from the first sound; anything shorter than this is a broken source. */
-const CLIP_SECONDS = 30;
-const MIN_CLIP_SECONDS = 20;
 const COVER_WIDTH = 400;
 const PORTRAIT_WIDTH = 300;
 /** Titles whose source was missing or broken are looked at again after this long. */
 const RECHECK_DAYS = 30;
 
 const malCdn = new Limiter('mal-cdn', [{ ms: 1000, max: 5 }]);
-const audioHost = new Limiter('animethemes-audio', [{ ms: 1000, max: 3 }]);
 
 const log = (...args: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...args);
 
@@ -65,41 +61,13 @@ function ffmpeg(args: string[], input?: Uint8Array): Promise<FfmpegResult> {
 
 const contentKey = (dir: string, body: Uint8Array, ext: string) => `v1/${dir}/${createHash('sha256').update(body).digest('hex').slice(0, 24)}.${ext}`;
 
-/** GET through `limiter` (which retries network errors, 429 and 5xx); `bytes` limits it to a prefix. */
-function download(limiter: Limiter, url: string, bytes?: number): Promise<Uint8Array<ArrayBuffer>> {
+/** GET through `limiter`, which retries network errors, 429 and 5xx. */
+function download(limiter: Limiter, url: string): Promise<Uint8Array<ArrayBuffer>> {
   return limiter.schedule(async () => {
-    const res = await fetch(url, { headers: bytes ? { Range: `bytes=0-${bytes - 1}` } : undefined, signal: AbortSignal.timeout(60_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
     if (!res.ok) throw new UpstreamError(res.status, `${res.status} ${url}`);
     return new Uint8Array(await res.arrayBuffer());
   });
-}
-
-/**
- * AnimeThemes audio is ~320 kbps Ogg of the whole song; 1.6 MB is ~40 s, enough for a 30 s clip after
- * leading silence. Downloading the prefix is faster than letting ffmpeg stream the URL (the Ogg demuxer
- * seeks to the end for the duration), and AnimeThemes' bandwidth is the bottleneck of the whole step.
- */
-const AUDIO_PREFIX_BYTES = 1_600_000;
-
-/**
- * 30 s from the first sound, loudness-normalised, mp3 96 kbps (~360 KB). Keys are content hashes
- * (no mal_id), so the URL does not give the answer away.
- */
-async function processAudio(url: string): Promise<string> {
-  const source = await download(audioHost, url, AUDIO_PREFIX_BYTES);
-  const { out, seconds } = await ffmpeg(
-    [
-      '-i', 'pipe:0',
-      '-af', 'silenceremove=start_periods=1:start_threshold=-50dB,loudnorm=I=-16:TP=-1.5:LRA=11',
-      // -write_xing 0: the Xing header is patched by seeking back, impossible on a pipe; leave it out.
-      '-t', String(CLIP_SECONDS), '-ac', '2', '-ar', '44100', '-b:a', '96k', '-map_metadata', '-1', '-write_xing', '0', '-f', 'mp3', 'pipe:1',
-    ],
-    source,
-  );
-  if (seconds < MIN_CLIP_SECONDS || out.length < 100_000) throw new MediaError(`klip terlalu pendek (${seconds.toFixed(1)} dtk, ${out.length} B)`);
-  const key = contentKey('audio', out, 'mp3');
-  await putObject(key, out, 'audio/mpeg');
-  return key;
 }
 
 /** Any MAL CDN image → WebP at most `width` wide, stored under v1/<dir>/<content hash>.webp. */
@@ -149,9 +117,9 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 const isSourceFault = (err: unknown) => err instanceof MediaError || (err instanceof UpstreamError && err.status >= 400 && err.status < 500 && err.status !== 429);
 
 /**
- * Copies cover + first OP + first ED of every playable title to R2, most popular first (so the daily
- * pool is covered before the long tail). Re-runs skip what is already ok; missing/broken sources are
- * retried after RECHECK_DAYS, or always with --refresh.
+ * Per playable title, most popular first: copies the cover to R2 and records the first OP and first ED
+ * on AnimeThemes (audio URL + song info; the game streams them). Re-runs skip what is already ok;
+ * missing/broken sources are retried after RECHECK_DAYS, or always with --refresh.
  */
 export async function stepMedia(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number; cover_src: string | null }>('SELECT mal_id, cover_src FROM anime WHERE excluded IS NULL ORDER BY members DESC');
@@ -203,15 +171,9 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
               count(kind, 'missing');
               continue;
             }
-            try {
-              await save(job.id, kind, { status: 'ok', key: await processAudio(theme.audioUrl), source: theme.audioUrl, theme });
-              count(kind, 'ok');
-            } catch (err) {
-              if (!isSourceFault(err)) throw err;
-              await save(job.id, kind, { status: 'broken', source: theme.audioUrl, theme, error: errorText(err) });
-              count(kind, 'broken');
-              log(`media: ${job.id} ${theme.label} rusak: ${errorText(err)}`);
-            }
+            // The game streams the song from AnimeThemes through /api/media; only the source is kept.
+            await save(job.id, kind, { status: 'ok', source: theme.audioUrl, theme });
+            count(kind, 'ok');
           }
         }
       } catch (err) {

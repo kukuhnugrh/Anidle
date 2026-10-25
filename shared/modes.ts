@@ -11,12 +11,14 @@ export function todayWib(now = Date.now()): string {
 
 export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot'] as const;
 export type Mode = (typeof MODES)[number];
-/** Modes played as ROUND_COUNT rounds of one title each, revealing more media per attempt. */
-export type RoundMode = 'opening' | 'ending' | 'screenshot';
+/** Song modes: one title per round, the full song plays, one guess, an optional blurred clue. */
+export type SongMode = 'opening' | 'ending';
+/** Staged modes: one title per round, each attempt reveals more (Screenshot zooms out). */
+export type RoundMode = 'screenshot';
 
 export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Character', screenshot: 'Screenshot' };
 
-/** anime_media.kind: what the pipeline copied to R2 for a title. */
+/** anime_media.kind: media the pipeline found or copied to R2 for a title (op/ed: the AnimeThemes source). */
 export const MEDIA_KINDS = ['cover', 'op', 'ed', 'chars', 'shots'] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 
@@ -24,22 +26,24 @@ export type MediaKind = (typeof MEDIA_KINDS)[number];
 export const MEDIA_STATUSES = ['ok', 'missing', 'broken', 'rejected'] as const;
 export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 
-export const isRoundMode = (mode: Mode): mode is RoundMode => mode === 'opening' || mode === 'ending' || mode === 'screenshot';
+export const isRoundMode = (mode: Mode): mode is RoundMode => mode === 'screenshot';
+export const isSongMode = (mode: Mode): mode is SongMode => mode === 'opening' || mode === 'ending';
 
-/** What a title needs in R2 to be asked in a mode (Anidle needs nothing). */
+/** What a title needs to be asked in a mode (Anidle needs nothing). */
 export const MODE_MEDIA: Record<Mode, Exclude<MediaKind, 'cover'> | null> = { anidle: null, opening: 'op', ending: 'ed', screenshot: 'shots', character: 'chars' };
 
 export const ROUND_COUNT = 3;
 
-/**
- * Per round mode, what each attempt unlocks: song modes unlock seconds of the clip; Screenshot zooms
- * out of one frame of the opening (4× crop → full frame).
- */
+/** What each attempt unlocks per staged mode: Screenshot zooms out of one opening frame (4× crop → full). */
 export const ROUND_STAGES: Record<RoundMode, readonly number[]> = {
-  opening: [1, 3, 6, 12, 30],
-  ending: [1, 3, 6, 12, 30],
   screenshot: [4, 2.5, 1.6, 1],
 };
+
+/** Song modes: a right guess scores 500, or 250 after opening the clue (blurred OP video / blurred cover); a miss scores 0. */
+export const SONG_POINTS = { plain: 500, withClue: 250 } as const;
+
+/** The clue a song mode offers: the opening's own video, or (endings rarely have one) the anime's cover. */
+export const SONG_CLUE: Record<SongMode, 'video' | 'cover'> = { opening: 'video', ending: 'cover' };
 
 /**
  * Difficulty of each round of a multi-round puzzle: round 1 easy, the rest medium, when the pool is

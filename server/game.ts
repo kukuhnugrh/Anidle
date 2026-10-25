@@ -14,7 +14,7 @@ import {
   type Pool,
 } from '../shared/catalog.js';
 import { CHARACTER_QUIZ_SLOT } from '../shared/characters.js';
-import { CHARACTERS_PER_ROUND, isRoundMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
+import { CHARACTERS_PER_ROUND, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
@@ -313,9 +313,9 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
   return out;
 }
 
-/** Rows that store a new puzzle's answers: puzzle_round for round modes, puzzle_character for Character. */
+/** Rows that store a new puzzle's answers: puzzle_round for one-title rounds (song, staged), puzzle_character for Character. */
 async function answerInserts(puzzleId: string, mode: Mode, answers: number[][]) {
-  if (isRoundMode(mode))
+  if (isRoundMode(mode) || isSongMode(mode))
     return answers.map(([malId], round) => ({ sql: 'INSERT OR IGNORE INTO puzzle_round (puzzle_id, round, mal_id) VALUES (?, ?, ?)', args: [puzzleId, round, malId!] }));
   if (mode !== 'character') return [];
   const ids = answers.flat();
@@ -376,6 +376,29 @@ export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: Puzzl
     'write',
   );
   return row;
+}
+
+/**
+ * Puts another title from the same pool and round difficulty into `round` of an unlimited puzzle that
+ * stores one title per round (song and staged modes). The caller checks the round is untouched.
+ */
+export async function swapRoundTitle(puzzle: PuzzleRow, account: Account | null, round: number): Promise<void> {
+  if (!Number.isInteger(round) || round < 0 || round >= ROUND_COUNT) throw new HttpError(400, 'Unknown round.');
+  const options: PuzzleOptions = puzzle.options ? (JSON.parse(puzzle.options) as PuzzleOptions) : {};
+  const current = await all<{ mal_id: number }>('SELECT mal_id FROM puzzle_round WHERE puzzle_id = ?', [puzzle.id]);
+  const taken = new Set(current.map((r) => Number(r.mal_id)));
+  const franchises = new Set([...(await loadAnidle([...taken])).values()].map((a) => a.franchiseId ?? -a.malId));
+  const spec = poolSpec(puzzle.pool, account, puzzle.mode, options);
+  const titles = (await poolTitles({ ...spec, difficulties: roundDifficulties(spec.difficulties, round) })).filter((t) => !taken.has(t.malId));
+  const replacement = pickTitles(titles, 1, (_n, size) => Math.floor(Math.random() * size), franchises)?.[0];
+  if (!replacement) throw new HttpError(404, 'No other title left in this pool.');
+  await db().batch(
+    [
+      { sql: 'UPDATE puzzle_round SET mal_id = ? WHERE puzzle_id = ? AND round = ?', args: [replacement.malId, puzzle.id, round] },
+      ...(round === 0 ? [{ sql: 'UPDATE puzzle SET answer_id = ? WHERE id = ?', args: [replacement.malId, puzzle.id] }] : []),
+    ],
+    'write',
+  );
 }
 
 export async function getPuzzle(id: string): Promise<PuzzleRow> {

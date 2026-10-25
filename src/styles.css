@@ -368,11 +368,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .play-button { width: 56px; height: 56px; border-radius: 50%; padding: 0; flex: none; }
 .play-button .icon { width: 22px; height: 22px; }
 .clip-body { flex: 1; display: grid; gap: 6px; min-width: 0; }
-.clip-bar { position: relative; height: 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border-strong); overflow: hidden; }
-.clip-unlocked { position: absolute; inset: 0 auto 0 0; background: rgb(124 58 237 / .28); transition: width .3s; }
-.clip-played { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--accent-2), #a78bfa); }
-.clip-mark { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--border-strong); }
-.clip-mark.open { background: rgb(196 181 253 / .6); }
+.seek { width: 100%; padding: 0; accent-color: var(--accent-2); background: transparent; border: 0; cursor: pointer; }
+.seek:focus { box-shadow: none; }
+.clue-media { display: block; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--bg); filter: blur(16px) saturate(1.1); transform: scale(1.02); transition: filter .5s; }
+.clue-media.cover { aspect-ratio: 225 / 320; max-width: 220px; }
 .clip-meta { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
 .stage-controls { display: grid; gap: 10px; }
 .stage-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }

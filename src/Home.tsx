@@ -22,8 +22,8 @@ function Countdown() {
 
 const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
   anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, studio, genres, themes and demographic. 10 guesses.' },
-  opening: { Icon: MusicIcon, text: '3 rounds of openings. The clip grows with every miss: 1, 3, 6, 12, 30 seconds.' },
-  ending: { Icon: DiscIcon, text: '3 rounds of endings, same rules as Opening. Usually harder.' },
+  opening: { Icon: MusicIcon, text: '3 rounds of full openings, one guess each. Stuck? A blurred clip of the opening costs half the points.' },
+  ending: { Icon: DiscIcon, text: '3 rounds of full endings, one guess each. The clue is the blurred anime cover.' },
   character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Name each one and their anime.' },
   screenshot: { Icon: ImageIcon, text: '3 rounds, one scene from an opening. Starts zoomed in 4× and zooms out with every miss.' },
 };
@@ -47,7 +47,8 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
   }
   const solved = p.rounds.filter((r) => r.solved).length;
   if (p.finished) return { cta: 'See result', text: `${solved}/${p.rounds.length} rounds · ${p.score ?? 0} pts`, won: solved > 0 };
-  if (p.current > 0 || p.rounds[0]!.attempts.length) return { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` };
+  const started = p.current > 0 || ('attempts' in p.rounds[0]! ? p.rounds[0].attempts.length > 0 : p.rounds[0]!.clue.opened);
+  if (started) return { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` };
   return { cta: 'Play', text: 'Not played yet' };
 }
 

@@ -87,8 +87,8 @@ export async function listMedia(f: AdminFilters): Promise<AdminPage> {
   const marks = ids.map(() => '?').join(',');
   const [media, chars, shots, countRows] = ids.length
     ? await Promise.all([
-        all<{ mal_id: number; kind: MediaKind; status: MediaStatus; error: string | null; r2_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
-          `SELECT mal_id, kind, status, error, r2_key, label, song_title, artist FROM anime_media WHERE mal_id IN (${marks})`,
+        all<{ mal_id: number; kind: MediaKind; status: MediaStatus; error: string | null; r2_key: string | null; source_url: string | null; label: string | null; song_title: string | null; artist: string | null }>(
+          `SELECT mal_id, kind, status, error, r2_key, source_url, label, song_title, artist FROM anime_media WHERE mal_id IN (${marks})`,
           ids,
         ),
         all<{ mal_id: number; name: string; r2_key: string }>(`SELECT mal_id, name, r2_key FROM anime_character WHERE mal_id IN (${marks}) ORDER BY slot`, ids),
@@ -110,7 +110,8 @@ export async function listMedia(f: AdminFilters): Promise<AdminPage> {
       cells[m.kind] = {
         status: m.status,
         error: m.error,
-        url: m.r2_key ? mediaUrl(m.r2_key) : null,
+        // Songs are not copied to R2; admins hear them straight from AnimeThemes.
+        url: m.r2_key ? mediaUrl(m.r2_key) : m.kind === 'op' || m.kind === 'ed' ? m.source_url : null,
         label: m.label,
         song: [m.song_title, m.artist].filter(Boolean).join(' · ') || null,
       };

@@ -12,6 +12,7 @@ import * as leaderboard from '../routes/leaderboard.js';
 import * as logout from '../routes/logout.js';
 import * as malUnlink from '../routes/mal/unlink.js';
 import * as me from '../routes/me.js';
+import * as media from '../routes/media.js';
 import * as oauthCallback from '../routes/oauth/callback.js';
 import * as oauthLogin from '../routes/oauth/login.js';
 import * as puzzle from '../routes/puzzle.js';
@@ -37,6 +38,7 @@ const ROUTES: Record<string, RouteModule> = {
   logout,
   'mal/unlink': malUnlink,
   me,
+  media,
   'oauth/callback': oauthCallback,
   'oauth/login': oauthLogin,
   puzzle,

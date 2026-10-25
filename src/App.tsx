@@ -5,6 +5,7 @@ import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } fro
 import type { Mode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
 import { RoundGame } from './RoundGame';
+import { SongGame } from './SongGame';
 import { AuthPage } from './AuthPage';
 import { AdminPage } from './AdminPage';
 import { Database } from './Database';
@@ -148,5 +149,6 @@ function PuzzleLoader(props: { daily: Mode } | { id: string }) {
   const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`#/play/${p.id}`));
   if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
 }

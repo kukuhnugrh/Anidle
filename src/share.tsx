@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AnidleFeedback, Direction, ListClue } from '../shared/anidle';
 import { MODE_LABELS } from '../shared/modes';
-import type { AnidleState, CharacterState, RoundState } from './api';
+import type { AnidleState, CharacterState, RoundState, SongState } from './api';
 import { fmtDate } from './format';
 import { ShareIcon } from './icons';
 
@@ -29,7 +29,7 @@ function anidleRow(g: AnidleFeedback): string {
   ].join('');
 }
 
-const heading = (mode: AnidleState['mode'] | RoundState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>
+const heading = (mode: AnidleState['mode'] | RoundState['mode'] | SongState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>
   `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${score ?? 0} pts`;
 
 export function anidleShareText(p: AnidleState): string {
@@ -41,6 +41,12 @@ export function anidleShareText(p: AnidleState): string {
 export function roundShareText(p: RoundState): string {
   const rows = p.rounds.map((r, i) => `R${i + 1} ${r.attempts.map((a, j) => (!a ? '⬜' : r.solved && j === r.attempts.length - 1 ? '🟩' : '🟥')).join('')}`);
   return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
+}
+
+/** Per round: 🟩 right, 🟨 right with the clue, 🟥 wrong, ⬜ gave up. */
+export function songShareText(p: SongState): string {
+  const square = (r: SongState['rounds'][number]) => (r.solved ? (r.clue.opened ? '🟨' : '🟩') : r.gaveUp ? '⬜' : '🟥');
+  return [heading(p.mode, p.date, p.score), p.rounds.map(square).join(''), SITE].join('\n');
 }
 
 /** Per round, per character: name square then anime square, 🟩 right or 🟥 not. */

@@ -214,6 +214,7 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
 - Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; yang ditebak nama karakter (alias boleh) **dan** animenya.
 - Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium).
+- Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde (500 / 250 dengan clue / 0), clue = video OP blur atau cover blur untuk ED. Klip lama di R2 dihapus.
 
 ## 14. Risiko
 
