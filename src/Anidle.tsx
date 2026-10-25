@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { AnidleFeedback, Direction, ListClue } from '../shared/anidle';
+import { summarizeAnidle, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type PuzzleState } from './api';
 import { GuessInput } from './GuessInput';
@@ -79,6 +79,108 @@ function GuessRow({ g }: { g: AnidleFeedback }) {
   );
 }
 
+/** Integer ranges read as inclusive bounds ("2014–2022"); scores stay exclusive ("> 8.58"). */
+function rangeText(r: RangeSummary, integer: boolean): string | null {
+  if (r.exact != null) return integer ? String(r.exact) : r.exact.toFixed(2);
+  if (r.above == null && r.below == null) return null;
+  if (integer) {
+    const lo = r.above == null ? null : r.above + 1;
+    const hi = r.below == null ? null : r.below - 1;
+    if (lo != null && hi != null) return lo === hi ? String(lo) : `${lo}–${hi}`;
+    return lo != null ? `≥ ${lo}` : `≤ ${hi}`;
+  }
+  const parts = [r.above != null ? `> ${r.above.toFixed(2)}` : null, r.below != null ? `< ${r.below.toFixed(2)}` : null];
+  return parts.filter(Boolean).join(' dan ');
+}
+
+function SummaryValue({ s }: { s: ScalarSummary }) {
+  if (s.known) return <span className="chip hit">{pretty(s.known.value)}</span>;
+  if (!s.ruledOut.length) return <span className="muted">—</span>;
+  return (
+    <>
+      {s.ruledOut.map((v) => (
+        <span key={v} className="chip miss">
+          {pretty(v)}
+        </span>
+      ))}
+    </>
+  );
+}
+
+function SummaryList({ s }: { s: ListSummary }) {
+  if (s.complete && !s.has.length) return <span className="chip hit">tidak ada</span>;
+  if (!s.has.length && !s.not.length) return <span className="muted">—</span>;
+  return (
+    <>
+      {s.has.map((v) => (
+        <span key={v} className="chip hit">
+          {v}
+        </span>
+      ))}
+      {s.complete && <span className="muted small">(lengkap)</span>}
+      {!s.complete &&
+        s.not.map((v) => (
+          <span key={v} className="chip miss">
+            {v}
+          </span>
+        ))}
+    </>
+  );
+}
+
+function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
+  const s = useMemo(() => summarizeAnidle(guesses), [guesses]);
+  const range = (label: string, r: RangeSummary, integer: boolean) => {
+    const text = rangeText(r, integer);
+    return (
+      <div className="summary-row">
+        <span className="cell-label">{label}</span>
+        <span className="chips">{text ? <span className={`chip ${r.exact != null ? 'hit' : 'range'}`}>{text}</span> : <span className="muted">—</span>}</span>
+      </div>
+    );
+  };
+  const scalar = (label: string, v: ScalarSummary) => (
+    <div className="summary-row">
+      <span className="cell-label">{label}</span>
+      <span className="chips">
+        <SummaryValue s={v} />
+      </span>
+    </div>
+  );
+  const list = (label: string, v: ListSummary) => (
+    <div className="summary-row">
+      <span className="cell-label">{label}</span>
+      <span className="chips">
+        <SummaryList s={v} />
+      </span>
+    </div>
+  );
+  return (
+    <section className="summary">
+      <div className="summary-head">
+        <h3>Yang sudah diketahui</h3>
+        <span className="legend small">
+          <span className="chip hit">pasti</span>
+          <span className="chip miss">pasti bukan</span>
+          <span className="chip range">rentang</span>
+        </span>
+      </div>
+      <div className="summary-grid">
+        {scalar('Tipe', s.mediaType)}
+        {range('Tahun', s.year, true)}
+        {scalar('Season', s.season)}
+        {range('Episode', s.episodes, true)}
+        {range('Skor', s.score, false)}
+        {scalar('Source', s.source)}
+        {list('Studio', s.studios)}
+        {list('Genre', s.genres)}
+        {list('Theme', s.themes)}
+        {list('Demographic', s.demographics)}
+      </div>
+    </section>
+  );
+}
+
 export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: PuzzleState; onChange: (p: PuzzleState) => void; onNewUnlimited: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -139,6 +241,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: PuzzleSta
         <GuessInput exclude={guessed} disabled={sending} onPick={guess} />
       )}
       {error && <div className="error-box">{error}</div>}
+      {puzzle.guesses.length > 0 && !puzzle.solved && <SummaryPanel guesses={puzzle.guesses} />}
 
       <div className="guesses">
         {[...puzzle.guesses].reverse().map((g) => (

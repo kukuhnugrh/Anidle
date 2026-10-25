@@ -93,3 +93,84 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
 export function anidleScore(solved: boolean, guessCount: number): number {
   return solved ? Math.max(100, 1000 - 100 * (guessCount - 1)) : 0;
 }
+
+// ------------------------------------------------------------------ summary of what the guesses revealed
+
+export interface ScalarSummary {
+  /** Set once a guess matched: the answer's value (may itself be null = unknown on MAL). */
+  known: { value: string | null } | null;
+  /** Values guessed that are not the answer (unknown/null guesses prove nothing and are left out). */
+  ruledOut: string[];
+}
+
+export interface RangeSummary {
+  exact: number | null;
+  /** The answer is strictly greater than this. */
+  above: number | null;
+  /** The answer is strictly smaller than this. */
+  below: number | null;
+}
+
+export interface ListSummary {
+  /** Items the answer certainly has. */
+  has: string[];
+  /** Items the answer certainly does not have. */
+  not: string[];
+  /** A guess matched the whole list, so `has` is the answer's full list. */
+  complete: boolean;
+}
+
+export interface AnidleSummary {
+  mediaType: ScalarSummary;
+  year: RangeSummary;
+  season: ScalarSummary;
+  episodes: RangeSummary;
+  score: RangeSummary;
+  source: ScalarSummary;
+  studios: ListSummary;
+  genres: ListSummary;
+  themes: ListSummary;
+  demographics: ListSummary;
+}
+
+function scalarSummary(clues: Array<ScalarClue<string | null>>): ScalarSummary {
+  const hit = clues.find((c) => c.match);
+  return {
+    known: hit ? { value: hit.value } : null,
+    ruledOut: [...new Set(clues.flatMap((c) => (!c.match && c.value != null ? [c.value] : [])))],
+  };
+}
+
+function rangeSummary(clues: NumberClue[]): RangeSummary {
+  const out: RangeSummary = { exact: null, above: null, below: null };
+  for (const { value, direction } of clues) {
+    if (value == null) continue;
+    if (direction === 'equal') out.exact = value;
+    if (direction === 'higher') out.above = Math.max(out.above ?? -Infinity, value);
+    if (direction === 'lower') out.below = Math.min(out.below ?? Infinity, value);
+  }
+  return out;
+}
+
+function listSummary(clues: ListClue[]): ListSummary {
+  const has = new Set<string>();
+  const not = new Set<string>();
+  for (const clue of clues) for (const item of clue.items) (item.hit ? has : not).add(item.name);
+  return { has: [...has].sort(), not: [...not].sort(), complete: clues.some((c) => c.overlap === 'full') };
+}
+
+/** Everything the guesses so far proved about the answer. */
+export function summarizeAnidle(guesses: AnidleFeedback[]): AnidleSummary {
+  return {
+    mediaType: scalarSummary(guesses.map((g) => g.mediaType)),
+    year: rangeSummary(guesses.map((g) => g.year)),
+    season: scalarSummary(guesses.map((g) => g.season)),
+    episodes: rangeSummary(guesses.map((g) => g.episodes)),
+    score: rangeSummary(guesses.map((g) => g.score)),
+    source: scalarSummary(guesses.map((g) => g.source)),
+    studios: listSummary(guesses.map((g) => g.studios)),
+    genres: listSummary(guesses.map((g) => g.genres)),
+    themes: listSummary(guesses.map((g) => g.themes)),
+    demographics: listSummary(guesses.map((g) => g.demographics)),
+  };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anidleScore, compareAnidle, type AnidleAnime } from './anidle';
+import { anidleScore, compareAnidle, summarizeAnidle, type AnidleAnime } from './anidle';
 import { exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
 import { indexTitles, normalizeTitle, searchTitles } from './normalize';
@@ -65,6 +65,34 @@ describe('anidleScore', () => {
     expect(anidleScore(true, 4)).toBe(700);
     expect(anidleScore(true, 10)).toBe(100);
     expect(anidleScore(false, 10)).toBe(0);
+  });
+});
+
+describe('summarizeAnidle', () => {
+  const answer = anime({ malId: 100, year: 2018, score: 8.5, episodes: 24, season: 'spring', source: 'manga', genres: ['Action', 'Drama'] });
+  const guess = (over: Partial<AnidleAnime>) => compareAnidle(answer, anime({ malId: Math.random(), ...over }));
+
+  it('narrows numeric ranges to the tightest bounds from every guess', () => {
+    const s = summarizeAnidle([guess({ year: 2010, score: 9 }), guess({ year: 2015, score: 7 }), guess({ year: 2022, score: 8.9 })]);
+    expect(s.year).toEqual({ exact: null, above: 2015, below: 2022 });
+    expect(s.score).toEqual({ exact: null, above: 7, below: 8.9 });
+  });
+
+  it('records an exact number once a guess matched it', () => {
+    expect(summarizeAnidle([guess({ episodes: 12 }), guess({ episodes: 24 })]).episodes.exact).toBe(24);
+  });
+
+  it('keeps confirmed and ruled-out values, ignoring guesses with an unknown value', () => {
+    const s = summarizeAnidle([guess({ source: 'novel', season: null }), guess({ source: 'original', season: 'fall' })]);
+    expect(s.source).toEqual({ known: null, ruledOut: ['novel', 'original'] });
+    expect(s.season.ruledOut).toEqual(['fall']);
+    expect(summarizeAnidle([guess({ source: 'manga' })]).source.known).toEqual({ value: 'manga' });
+  });
+
+  it('collects list items the answer has and does not have, and flags a complete match', () => {
+    const s = summarizeAnidle([guess({ genres: ['Action', 'Comedy'] }), guess({ genres: ['Romance'] })]);
+    expect(s.genres).toEqual({ has: ['Action'], not: ['Comedy', 'Romance'], complete: false });
+    expect(summarizeAnidle([guess({ genres: ['Drama', 'Action'] })]).genres.complete).toBe(true);
   });
 });
 
