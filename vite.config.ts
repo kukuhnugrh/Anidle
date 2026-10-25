@@ -1,11 +1,7 @@
-import { existsSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
-
-// Same rewrite as vercel.json: MAL redirects to /oauth/callback.
-const REWRITES: Record<string, string> = { '/oauth/callback': '/api/oauth/callback' };
 
 async function readBody(req: IncomingMessage): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -14,8 +10,8 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 /**
- * Runs api/**.ts (Vercel Functions, Web-standard `GET`/`POST` exports) inside the Vite dev server,
- * so local dev needs neither the Vercel CLI nor a Vercel login.
+ * Sends /api/* and /oauth/callback (MAL's redirect) to api/router.ts inside the Vite dev server, the
+ * same single function vercel.json rewrites to, so local dev needs neither the Vercel CLI nor a login.
  */
 function devApi(root: string): Plugin {
   return {
@@ -23,20 +19,15 @@ function devApi(root: string): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-        url.pathname = REWRITES[url.pathname] ?? url.pathname;
-        if (!url.pathname.startsWith('/api/')) return next();
+        if (!url.pathname.startsWith('/api/') && url.pathname !== '/oauth/callback') return next();
 
         const send = (status: number, body: unknown) => {
           res.statusCode = status;
           res.setHeader('content-type', 'application/json; charset=utf-8');
           res.end(JSON.stringify(body));
         };
-        // Same lookup as Vercel: api/foo.ts, then api/foo/index.ts.
-        const base = path.join(root, url.pathname.slice(1));
-        const file = [`${base}.ts`, path.join(base, 'index.ts')].find((f) => existsSync(f));
-        if (!file) return send(404, { error: `No function for ${url.pathname}` });
         try {
-          const mod = await server.ssrLoadModule(file);
+          const mod = await server.ssrLoadModule(path.join(root, 'api/router.ts'));
           const method = req.method ?? 'GET';
           const handler = mod[method] as ((request: Request) => Promise<Response>) | undefined;
           if (!handler) return send(405, { error: `${method} not allowed` });

@@ -2,5 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "regions": ["hnd1"],
-  "rewrites": [{ "source": "/oauth/callback", "destination": "/api/oauth/callback" }]
+  "rewrites": [
+    { "source": "/oauth/callback", "destination": "/api/router?route=oauth/callback" },
+    { "source": "/api/:path((?!router$).*)", "destination": "/api/router?route=:path" }
+  ]
 }
