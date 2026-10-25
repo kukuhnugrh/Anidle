@@ -12,6 +12,7 @@ import * as me from '../routes/me.js';
 import * as oauthCallback from '../routes/oauth/callback.js';
 import * as oauthLogin from '../routes/oauth/login.js';
 import * as puzzle from '../routes/puzzle.js';
+import * as puzzleReplace from '../routes/puzzle/replace.js';
 import * as sync from '../routes/sync.js';
 import * as titles from '../routes/titles.js';
 import { json } from '../server/http.js';
@@ -33,6 +34,7 @@ const ROUTES: Record<string, RouteModule> = {
   'oauth/callback': oauthCallback,
   'oauth/login': oauthLogin,
   puzzle,
+  'puzzle/replace': puzzleReplace,
   sync,
   titles,
 };

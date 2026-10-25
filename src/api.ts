@@ -1,7 +1,13 @@
-import type { AnidleFeedback } from '../shared/anidle';
+import type { AnidleState } from '../server/game';
+import type { PuzzleState } from '../server/puzzles';
+import type { ThemeState } from '../server/themes';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
+import type { Mode } from '../shared/modes';
 import type { TitleEntry } from '../shared/normalize';
+
+// Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
+export type { AnidleState, PuzzleState, ThemeState };
 
 export interface MalLink {
   username: string;
@@ -15,20 +21,8 @@ export interface Account {
   mal: MalLink | null;
 }
 
-export interface PuzzleState {
-  id: string;
-  mode: 'anidle';
-  date: string | null;
-  pool: Pool;
-  maxGuesses: number;
-  guesses: AnidleFeedback[];
-  solved: boolean;
-  finished: boolean;
-  score: number | null;
-  answer: { malId: number; title: string; cover: string | null; year: number | null; members: number | null; difficulty: Difficulty } | null;
-}
-
 export interface UnlimitedOptions {
+  mode: Mode;
   pool: Pool;
   genreId?: number;
   /** Empty = every difficulty. */
@@ -42,7 +36,9 @@ export const savedUnlimited = {
   load(): UnlimitedOptions | null {
     try {
       const raw = localStorage.getItem(UNLIMITED_KEY);
-      return raw ? (JSON.parse(raw) as UnlimitedOptions) : null;
+      const saved = raw ? (JSON.parse(raw) as Partial<UnlimitedOptions>) : null;
+      // Settings saved before song modes existed have no mode.
+      return saved?.pool ? { ...saved, mode: saved.mode ?? 'anidle', pool: saved.pool } : null;
     } catch {
       return null;
     }
@@ -91,10 +87,14 @@ export const api = {
   unlinkMal: () => call<{ account: Account }>('/api/mal/unlink', { method: 'POST' }),
   sync: () => call<SyncResult>('/api/sync', { method: 'POST' }),
   titles: () => call<TitleEntry[]>('/api/titles'),
-  daily: () => call<PuzzleState>('/api/puzzle?mode=anidle'),
+  daily: (mode: Mode) => call<PuzzleState>(`/api/puzzle?mode=${mode}`),
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
-  unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: { mode: 'anidle', ...options } }),
-  guess: (puzzleId: string, malId: number) => call<PuzzleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
+  unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
+  guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
+  /** `malId` null = skip to the next clip stage. */
+  themeGuess: (puzzleId: string, round: number, malId: number | null) =>
+    call<ThemeState>('/api/guess', { method: 'POST', body: malId == null ? { puzzleId, round, skip: true } : { puzzleId, round, malId } }),
+  replaceRound: (puzzleId: string, round: number) => call<ThemeState>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
 };

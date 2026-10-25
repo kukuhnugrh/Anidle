@@ -2,7 +2,7 @@
 
 Game tebak anime harian untuk saya dan teman-teman. Pool berisi anime *completed* dari list MAL pemain dan anime populer di MAL (≥ 50 rb member), masing-masing dengan difficulty easy/medium/hard. Rencana lengkap: [PLAN.md](PLAN.md).
 
-Status: **M1 (pipeline data) dan M2 (mode Anidle) selesai.** Live di https://anidle.velvetaco.dev. Belum ada media (M3).
+Status: **M1 (pipeline data), M2 (mode Anidle), dan M3 (media di R2 + mode Opening/Ending) selesai.** Live di https://anidle.velvetaco.dev.
 
 ## Akun
 
@@ -28,7 +28,7 @@ Menghubungkan MAL di lokal butuh App Redirect URL app MAL `http://localhost:3000
 
 ```bash
 npm run pipeline                       # semua step
-npm run pipeline -- completed enrich   # step tertentu: genres, completed, top, enrich, franchise
+npm run pipeline -- completed enrich   # step tertentu: genres, completed, popular, enrich, franchise, media
 npm run pipeline -- enrich --refresh   # ambil ulang detail semua judul
 npm run pipeline -- enrich --limit=50  # cicil
 npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, lalu .env untuk sisanya
@@ -41,18 +41,20 @@ npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, la
 | `popular` | Ranking popularitas resmi MAL (`ranking_type=bypopularity`) sampai `members ≥ 50.000`, tanpa Music/CM/PV |
 | `enrich` | Detail MAL untuk judul baru / lebih tua dari 30 hari: judul alternatif, cover, tahun, skor, jumlah member, source, studio, genre, relasi. Hentai/Erotica, music/CM/PV, dan judul yang belum tayang ditandai `excluded` (judul belum tayang masuk lagi setelah tayang, pada enrich berikutnya) |
 | `franchise` | Kelompok prequel/sequel (mis. semua season Shingeki no Kyojin satu franchise) |
+| `media` | Per judul (paling populer dulu): cover MAL → WebP lebar 400; OP pertama dan ED pertama dari AnimeThemes → klip 30 dtk dari bunyi pertama, loudnorm, mp3 96 kbps (±360 KB). Upload ke R2 (`v1/cover/<hash>.webp`, `v1/audio/<hash>.mp3`, nama = hash isi, jadi tidak membocorkan judul; cache `immutable`). Hasil per judul di tabel `anime_media` (`ok` / `missing` / `broken`); `missing`/`broken` dicoba lagi setelah 30 hari. Butuh `R2_*` di `.env`; ffmpeg dari `ffmpeg-static` |
 
-Bisa dijalankan ulang kapan saja; tidak membuat duplikat. Rate limit: MAL 3 req/dtk, jikan-edge 25 req/10 dtk dan 50 req/menit, dengan retry untuk timeout/429/5xx.
+Bisa dijalankan ulang kapan saja; tidak membuat duplikat. Rate limit: MAL 3 req/dtk, jikan-edge 25 req/10 dtk dan 50 req/menit, AnimeThemes 80 req/menit, dengan retry untuk timeout/429/5xx. Step `media` hanya mengunduh 1,6 MB awal tiap lagu; run pertama untuk ±3.760 judul makan beberapa jam (bandwidth AnimeThemes yang jadi batas).
 
 Hasil run Okt 2026 (1 pemain, `Velvetaco`): 621 completed + 3.701 populer → 3.842 anime, 78 dikecualikan (49 Hentai/Erotica, 29 belum tayang), **3.764 judul bisa dimainkan**: 537 easy, 888 medium, 2.339 hard. Pool harian (easy + medium) ±1.425 judul.
 
 ## Game
 
 - **Difficulty** dari jumlah member MAL: **easy** ≥ 500 rb, **medium** 200–500 rb, **hard** < 200 rb (ambang di `shared/catalog.ts`).
-- **Anidle harian**: satu jawaban untuk semua orang per tanggal WIB, dipilih deterministik dari pool `semua` **dengan difficulty easy atau medium saja**, dan tidak mengulang jawaban 60 hari terakhir. Disimpan di DB saat pertama diminta, jadi update pool di tengah hari tidak mengubahnya.
-- **Unlimited** (`#/unlimited`): pool `semua`, `teman`, `bareng`, `saya`, atau `populer`, dengan filter genre (18 genre utama) dan difficulty. Pengaturan terakhir diingat browser. URL `#/play/<id>` bisa di-reload.
-- Setiap tebakan dibandingkan dengan jawaban: tipe, tahun ↑↓, season, episode ↑↓, skor ↑↓, source, studio, genre, theme, demographic (cocok/sebagian/beda). 10 tebakan, skor 1000 − 100 per tebakan tambahan. Satu franchise dianggap benar.
-- Jawaban dicek di server dan baru dikirim ke browser setelah game selesai.
+- **Harian** (`#/daily`, `#/daily/opening`, `#/daily/ending`): satu puzzle per mode per tanggal WIB untuk semua orang, dipilih deterministik dari pool `semua` **dengan difficulty easy atau medium saja**, dan tidak mengulang jawaban 60 hari terakhir. Disimpan di DB saat pertama diminta, jadi update pool di tengah hari tidak mengubahnya.
+- **Unlimited** (`#/unlimited`): mode apa pun, pool `semua`, `teman`, `bareng`, `saya`, atau `populer`, dengan filter genre (18 genre utama) dan difficulty. Pengaturan terakhir diingat browser. URL `#/play/<id>` bisa di-reload.
+- **Anidle**: setiap tebakan dibandingkan dengan jawaban: tipe, tahun ↑↓, season, episode ↑↓, skor ↑↓, source, studio, genre, theme, demographic (cocok/sebagian/beda). 10 tebakan, skor 1000 − 100 per tebakan tambahan.
+- **Opening / Ending**: 3 ronde dari franchise berbeda, hanya judul yang klipnya `ok` di R2. Klip terbuka 1 → 3 → 6 → 12 → 30 dtk; tiap tebakan salah atau "lewati" membuka tahap berikutnya. Benar di percobaan 1–5 = 500/400/300/200/100 poin. Semua klip di-preload sebelum ronde pertama; kalau satu klip gagal dimuat ada "Coba lagi", dan di puzzle unlimited milik sendiri ronde yang belum ditebak bisa diganti (`POST /api/puzzle/replace`).
+- Satu franchise dianggap benar. Jawaban dicek di server dan baru dikirim ke browser setelah game (atau ronde) selesai. Cover jawaban diambil dari R2 kalau sudah disalin, kalau belum dari CDN MAL.
 
 ## Database
 

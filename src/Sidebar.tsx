@@ -1,22 +1,30 @@
 import type { ComponentType } from 'react';
 import type { Account } from './api';
-import { CalendarIcon, CloseIcon, DatabaseIcon, HomeIcon, LogoutIcon, ShuffleIcon } from './icons';
-import type { View } from './route';
+import { CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShuffleIcon } from './icons';
+import { dailyHref, type Route } from './route';
 
-const NAV: { title: string; items: { view: View; href: string; label: string; Icon: ComponentType }[] }[] = [
+/** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode. */
+const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType }[] }[] = [
+  { title: 'Main', items: [{ id: 'home', href: '#/', label: 'Beranda', Icon: HomeIcon }] },
   {
-    title: 'Main',
+    title: 'Harian',
     items: [
-      { view: 'home', href: '#/', label: 'Beranda', Icon: HomeIcon },
-      { view: 'daily', href: '#/daily', label: 'Harian', Icon: CalendarIcon },
-      { view: 'unlimited', href: '#/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
+      { id: 'daily:anidle', href: dailyHref('anidle'), label: 'Anidle', Icon: PuzzleIcon },
+      { id: 'daily:opening', href: dailyHref('opening'), label: 'Opening', Icon: MusicIcon },
+      { id: 'daily:ending', href: dailyHref('ending'), label: 'Ending', Icon: DiscIcon },
     ],
   },
   {
-    title: 'Jelajah',
-    items: [{ view: 'database', href: '#/database', label: 'Database', Icon: DatabaseIcon }],
+    title: 'Bebas',
+    items: [
+      { id: 'unlimited', href: '#/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
+      { id: 'database', href: '#/database', label: 'Database', Icon: DatabaseIcon },
+    ],
   },
 ];
+
+/** An unlimited puzzle in progress belongs to the Unlimited entry. */
+const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view);
 
 export function Brand() {
   return (
@@ -37,9 +45,8 @@ export function Avatar({ account }: { account: Account }) {
   );
 }
 
-export function Sidebar({ view, account, open, onClose, onLogout }: { view: View; account: Account | null; open: boolean; onClose: () => void; onLogout: () => void }) {
-  // An unlimited puzzle in progress belongs to the Unlimited entry.
-  const current = view === 'play' ? 'unlimited' : view;
+export function Sidebar({ route, account, open, onClose, onLogout }: { route: Route; account: Account | null; open: boolean; onClose: () => void; onLogout: () => void }) {
+  const current = navId(route);
   return (
     <>
       <aside className={`sidebar${open ? ' open' : ''}`}>
@@ -53,8 +60,8 @@ export function Sidebar({ view, account, open, onClose, onLogout }: { view: View
           {NAV.map((section) => (
             <div key={section.title} className="nav-section">
               <div className="nav-title">{section.title}</div>
-              {section.items.map(({ view: target, href, label, Icon }) => (
-                <a key={target} className={`nav-item${current === target ? ' active' : ''}`} href={href} aria-current={current === target ? 'page' : undefined}>
+              {section.items.map(({ id, href, label, Icon }) => (
+                <a key={id} className={`nav-item${current === id ? ' active' : ''}`} href={href} aria-current={current === id ? 'page' : undefined}>
                   <Icon />
                   {label}
                 </a>

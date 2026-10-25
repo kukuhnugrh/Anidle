@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, type Difficulty, type Pool } from '../shared/catalog';
+import { MODE_LABELS, MODES, type Mode } from '../shared/modes';
 import { api, errorMessage, savedUnlimited, type Account, type UnlimitedOptions } from './api';
 import { ArrowIcon } from './icons';
 import { go } from './route';
+
+const MODE_HINTS: Record<Mode, string> = { anidle: 'tebak dari petunjuk', opening: '3 ronde lagu opening', ending: '3 ronde lagu ending' };
 
 const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: Difficulty[] }> = {
   all: { label: 'Semua', hint: 'semua judul', value: [] },
@@ -16,6 +19,7 @@ const choiceKey = (value: Difficulty[] = []) =>
 
 export function Unlimited({ account }: { account: Account | null }) {
   const [saved] = useState(savedUnlimited.load);
+  const [mode, setMode] = useState<Mode>(saved?.mode ?? 'anidle');
   const [pool, setPool] = useState<Pool>(saved && (POOLS as readonly string[]).includes(saved.pool) ? saved.pool : 'semua');
   const [genreId, setGenreId] = useState<number | ''>(saved?.genreId ?? '');
   const [difficulty, setDifficulty] = useState(choiceKey(saved?.difficulties));
@@ -28,7 +32,7 @@ export function Unlimited({ account }: { account: Account | null }) {
     setBusy(true);
     setError(null);
     try {
-      const options: UnlimitedOptions = { pool, genreId: genreId === '' ? undefined : genreId, difficulties: DIFFICULTY_CHOICES[difficulty]!.value };
+      const options: UnlimitedOptions = { mode, pool, genreId: genreId === '' ? undefined : genreId, difficulties: DIFFICULTY_CHOICES[difficulty]!.value };
       const puzzle = await api.unlimited(options);
       savedUnlimited.save(options);
       go(`#/play/${puzzle.id}`);
@@ -47,6 +51,18 @@ export function Unlimited({ account }: { account: Account | null }) {
       </header>
 
       <section className="card form-card">
+        <div className="field">
+          <span className="field-label">Mode</span>
+          <div className="segmented modes" role="radiogroup" aria-label="Mode">
+            {MODES.map((m) => (
+              <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'selected' : ''} onClick={() => setMode(m)}>
+                <b>{MODE_LABELS[m]}</b>
+                <span>{MODE_HINTS[m]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="field">
           <span className="field-label">Pool</span>
           <div className="option-grid" role="radiogroup" aria-label="Pool">

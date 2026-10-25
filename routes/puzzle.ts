@@ -1,13 +1,9 @@
 import { viewer } from '../server/accounts.js';
-import { dailyPuzzle, getPuzzle, MODES, parseDifficulties, parsePool, poolSpec, puzzleState, unlimitedPuzzle, type Mode } from '../server/game.js';
+import { dailyPuzzle, getPuzzle, parseDifficulties, parseMode, parsePool, poolSpec, unlimitedPuzzle, type PuzzleOptions } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
+import { puzzleState } from '../server/puzzles.js';
 
-function parseMode(value: unknown): Mode {
-  if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
-  throw new HttpError(400, `Mode tidak dikenal: ${String(value)}`);
-}
-
-/** ?mode=anidle → today's puzzle. ?id=<uuid> → resume any puzzle (e.g. an unlimited one after reload). */
+/** ?mode=anidle|opening|ending → today's puzzle. ?id=<uuid> → resume any puzzle (e.g. an unlimited one after reload). */
 export const GET = route(async (req) => {
   const me = await viewer(req);
   const params = new URL(req.url).searchParams;
@@ -22,7 +18,8 @@ export const POST = route(async (req) => {
   const body = await readJson<{ mode?: unknown; pool?: unknown; genreId?: unknown; difficulties?: unknown }>(req);
   const genreId = body.genreId == null || body.genreId === '' ? undefined : Number(body.genreId);
   if (genreId !== undefined && !Number.isInteger(genreId)) throw new HttpError(400, 'genreId harus angka.');
-  const spec = poolSpec(parsePool(body.pool ?? 'semua'), me.account, { genreId, difficulties: parseDifficulties(body.difficulties) });
-  const puzzle = await unlimitedPuzzle(parseMode(body.mode ?? 'anidle'), spec, me.key);
+  const mode = parseMode(body.mode ?? 'anidle');
+  const options: PuzzleOptions = { genreId, difficulties: parseDifficulties(body.difficulties) };
+  const puzzle = await unlimitedPuzzle(mode, poolSpec(parsePool(body.pool ?? 'semua'), me.account, mode, options), options, me.key);
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);
 });

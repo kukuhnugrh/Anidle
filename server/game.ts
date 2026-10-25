@@ -13,15 +13,19 @@ import {
   type GenreType,
   type Pool,
 } from '../shared/catalog.js';
+import { isThemeMode, MODES, THEME_MEDIA, THEME_ROUNDS, todayWib, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
-import { all, nowIso, one, run } from './db.js';
+import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
 import { HttpError } from './http.js';
+import { COVER_KEY_SQL, coverOf } from './media.js';
 
-export const MODES = ['anidle'] as const;
-export type Mode = (typeof MODES)[number];
+export function parseMode(value: unknown): Mode {
+  if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
+  throw new HttpError(400, `Mode tidak dikenal: ${String(value)}`);
+}
 
 export interface PoolSpec {
   pool: Pool;
@@ -33,6 +37,8 @@ export interface PoolSpec {
   genreId?: number;
   /** Empty = every difficulty. */
   difficulties: readonly Difficulty[];
+  /** Only titles whose media of this kind is in R2 (song modes). */
+  media?: 'op' | 'ed';
 }
 
 /** Difficulty condition on alias `a` (thresholds from shared/catalog.ts). */
@@ -78,6 +84,10 @@ function poolWhere(spec: PoolSpec): { sql: string; args: Array<string | number> 
     args.push(spec.genreId);
   }
   if (spec.difficulties.length) parts.push(`(${spec.difficulties.map((d) => `(${DIFFICULTY_SQL[d]})`).join(' OR ')})`);
+  if (spec.media) {
+    parts.push(`EXISTS (SELECT 1 FROM anime_media m WHERE m.mal_id = a.mal_id AND m.kind = ? AND m.status = 'ok')`);
+    args.push(spec.media);
+  }
   return { sql: parts.join(' AND '), args };
 }
 
@@ -93,16 +103,35 @@ export function parseDifficulties(value: unknown): Difficulty[] {
   return list as Difficulty[];
 }
 
-/** Pool spec for a player; completed-list pools need a linked MAL account. */
-export function poolSpec(pool: Pool, account: Account | null, filters: { genreId?: number; difficulties?: readonly Difficulty[] } = {}): PoolSpec {
-  if (POOL_NEEDS_MAL[pool] && !account?.malUsername) throw new HttpError(403, 'Pool ini butuh akun MAL yang terhubung. Masuk lalu hubungkan akun MAL dulu.');
-  return { pool, members: poolUsers(), malUsername: account?.malUsername ?? null, genreId: filters.genreId, difficulties: filters.difficulties ?? [] };
+/** Unlimited filters, stored with the puzzle so a round can be replaced from the same pool. */
+export interface PuzzleOptions {
+  genreId?: number;
+  difficulties?: readonly Difficulty[];
 }
 
-export async function poolIds(spec: PoolSpec): Promise<number[]> {
+/** Pool spec for a player and mode; completed-list pools need a linked MAL account. */
+export function poolSpec(pool: Pool, account: Account | null, mode: Mode, filters: PuzzleOptions = {}): PoolSpec {
+  if (POOL_NEEDS_MAL[pool] && !account?.malUsername) throw new HttpError(403, 'Pool ini butuh akun MAL yang terhubung. Masuk lalu hubungkan akun MAL dulu.');
+  return {
+    pool,
+    members: poolUsers(),
+    malUsername: account?.malUsername ?? null,
+    genreId: filters.genreId,
+    difficulties: filters.difficulties ?? [],
+    media: isThemeMode(mode) ? THEME_MEDIA[mode] : undefined,
+  };
+}
+
+export interface PoolTitle {
+  malId: number;
+  /** Titles of one franchise share this key, so a puzzle never asks the same show twice. */
+  franchise: number;
+}
+
+export async function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
   const where = poolWhere(spec);
-  const rows = await all<{ mal_id: number }>(`SELECT a.mal_id FROM anime a WHERE ${where.sql} ORDER BY a.mal_id`, where.args);
-  return rows.map((r) => Number(r.mal_id));
+  const rows = await all<{ mal_id: number; franchise_id: number | null }>(`SELECT a.mal_id, a.franchise_id FROM anime a WHERE ${where.sql} ORDER BY a.mal_id`, where.args);
+  return rows.map((r) => ({ malId: Number(r.mal_id), franchise: r.franchise_id == null ? -Number(r.mal_id) : Number(r.franchise_id) }));
 }
 
 /**
@@ -133,16 +162,19 @@ interface AnimeRow {
   studios: string;
   franchise_id: number | null;
   cover_src: string | null;
+  cover_key: string | null;
   members: number | null;
 }
 
-type LoadedAnime = AnidleAnime & { cover: string | null; members: number | null };
+export type LoadedAnime = AnidleAnime & { cover: string | null; members: number | null };
 
 export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime>> {
   if (!ids.length) return new Map();
   const marks = ids.map(() => '?').join(',');
   const rows = await all<AnimeRow>(
-    `SELECT mal_id, title, media_type, year, season, num_episodes, score, source, studios, franchise_id, cover_src, members FROM anime WHERE mal_id IN (${marks})`,
+    `SELECT a.mal_id, a.title, a.media_type, a.year, a.season, a.num_episodes, a.score, a.source, a.studios, a.franchise_id, a.cover_src,
+            ${COVER_KEY_SQL} AS cover_key, a.members
+     FROM anime a WHERE a.mal_id IN (${marks})`,
     ids,
   );
   const genreRows = await all<{ mal_id: number; name: string; type: GenreType }>(
@@ -165,7 +197,7 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
       themes: [],
       demographics: [],
       franchiseId: r.franchise_id == null ? null : Number(r.franchise_id),
-      cover: r.cover_src,
+      cover: coverOf(r.cover_key, r.cover_src),
       members: r.members == null ? null : Number(r.members),
     });
   }
@@ -177,65 +209,112 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
   return out;
 }
 
-// ------------------------------------------------------------------ puzzles
-
-/** Today's date in WIB (UTC+7), YYYY-MM-DD: the daily puzzle rolls over at 00:00 WIB. */
-export function todayWib(now = Date.now()): string {
-  return new Date(now + 7 * 3_600_000).toISOString().slice(0, 10);
+/** What a finished puzzle (or round) reveals about its answer. */
+export interface AnswerInfo {
+  malId: number;
+  title: string;
+  cover: string | null;
+  year: number | null;
+  members: number | null;
+  difficulty: Difficulty;
 }
+
+export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
+  malId: a.malId,
+  title: a.title,
+  cover: a.cover,
+  year: a.year,
+  members: a.members,
+  difficulty: difficultyOf(a.members),
+});
+
+// ------------------------------------------------------------------ puzzles
 
 const RECENT_DAYS_WITHOUT_REPEAT = 60;
 
-interface PuzzleRow {
+/** Answers per puzzle: Anidle has one, song modes one per round. */
+const ANSWERS: Record<Mode, number> = { anidle: 1, opening: THEME_ROUNDS, ending: THEME_ROUNDS };
+
+export interface PuzzleRow {
   id: string;
   date: string | null;
   mode: Mode;
   pool: Pool;
+  /** The answer of Anidle, round 0 of song modes (all rounds are in puzzle_round). */
   answer_id: number;
   created_by: string | null;
+  /** JSON PuzzleOptions of an unlimited puzzle. */
+  options: string | null;
 }
+
+/**
+ * `count` titles from distinct franchises. `draw(n, size)` gives the n-th random index; daily puzzles
+ * pass a date-seeded one so every server picks the same answers.
+ */
+export function pickTitles(from: PoolTitle[], count: number, draw: (n: number, size: number) => number, avoidFranchises: Iterable<number> = []): number[] {
+  const used = new Set(avoidFranchises);
+  const picked: number[] = [];
+  for (let n = 0; picked.length < count && n < count * 50; n++) {
+    const title = from[draw(n, from.length)]!;
+    if (used.has(title.franchise)) continue;
+    used.add(title.franchise);
+    picked.push(title.malId);
+  }
+  if (picked.length < count) throw new HttpError(404, 'Pool ini terlalu kecil untuk mode ini.');
+  return picked;
+}
+
+export const randomDraw = (_n: number, size: number) => Math.floor(Math.random() * size);
+
+const roundInserts = (puzzleId: string, answers: number[]) =>
+  answers.map((malId, round) => ({ sql: 'INSERT OR IGNORE INTO puzzle_round (puzzle_id, round, mal_id) VALUES (?, ?, ?)', args: [puzzleId, round, malId] }));
 
 export async function dailyPuzzle(mode: Mode): Promise<PuzzleRow> {
   const date = todayWib();
   const existing = await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]);
   if (existing) return existing;
 
-  const ids = await poolIds(poolSpec('semua', null, { difficulties: DAILY_DIFFICULTIES }));
-  if (!ids.length) throw new HttpError(503, 'Pool masih kosong. Jalankan pipeline dulu.');
+  const titles = await poolTitles(poolSpec('semua', null, mode, { difficulties: DAILY_DIFFICULTIES }));
+  if (!titles.length) throw new HttpError(503, 'Pool masih kosong. Jalankan pipeline dulu.');
+  const since = todayWib(Date.now() - RECENT_DAYS_WITHOUT_REPEAT * 86_400_000);
   const recent = new Set(
-    (await all<{ answer_id: number }>('SELECT answer_id FROM puzzle WHERE mode = ? AND date IS NOT NULL ORDER BY date DESC LIMIT ?', [mode, RECENT_DAYS_WITHOUT_REPEAT])).map((r) =>
-      Number(r.answer_id),
-    ),
+    (
+      await all<{ mal_id: number }>(
+        `SELECT answer_id AS mal_id FROM puzzle WHERE mode = ? AND date >= ?
+         UNION SELECT r.mal_id FROM puzzle_round r JOIN puzzle p ON p.id = r.puzzle_id WHERE p.mode = ? AND p.date >= ?`,
+        [mode, since, mode, since],
+      )
+    ).map((r) => Number(r.mal_id)),
   );
-  const candidates = ids.filter((id) => !recent.has(id));
-  const from = candidates.length ? candidates : ids;
-  const answer = from[Number(seedOf(`${date}:${mode}`) % BigInt(from.length))]!;
+  const fresh = titles.filter((t) => !recent.has(t.malId));
+  const count = ANSWERS[mode];
+  // Draw 0 keeps the seed Anidle has always used, so its daily answers did not change with song modes.
+  const seeded = (n: number, size: number) => Number(seedOf(n ? `${date}:${mode}:${n}` : `${date}:${mode}`) % BigInt(size));
+  const answers = pickTitles(fresh.length >= count * 5 ? fresh : titles, count, seeded);
 
-  // Concurrent first requests race here; UNIQUE(date, mode) keeps exactly one.
-  await run('INSERT OR IGNORE INTO puzzle (id, date, mode, pool, answer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), date, mode, 'semua', answer, nowIso()]);
-  return (await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]))!;
+  // Concurrent first requests race here; UNIQUE(date, mode) keeps exactly one puzzle, and both
+  // requests computed the same answers, so the rounds go to whichever puzzle row won.
+  await run('INSERT OR IGNORE INTO puzzle (id, date, mode, pool, answer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), date, mode, 'semua', answers[0]!, nowIso()]);
+  const row = (await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]))!;
+  if (isThemeMode(mode)) await db().batch(roundInserts(row.id, answers), 'write');
+  return row;
 }
 
-export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, playerKey: string): Promise<PuzzleRow> {
-  const ids = await poolIds(spec);
-  if (!ids.length) throw new HttpError(404, 'Pool ini kosong.');
-  const row: PuzzleRow = {
-    id: randomUUID(),
-    date: null,
-    mode,
-    pool: spec.pool,
-    answer_id: ids[Math.floor(Math.random() * ids.length)]!,
-    created_by: playerKey,
-  };
-  await run('INSERT INTO puzzle (id, date, mode, pool, answer_id, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [
-    row.id,
-    row.date,
-    row.mode,
-    row.pool,
-    row.answer_id,
-    row.created_by,
-    nowIso(),
-  ]);
+export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
+  const titles = await poolTitles(spec);
+  if (!titles.length) throw new HttpError(404, 'Pool ini kosong.');
+  const answers = pickTitles(titles, ANSWERS[mode], randomDraw);
+  const row: PuzzleRow = { id: randomUUID(), date: null, mode, pool: spec.pool, answer_id: answers[0]!, created_by: playerKey, options: JSON.stringify(options) };
+  await db().batch(
+    [
+      {
+        sql: 'INSERT INTO puzzle (id, date, mode, pool, answer_id, created_by, options, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        args: [row.id, row.date, row.mode, row.pool, row.answer_id, row.created_by, row.options, nowIso()],
+      },
+      ...(isThemeMode(mode) ? roundInserts(row.id, answers) : []),
+    ],
+    'write',
+  );
   return row;
 }
 
@@ -245,15 +324,34 @@ export async function getPuzzle(id: string): Promise<PuzzleRow> {
   return row;
 }
 
-interface PlayRow {
+export interface PlayRow {
   guesses: string;
   solved: number;
   score: number | null;
 }
 
-export interface PuzzleState {
+/** `playerKey` is play.username: 'u:<account id>' or 'a:<anonymous id>'. */
+export const readPlay = (puzzleId: string, playerKey: string) =>
+  one<PlayRow>('SELECT guesses, solved, score FROM play WHERE puzzle_id = ? AND username = ?', [puzzleId, playerKey]);
+
+export async function writePlay(puzzleId: string, playerKey: string, play: { guesses: unknown; solved: number; score: number | null; finished: boolean }) {
+  await run(
+    `INSERT INTO play (puzzle_id, username, guesses, solved, score, finished_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (puzzle_id, username) DO UPDATE SET guesses = excluded.guesses, solved = excluded.solved, score = excluded.score, finished_at = excluded.finished_at`,
+    [puzzleId, playerKey, JSON.stringify(play.guesses), play.solved, play.score, play.finished ? nowIso() : null],
+  );
+}
+
+export async function assertPlayable(malId: number) {
+  const known = await one<{ mal_id: number }>('SELECT mal_id FROM anime WHERE mal_id = ? AND excluded IS NULL', [malId]);
+  if (!known) throw new HttpError(400, 'Judul itu tidak ada di pool.');
+}
+
+// ------------------------------------------------------------------ Anidle
+
+export interface AnidleState {
   id: string;
-  mode: Mode;
+  mode: 'anidle';
   date: string | null;
   pool: Pool;
   maxGuesses: number;
@@ -262,12 +360,11 @@ export interface PuzzleState {
   finished: boolean;
   score: number | null;
   /** Only once finished: the answer is never sent before that. */
-  answer: { malId: number; title: string; cover: string | null; year: number | null; members: number | null; difficulty: Difficulty } | null;
+  answer: AnswerInfo | null;
 }
 
-/** `playerKey` is play.username: 'u:<account id>' or 'a:<anonymous id>'. */
-export async function puzzleState(puzzle: PuzzleRow, playerKey: string): Promise<PuzzleState> {
-  const play = await one<PlayRow>('SELECT guesses, solved, score FROM play WHERE puzzle_id = ? AND username = ?', [puzzle.id, playerKey]);
+export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise<AnidleState> {
+  const play = await readPlay(puzzle.id, playerKey);
   const guessIds = play ? (JSON.parse(play.guesses) as number[]) : [];
   const anime = await loadAnidle([Number(puzzle.answer_id), ...guessIds]);
   const answer = anime.get(Number(puzzle.answer_id));
@@ -280,7 +377,7 @@ export async function puzzleState(puzzle: PuzzleRow, playerKey: string): Promise
   const finished = solved || guesses.length >= ANIDLE_MAX_GUESSES;
   return {
     id: puzzle.id,
-    mode: puzzle.mode,
+    mode: 'anidle',
     date: puzzle.date,
     pool: puzzle.pool,
     maxGuesses: ANIDLE_MAX_GUESSES,
@@ -288,28 +385,20 @@ export async function puzzleState(puzzle: PuzzleRow, playerKey: string): Promise
     solved,
     finished,
     score: play?.score ?? null,
-    answer: finished
-      ? { malId: answer.malId, title: answer.title, cover: answer.cover, year: answer.year, members: answer.members, difficulty: difficultyOf(answer.members) }
-      : null,
+    answer: finished ? answerInfo(answer) : null,
   };
 }
 
-export async function submitGuess(puzzle: PuzzleRow, playerKey: string, malId: number): Promise<PuzzleState> {
-  const before = await puzzleState(puzzle, playerKey);
+export async function anidleGuess(puzzle: PuzzleRow, playerKey: string, malId: number): Promise<AnidleState> {
+  const before = await anidleState(puzzle, playerKey);
   if (before.finished) throw new HttpError(409, 'Puzzle ini sudah selesai.');
   if (before.guesses.some((g) => g.malId === malId)) throw new HttpError(409, 'Judul itu sudah kamu tebak.');
-  const known = await one<{ mal_id: number }>('SELECT mal_id FROM anime WHERE mal_id = ? AND excluded IS NULL', [malId]);
-  if (!known) throw new HttpError(400, 'Judul itu tidak ada di pool.');
+  await assertPlayable(malId);
 
   const anime = await loadAnidle([Number(puzzle.answer_id), malId]);
   const feedback = compareAnidle(anime.get(Number(puzzle.answer_id))!, anime.get(malId)!);
   const guesses = [...before.guesses.map((g) => g.malId), malId];
   const finished = feedback.correct || guesses.length >= ANIDLE_MAX_GUESSES;
-  const score = finished ? anidleScore(feedback.correct, guesses.length) : null;
-  await run(
-    `INSERT INTO play (puzzle_id, username, guesses, solved, score, finished_at) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT (puzzle_id, username) DO UPDATE SET guesses = excluded.guesses, solved = excluded.solved, score = excluded.score, finished_at = excluded.finished_at`,
-    [puzzle.id, playerKey, JSON.stringify(guesses), feedback.correct ? 1 : 0, score, finished ? nowIso() : null],
-  );
-  return puzzleState(puzzle, playerKey);
+  await writePlay(puzzle.id, playerKey, { guesses, solved: feedback.correct ? 1 : 0, score: finished ? anidleScore(feedback.correct, guesses.length) : null, finished });
+  return anidleState(puzzle, playerKey);
 }

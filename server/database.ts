@@ -2,6 +2,7 @@ import { difficultyOf, type GenreType } from '../shared/catalog.js';
 import { DB_PAGE_SIZE, type DbFacets, type DbFilters, type DbItem, type DbPage, type DbSort } from '../shared/database.js';
 import { all, one } from './db.js';
 import { DIFFICULTY_SQL } from './game.js';
+import { COVER_KEY_SQL, coverOf } from './media.js';
 
 const ORDER_BY: Record<DbSort, string> = {
   popularity: 'a.members IS NULL, a.members DESC',
@@ -46,6 +47,7 @@ interface Row {
   title: string;
   title_en: string | null;
   cover_src: string | null;
+  cover_key: string | null;
   media_type: string | null;
   year: number | null;
   season: string | null;
@@ -63,7 +65,7 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
   const w = where(f);
   const total = Number((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM anime a WHERE ${w.sql}`, w.args))?.n ?? 0);
   const rows = await all<Row>(
-    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, a.media_type, a.year, a.season, a.num_episodes, a.score, a.members, p.rank, a.source, a.studios
+    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.media_type, a.year, a.season, a.num_episodes, a.score, a.members, p.rank, a.source, a.studios
      FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
      WHERE ${w.sql} ORDER BY ${ORDER_BY[f.sort]}, a.mal_id LIMIT ? OFFSET ?`,
     [...w.args, DB_PAGE_SIZE, (f.page - 1) * DB_PAGE_SIZE],
@@ -81,7 +83,7 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
     malId: Number(r.mal_id),
     title: r.title,
     titleEn: r.title_en,
-    cover: r.cover_src,
+    cover: coverOf(r.cover_key, r.cover_src),
     mediaType: r.media_type,
     year: num(r.year),
     season: r.season,

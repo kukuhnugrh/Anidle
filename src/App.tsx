@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
 import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } from './api';
+import type { Mode } from '../shared/modes';
+import { ThemeGame } from './ThemeGame';
 import { AuthPage } from './AuthPage';
 import { Database } from './Database';
 import { Home } from './Home';
@@ -54,7 +56,7 @@ export function App() {
   return (
     <div className="shell">
       <Sidebar
-        view={route.view}
+        route={route}
         account={account}
         open={navOpen}
         onClose={() => setNavOpen(false)}
@@ -74,7 +76,7 @@ export function App() {
         </header>
         <main className="page">
           {route.view === 'home' && <Home account={account} />}
-          {route.view === 'daily' && <PuzzleLoader key="daily" />}
+          {route.view === 'daily' && <PuzzleLoader key={`daily:${route.mode}`} daily={route.mode} />}
           {route.view === 'play' && <PuzzleLoader key={route.id} id={route.id} />}
           {route.view === 'unlimited' && <Unlimited account={account} />}
           {route.view === 'database' && <Database />}
@@ -93,14 +95,16 @@ export function App() {
   );
 }
 
-/** Today's puzzle, or the puzzle `id` (unlimited, resumable after reload because the id is in the URL). */
-function PuzzleLoader({ id }: { id?: string }) {
+/** Today's puzzle of a mode, or the puzzle `id` (unlimited, resumable after reload because the id is in the URL). */
+function PuzzleLoader(props: { daily: Mode } | { id: string }) {
   const [puzzle, setPuzzle] = useState<PuzzleState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const source = 'id' in props ? props.id : props.daily;
   const reload = useCallback(() => {
     setError(null);
-    (id ? api.resume(id) : api.daily()).then(setPuzzle, (err: unknown) => setError(errorMessage(err)));
-  }, [id]);
+    ('id' in props ? api.resume(props.id) : api.daily(props.daily)).then(setPuzzle, (err: unknown) => setError(errorMessage(err)));
+    // `source` identifies the props; the object itself is new every render.
+  }, [source]);
   useEffect(reload, [reload]);
 
   if (error)
@@ -116,6 +120,11 @@ function PuzzleLoader({ id }: { id?: string }) {
         <span className="spinner" />
       </div>
     );
-  const newUnlimited = () => api.unlimited(savedUnlimited.load() ?? { pool: puzzle.pool }).then((p) => go(`#/play/${p.id}`));
-  return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  // "Play unlimited" after a game keeps the last unlimited filters but stays in this mode.
+  const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`#/play/${p.id}`));
+  return puzzle.mode === 'anidle' ? (
+    <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
+  ) : (
+    <ThemeGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
+  );
 }

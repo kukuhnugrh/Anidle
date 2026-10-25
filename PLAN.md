@@ -197,15 +197,17 @@ db/                  schema.sql + migrations
 | M0 | Setup: repo GitHub, project Vercel, domain `anidle.velvetaco.dev`, DB Turso, bucket R2 + `media.velvetaco.dev`, app MAL kedua | `https://anidle.velvetaco.dev/api/health` membalas OK dan bisa query Turso | belum (butuh akun) |
 | M1 | Pipeline data (tanpa media): pool completed + populer MAL, difficulty, enrich MAL + jikan-edge, franchise, simpan ke DB lokal lalu Turso. Bisa diulang tanpa duplikat, patuh rate limit | Laporan jumlah judul per sumber; detail beberapa judul cocok dengan MAL | ✓ |
 | M2 | Akun (username + password) + main anonim + hubungkan MAL + sync list, mode **Anidle** harian & unlimited, autocomplete, `/api/guess` | Bisa main tanpa akun; teman bisa daftar, hubungkan MAL, dan main pool completed; progres tersimpan saat reload | ✓ lokal |
-| M3 | Pipeline media (cover, OP1, ED1) → R2, mode **Opening** & **Ending** dengan preload + fallback | Satu game dimulai < 3 dtk setelah preload di koneksi biasa; tidak ada ronde gagal | |
+| M3 | Pipeline media (cover, OP1, ED1) → R2, mode **Opening** & **Ending** dengan preload + fallback | Satu game dimulai < 3 dtk setelah preload di koneksi biasa; tidak ada ronde gagal | ✓ |
 | M4 | Mode **Karakter** | | |
 | M5 | Leaderboard, riwayat, share skor | | |
 | M6 | Screenshot dari video OP/ED + halaman admin untuk menandai media jelek | | |
 | M7 | GitHub Actions mingguan, proses `enrich_queue`, laporan media broken | Pipeline jalan otomatis tanpa PC | |
 
-Catatan implementasi M1–M2 (beda dari rencana awal):
-- Daftar judul autocomplete masih lewat `/api/titles` (±1.400 judul, ETag), belum file di R2. Pindah ke R2 di M3.
-- Cover masih langsung dari `cdn.myanimelist.net`; diganti salinan di R2 di M3.
+Catatan implementasi M1–M3 (beda dari rencana awal):
+- Daftar judul autocomplete tetap lewat `/api/titles` (±3.760 judul, ETag, di-cache browser), tidak dipindah ke R2: sudah cepat, dan file di R2 butuh langkah tambahan untuk memberi tahu API nama file terbaru.
+- Cover dan klip OP/ED disalin ke R2 dengan nama file = hash isi (`v1/cover/<hash>.webp`, `v1/audio/<hash>.mp3`), bukan `mal_id`, jadi URL media tidak membocorkan jawaban. Status per judul di `anime_media` (bukan `theme_song`). Cover yang belum tersalin tetap memakai CDN MAL.
+- Klip: 30 dtk mulai dari bunyi pertama (`silenceremove`), hanya 1,6 MB awal file AnimeThemes yang diunduh.
+- Fallback ronde: klip yang gagal dimuat bisa dicoba lagi; di puzzle unlimited milik sendiri, ronde yang belum ditebak bisa diganti judul lain. Puzzle harian tidak bisa diganti (berlaku untuk semua orang).
 - State OAuth (state + PKCE verifier) disimpan di cookie bertanda tangan, karena serverless tidak punya memori antar request.
 
 ## 14. Risiko

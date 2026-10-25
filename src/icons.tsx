@@ -70,3 +70,43 @@ export const ArrowIcon = () => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Icon>
 );
+
+export const PuzzleIcon = () => (
+  <Icon>
+    <path d="M9 3.5h6v3a2 2 0 1 0 4 0h1.5v6h-3a2 2 0 1 0 0 4h3V20.5h-17v-17H9z" />
+  </Icon>
+);
+
+export const MusicIcon = () => (
+  <Icon>
+    <path d="M9 18V5.5l11-2V16" />
+    <circle cx="6.5" cy="18" r="2.5" />
+    <circle cx="17.5" cy="16" r="2.5" />
+  </Icon>
+);
+
+export const DiscIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8.5" />
+    <circle cx="12" cy="12" r="2.5" />
+    <path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5" />
+  </Icon>
+);
+
+export const PlayIcon = () => (
+  <Icon>
+    <path d="M8 5.5v13l10.5-6.5z" fill="currentColor" />
+  </Icon>
+);
+
+export const PauseIcon = () => (
+  <Icon>
+    <path d="M8 5.5v13M16 5.5v13" strokeWidth="3" />
+  </Icon>
+);
+
+export const SkipIcon = () => (
+  <Icon>
+    <path d="M5.5 6l8 6-8 6zM17.5 6v12" />
+  </Icon>
+);

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { summarizeAnidle, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
 import { POOL_LABELS } from '../shared/catalog';
-import { api, errorMessage, type PuzzleState } from './api';
+import { api, errorMessage, type AnidleState } from './api';
 import { GuessInput } from './GuessInput';
 import { fmtDate, pretty } from './format';
 
@@ -176,7 +176,7 @@ function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
   );
 }
 
-export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: PuzzleState; onChange: (p: PuzzleState) => void; onNewUnlimited: () => Promise<void> }) {
+export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleState; onChange: (p: AnidleState) => void; onNewUnlimited: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const guessed = useMemo(() => new Set(puzzle.guesses.map((g) => g.malId)), [puzzle.guesses]);

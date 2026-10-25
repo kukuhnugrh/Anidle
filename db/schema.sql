@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS anime (
   rating        TEXT,
   studios       TEXT NOT NULL DEFAULT '[]',  -- JSON string[]
   nsfw          TEXT,
-  cover_src     TEXT,                        -- MAL CDN URL, replaced by an R2 key in M3
+  cover_src     TEXT,                        -- MAL CDN URL; the R2 copy lives in anime_media (kind cover)
   franchise_id  INTEGER,                     -- smallest mal_id of the prequel/sequel component
   excluded      TEXT,                        -- reason this title never enters a pool, NULL = usable
   fetched_at    TEXT NOT NULL
@@ -84,6 +84,31 @@ CREATE TABLE IF NOT EXISTS puzzle (
   created_at  TEXT NOT NULL,
   UNIQUE (date, mode)         -- NULL dates are distinct in SQLite, so unlimited puzzles never collide
 );
+
+-- Rounds of multi-round modes (opening, ending). puzzle.answer_id repeats round 0.
+CREATE TABLE IF NOT EXISTS puzzle_round (
+  puzzle_id  TEXT NOT NULL,
+  round      INTEGER NOT NULL,
+  mal_id     INTEGER NOT NULL,
+  PRIMARY KEY (puzzle_id, round)
+);
+
+-- Media copied to R2 by the pipeline step `media`. One row per title and kind; modes that need a kind
+-- only use titles whose row is ok.
+CREATE TABLE IF NOT EXISTS anime_media (
+  mal_id      INTEGER NOT NULL,
+  kind        TEXT NOT NULL,   -- cover | op | ed
+  status      TEXT NOT NULL,   -- ok | missing (no source) | broken (source failed processing/validation)
+  r2_key      TEXT,            -- object key under MEDIA_BASE_URL, content-hashed
+  source_url  TEXT,
+  label       TEXT,            -- AnimeThemes slug, e.g. OP1
+  song_title  TEXT,
+  artist      TEXT,
+  error       TEXT,
+  checked_at  TEXT NOT NULL,
+  PRIMARY KEY (mal_id, kind)
+);
+CREATE INDEX IF NOT EXISTS anime_media_usable ON anime_media (kind, status);
 
 CREATE TABLE IF NOT EXISTS play (
   puzzle_id    TEXT NOT NULL,

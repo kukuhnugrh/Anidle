@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
+import { MODES, MODE_LABELS, todayWib, WIB_OFFSET_MS, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
 import { fmtDate } from './format';
-import { ArrowIcon, DatabaseIcon, ShuffleIcon, UserIcon } from './icons';
+import { ArrowIcon, DatabaseIcon, DiscIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon } from './icons';
+import { dailyHref } from './route';
 
 const DAY_MS = 86_400_000;
-const WIB_OFFSET_MS = 7 * 3_600_000;
 
 /** The daily puzzle rolls over at 00:00 WIB (UTC+7). */
 function Countdown() {
@@ -19,34 +20,46 @@ function Countdown() {
   return <span className="countdown">{text}</span>;
 }
 
-function dailyStatus(p: PuzzleState | null): { cta: string; text: string } {
-  if (!p) return { cta: 'Main sekarang', text: '' };
-  if (p.finished) return p.solved ? { cta: 'Lihat hasil', text: `Selesai dalam ${p.guesses.length} tebakan · ${p.score ?? 0} poin` } : { cta: 'Lihat jawaban', text: 'Belum berhasil hari ini' };
-  if (p.guesses.length) return { cta: 'Lanjutkan', text: `${p.guesses.length} tebakan dipakai, sisa ${p.maxGuesses - p.guesses.length}` };
-  return { cta: 'Main sekarang', text: 'Belum dimainkan hari ini' };
+const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
+  anidle: { Icon: PuzzleIcon, text: 'Tebak dari petunjuk tahun, skor, studio, genre, theme, dan demographic. 10 tebakan.' },
+  opening: { Icon: MusicIcon, text: '3 ronde opening. Potongan lagu makin panjang tiap tebakan salah: 1, 3, 6, 12, 30 detik.' },
+  ending: { Icon: DiscIcon, text: '3 ronde ending, aturan sama dengan Opening. Biasanya lebih susah.' },
+};
+
+/** A daily puzzle that could not load (e.g. the song pool is still empty). */
+type DailyResult = PuzzleState | 'unavailable' | null;
+
+function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean } {
+  if (p === 'unavailable') return { cta: 'Buka', text: 'Belum tersedia' };
+  if (!p) return { cta: 'Main', text: '' };
+  if (p.mode === 'anidle') {
+    if (p.finished) return p.solved ? { cta: 'Lihat hasil', text: `Benar dalam ${p.guesses.length} tebakan · ${p.score ?? 0} poin`, won: true } : { cta: 'Lihat jawaban', text: 'Belum berhasil' };
+    if (p.guesses.length) return { cta: 'Lanjutkan', text: `Sisa ${p.maxGuesses - p.guesses.length} tebakan` };
+    return { cta: 'Main', text: 'Belum dimainkan' };
+  }
+  const solved = p.rounds.filter((r) => r.solved).length;
+  if (p.finished) return { cta: 'Lihat hasil', text: `${solved}/${p.rounds.length} ronde · ${p.score ?? 0} poin`, won: solved > 0 };
+  if (p.current > 0 || p.rounds[0]!.attempts.length) return { cta: 'Lanjutkan', text: `Ronde ${p.current + 1} dari ${p.rounds.length}` };
+  return { cta: 'Main', text: 'Belum dimainkan' };
 }
 
 export function Home({ account }: { account: Account | null }) {
-  const [today, setToday] = useState<PuzzleState | null>(null);
+  const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null });
   useEffect(() => {
-    api.daily().then(setToday, () => setToday(null));
+    for (const mode of MODES)
+      api.daily(mode).then(
+        (p) => setDaily((d) => ({ ...d, [mode]: p })),
+        () => setDaily((d) => ({ ...d, [mode]: 'unavailable' })),
+      );
   }, []);
-  const status = dailyStatus(today);
 
   return (
     <div className="stack">
       <section className="hero">
         <div className="hero-body">
-          <span className="eyebrow">Puzzle harian{today?.date ? ` · ${fmtDate(today.date)}` : ''}</span>
+          <span className="eyebrow">Puzzle harian · {fmtDate(todayWib())}</span>
           <h1>Tebak anime hari ini</h1>
-          <p>Satu judul untuk semua orang, selalu easy atau medium. Tiap tebakan membuka petunjuk tahun, skor, studio, genre, theme, dan demographic.</p>
-          <div className="hero-actions">
-            <a className="button primary big" href="#/daily">
-              {status.cta}
-              <ArrowIcon />
-            </a>
-            {status.text && <span className={`hero-status${today?.solved ? ' won' : ''}`}>{status.text}</span>}
-          </div>
+          <p>Tiga mode, satu set puzzle yang sama untuk semua orang. Puzzle harian selalu judul easy atau medium, jadi aman buat pemanasan.</p>
         </div>
         <div className="hero-clock">
           <span className="eyebrow">Puzzle baru dalam</span>
@@ -55,13 +68,36 @@ export function Home({ account }: { account: Account | null }) {
         </div>
       </section>
 
+      <div className="daily-grid">
+        {MODES.map((mode) => {
+          const { Icon, text } = MODE_CARDS[mode];
+          const status = dailyStatus(daily[mode]);
+          return (
+            <a key={mode} className="mode-card" href={dailyHref(mode)}>
+              <div className="mode-card-head">
+                <span className="tile-icon">
+                  <Icon />
+                </span>
+                {status.text && <span className={`mode-status${status.won ? ' won' : ''}`}>{status.text}</span>}
+              </div>
+              <h3>{MODE_LABELS[mode]}</h3>
+              <p className="muted">{text}</p>
+              <span className="mode-cta">
+                {status.cta}
+                <ArrowIcon />
+              </span>
+            </a>
+          );
+        })}
+      </div>
+
       <div className="tiles">
         <a className="tile" href="#/unlimited">
           <span className="tile-icon">
             <ShuffleIcon />
           </span>
           <h3>Unlimited</h3>
-          <p className="muted">Puzzle acak sebanyak yang kamu mau. Atur pool, genre, dan difficulty.</p>
+          <p className="muted">Puzzle acak sebanyak yang kamu mau di mode mana pun. Atur pool, genre, dan difficulty.</p>
         </a>
         <a className="tile" href="#/database">
           <span className="tile-icon">
@@ -84,26 +120,6 @@ export function Home({ account }: { account: Account | null }) {
           </p>
         </a>
       </div>
-
-      <section className="card">
-        <h2>Cara main</h2>
-        <ol className="steps">
-          <li>
-            <b>Tebak</b>
-            <span className="muted">Ketik judul anime (romaji, Inggris, Jepang, atau sinonim) lalu pilih dari daftar. Ada 10 kesempatan.</span>
-          </li>
-          <li>
-            <b>Baca petunjuk</b>
-            <span className="muted">
-              Tiap kolom diberi warna <span className="tag ok">cocok</span> <span className="tag partial">sebagian</span> <span className="tag bad">beda</span>, angka diberi panah ↑↓ ke arah jawaban.
-            </span>
-          </li>
-          <li>
-            <b>Persempit</b>
-            <span className="muted">Panel "Yang sudah diketahui" merangkum semua petunjuk sampai jawabannya ketemu.</span>
-          </li>
-        </ol>
-      </section>
     </div>
   );
 }
