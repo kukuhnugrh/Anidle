@@ -1,0 +1,22 @@
+# Security and version updates as pull requests. Security advisories open PRs immediately;
+# regular updates are batched weekly so the repo is not flooded.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Asia/Jakarta
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Keep type definitions on the Node major we run (engines: 24.x).
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
