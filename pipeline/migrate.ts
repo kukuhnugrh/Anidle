@@ -13,5 +13,5 @@ export async function migrate(): Promise<void> {
 
 if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`) {
   await migrate();
-  console.log('Schema OK:', requireEnv('TURSO_DATABASE_URL'));
+  console.log('Schema OK:', requireEnv('TURSO_DATABASE_URL').replace(/\?.*/, ''));
 }

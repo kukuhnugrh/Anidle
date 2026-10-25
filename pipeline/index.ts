@@ -215,7 +215,7 @@ const limit = limitArg ? Number(limitArg.slice('--limit='.length)) : Infinity;
 const requested = args.filter((a) => !a.startsWith('--'));
 const unknown = requested.filter((s) => !(STEPS as readonly string[]).includes(s) && s !== 'all');
 if (unknown.length) {
-  console.error(`Step tidak dikenal: ${unknown.join(', ')}. Pilihan: all, ${STEPS.join(', ')} [--refresh] [--limit=N]`);
+  console.error(`Step tidak dikenal: ${unknown.join(', ')}. Pilihan: all, ${STEPS.join(', ')} [--refresh] [--limit=N] [--turso]`);
   process.exit(1);
 }
 const steps: Step[] = !requested.length || requested.includes('all') ? [...STEPS] : (requested as Step[]);
