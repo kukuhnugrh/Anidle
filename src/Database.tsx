@@ -125,7 +125,7 @@ export function Database() {
     <label>
       {label}
       <select value={slotValue(slot) ?? ''} onChange={(e) => setSlot(slot, e.target.value ? Number(e.target.value) : undefined)}>
-        <option value="">Semua</option>
+        <option value="">All</option>
         {(facets?.genres ?? [])
           .filter((g) => SLOT_TYPES[slot].includes(g.type))
           .map((g) => (
@@ -140,18 +140,18 @@ export function Database() {
   return (
     <div className="database stack">
       <header className="page-head">
-        <span className="eyebrow">Jelajah</span>
-        <h1>Database anime</h1>
-        <p className="muted">Semua judul yang bisa keluar di Anidle. Klik genre, theme, demographic, atau studio di kartu untuk memfilter.</p>
+        <span className="eyebrow">Browse</span>
+        <h1>Anime database</h1>
+        <p className="muted">Every title that can show up in Anidle. Click a genre, theme, demographic, or studio on a card to filter.</p>
       </header>
 
       <section className="card db-filters">
         <label className="db-search">
-          Cari judul
-          <input value={qInput} onChange={(e) => setQInput(e.target.value)} placeholder="Romaji, Inggris, Jepang, atau sinonim" />
+          Search titles
+          <input value={qInput} onChange={(e) => setQInput(e.target.value)} placeholder="Romaji, English, Japanese, or synonym" />
         </label>
         <label>
-          Urutkan
+          Sort by
           <select value={filters.sort} onChange={(e) => update({ sort: e.target.value as DbSort })}>
             {Object.entries(DB_SORTS).map(([key, label]) => (
               <option key={key} value={key}>
@@ -165,17 +165,17 @@ export function Database() {
         {genreSelect('demographic', 'Demographic')}
         <label>
           Studio
-          <input list="db-studios" value={studioInput} onChange={(e) => setStudioInput(e.target.value)} placeholder="Semua" />
+          <input list="db-studios" value={studioInput} onChange={(e) => setStudioInput(e.target.value)} placeholder="All" />
           <datalist id="db-studios">
             {(facets?.studios ?? []).map((s) => (
-              <option key={s.name} value={s.name}>{`${fmtNumber(s.count)} judul`}</option>
+              <option key={s.name} value={s.name}>{`${fmtNumber(s.count)} titles`}</option>
             ))}
           </datalist>
         </label>
         <label>
           Source
           <select value={filters.source ?? ''} onChange={(e) => update({ source: e.target.value || undefined })}>
-            <option value="">Semua</option>
+            <option value="">All</option>
             {(facets?.sources ?? []).map((s) => (
               <option key={s.value} value={s.value}>
                 {pretty(s.value)} ({fmtNumber(s.count)})
@@ -184,9 +184,9 @@ export function Database() {
           </select>
         </label>
         <label>
-          Tipe
+          Type
           <select value={filters.type ?? ''} onChange={(e) => update({ type: e.target.value || undefined })}>
-            <option value="">Semua</option>
+            <option value="">All</option>
             {(facets?.types ?? []).map((t) => (
               <option key={t.value} value={t.value}>
                 {pretty(t.value)} ({fmtNumber(t.count)})
@@ -197,7 +197,7 @@ export function Database() {
         <label>
           Difficulty
           <select value={filters.difficulty ?? ''} onChange={(e) => update({ difficulty: (e.target.value || undefined) as Difficulty | undefined })}>
-            <option value="">Semua</option>
+            <option value="">All</option>
             {DIFFICULTIES.map((d) => (
               <option key={d} value={d}>
                 {DIFFICULTY_LABELS[d]}
@@ -206,34 +206,34 @@ export function Database() {
           </select>
         </label>
         <button className="ghost" onClick={reset}>
-          Reset filter
+          Reset filters
         </button>
       </section>
 
       {error && <div className="error-box">{error}</div>}
 
       <div className="db-status muted small">
-        {result ? `${fmtNumber(result.total)} judul` : ''}
-        {loading && ' · memuat…'}
+        {result ? `${fmtNumber(result.total)} titles` : ''}
+        {loading && ' · loading…'}
       </div>
 
       <div className={`db-grid${loading ? ' loading' : ''}`}>
         {result?.items.map((item) => (
           <DbCard key={item.malId} item={item} onGenre={pickGenre} onStudio={pickStudio} onSource={(source) => update({ source })} />
         ))}
-        {result && !result.items.length && <p className="muted">Tidak ada judul yang cocok dengan filter ini.</p>}
+        {result && !result.items.length && <p className="muted">No titles match these filters.</p>}
       </div>
 
       {result && pages > 1 && (
         <div className="db-paging">
           <button disabled={filters.page <= 1} onClick={() => goPage(filters.page - 1)}>
-            ← Sebelumnya
+            ← Previous
           </button>
           <span className="muted">
-            Halaman {filters.page} dari {pages}
+            Page {filters.page} of {pages}
           </span>
           <button disabled={filters.page >= pages} onClick={() => goPage(filters.page + 1)}>
-            Berikutnya →
+            Next →
           </button>
         </div>
       )}
@@ -247,7 +247,7 @@ function DbCard({ item, onGenre, onStudio, onSource }: { item: DbItem } & CardAc
   const meta = [item.year, item.season ? pretty(item.season) : null, pretty(item.mediaType), item.episodes ? `${item.episodes} eps` : null].filter(Boolean);
   return (
     <article className="db-card">
-      <a className="db-cover" href={`https://myanimelist.net/anime/${item.malId}`} target="_blank" rel="noreferrer" title="Buka di MAL">
+      <a className="db-cover" href={`https://myanimelist.net/anime/${item.malId}`} target="_blank" rel="noreferrer" title="Open on MAL">
         {item.cover ? <img src={item.cover} alt="" loading="lazy" /> : <span className="muted small">no image</span>}
         <span className={`difficulty ${item.difficulty}`}>{item.difficulty}</span>
       </a>
@@ -259,7 +259,7 @@ function DbCard({ item, onGenre, onStudio, onSource }: { item: DbItem } & CardAc
         <div className="muted small">{meta.join(' · ')}</div>
         <div className="db-stats small">
           {item.score != null && <span>★ {item.score.toFixed(2)}</span>}
-          {item.members != null && <span>{fmtNumber(item.members)} member</span>}
+          {item.members != null && <span>{fmtNumber(item.members)} members</span>}
           {item.popularityRank != null && <span className="muted">#{item.popularityRank}</span>}
         </div>
         <div className="db-chips">

@@ -1,10 +1,16 @@
-import { ROUND_COUNT, todayWib, type Mode } from '../shared/modes.js';
+import { PERFECT_SOLVED, todayWib, type Mode } from '../shared/modes.js';
 import { all } from './db.js';
 
-/** play.guesses holds number[] (Anidle) or number[][] (round modes); attempts = guesses + skips. */
+/**
+ * Tries in play.guesses: Anidle number[], round modes number[][] (0 = skip), Character
+ * { n: string[]; a: number[] }[][] (names and anime tried per character).
+ */
 function attemptCount(guesses: string): number {
-  const parsed = JSON.parse(guesses) as Array<number | number[]>;
-  return parsed.reduce<number>((n, g) => n + (Array.isArray(g) ? g.length : 1), 0);
+  const parsed = JSON.parse(guesses) as Array<number | Array<number | { n: string[]; a: number[] }>>;
+  return parsed.reduce<number>(
+    (sum, g) => sum + (Array.isArray(g) ? g.reduce<number>((s, x) => s + (typeof x === 'number' ? 1 : x.n.length + x.a.length), 0) : 1),
+    0,
+  );
 }
 
 export interface LeaderboardEntry {
@@ -112,8 +118,14 @@ export async function history(playerKey: string): Promise<History> {
   );
   const recentRows = rows.slice(0, HISTORY_LIMIT);
   const ids = recentRows.map((r) => r.id);
+  const marks = ids.map(() => '?').join(',');
   const rounds = ids.length
-    ? await all<{ puzzle_id: string; mal_id: number }>(`SELECT puzzle_id, mal_id FROM puzzle_round WHERE puzzle_id IN (${ids.map(() => '?').join(',')}) ORDER BY round`, ids)
+    ? await all<{ puzzle_id: string; mal_id: number }>(
+        `SELECT puzzle_id, mal_id, round, 0 AS slot FROM puzzle_round WHERE puzzle_id IN (${marks})
+         UNION ALL SELECT puzzle_id, mal_id, round, slot FROM puzzle_character WHERE puzzle_id IN (${marks})
+         ORDER BY round, slot`,
+        [...ids, ...ids],
+      )
     : [];
   const roundsOf = Map.groupBy(rounds, (r) => r.puzzle_id);
   const answerIds = [...new Set([...recentRows.map((r) => Number(r.answer_id)), ...rounds.map((r) => Number(r.mal_id))])];
@@ -128,7 +140,7 @@ export async function history(playerKey: string): Promise<History> {
     const scores = daily.map((r) => Number(r.score ?? 0));
     return {
       played: daily.length,
-      perfect: daily.filter((r) => Number(r.solved) === (mode === 'anidle' ? 1 : ROUND_COUNT)).length,
+      perfect: daily.filter((r) => Number(r.solved) === PERFECT_SOLVED[mode]).length,
       averageScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
       bestScore: scores.length ? Math.max(...scores) : 0,
       ...streaks(daily.map((r) => r.date!)),

@@ -57,7 +57,7 @@ async function dispatch(req: Request): Promise<Response> {
   const mod = ROUTES[routeOf(new URL(req.url))];
   if (!mod) return json({ error: 'Not found' }, { status: 404 });
   const handler = req.method === 'GET' || req.method === 'HEAD' ? mod.GET : req.method === 'POST' ? mod.POST : undefined;
-  if (!handler) return json({ error: `${req.method} tidak didukung di sini.` }, { status: 405 });
+  if (!handler) return json({ error: `${req.method} is not supported here.` }, { status: 405 });
   return handler(req);
 }
 

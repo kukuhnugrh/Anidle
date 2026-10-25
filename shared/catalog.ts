@@ -31,9 +31,9 @@ export type Difficulty = (typeof DIFFICULTIES)[number];
 export const EASY_MIN_MEMBERS = 500_000;
 export const MEDIUM_MIN_MEMBERS = 200_000;
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  easy: 'Easy (≥ 500 rb member)',
-  medium: 'Medium (200–500 rb member)',
-  hard: 'Hard (< 200 rb member)',
+  easy: 'Easy (≥ 500k members)',
+  medium: 'Medium (200k–500k members)',
+  hard: 'Hard (< 200k members)',
 };
 /** The daily puzzle should be fair for everyone: no obscure titles. */
 export const DAILY_DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium'];
@@ -55,11 +55,11 @@ export const POOLS = ['semua', 'teman', 'bareng', 'saya', 'populer'] as const;
 export type Pool = (typeof POOLS)[number];
 
 export const POOL_LABELS: Record<Pool, string> = {
-  semua: 'Semua (completed teman + populer)',
-  teman: 'Completed minimal 1 teman',
-  bareng: 'Completed semua teman',
-  saya: 'Completed saya',
-  populer: 'Populer di MAL (≥ 50 rb member)',
+  semua: "All (friends' completed + popular)",
+  teman: 'Completed by at least 1 friend',
+  bareng: 'Completed by all friends',
+  saya: 'My completed',
+  populer: 'Popular on MAL (≥ 50k members)',
 };
 
 /** Pools built from MAL completed lists: only accounts with a linked MAL account may play them. */

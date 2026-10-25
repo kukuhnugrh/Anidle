@@ -8,10 +8,10 @@ import { anidleShareText, ShareButton } from './share';
 
 const ARROW: Record<Direction, string> = { equal: '', higher: '↑', lower: '↓', unknown: '' };
 const DIRECTION_HINT: Record<Direction, string> = {
-  equal: 'Sama',
-  higher: 'Jawabannya lebih tinggi',
-  lower: 'Jawabannya lebih rendah',
-  unknown: 'Tidak diketahui',
+  equal: 'Same',
+  higher: 'The answer is higher',
+  lower: 'The answer is lower',
+  unknown: 'Unknown',
 };
 
 function NumberCell({ label, value, direction, format }: { label: string; value: number | null; direction: Direction; format?: (v: number) => string }) {
@@ -57,14 +57,14 @@ function GuessRow({ g }: { g: AnidleFeedback }) {
       <div className="guess-title">
         {g.correct ? '✓ ' : ''}
         {g.title}
-        {g.correct && !g.exact && <span className="muted small"> (satu franchise dengan jawaban)</span>}
+        {g.correct && !g.exact && <span className="muted small"> (same franchise as the answer)</span>}
       </div>
       <div className="cells">
-        <ScalarCell label="Tipe" value={g.mediaType.value} match={g.mediaType.match} />
-        <NumberCell label="Tahun" value={g.year.value} direction={g.year.direction} />
+        <ScalarCell label="Type" value={g.mediaType.value} match={g.mediaType.match} />
+        <NumberCell label="Year" value={g.year.value} direction={g.year.direction} />
         <ScalarCell label="Season" value={g.season.value} match={g.season.match} />
         <NumberCell label="Episode" value={g.episodes.value} direction={g.episodes.direction} />
-        <NumberCell label="Skor" value={g.score.value} direction={g.score.direction} format={(v) => v.toFixed(2)} />
+        <NumberCell label="Score" value={g.score.value} direction={g.score.direction} format={(v) => v.toFixed(2)} />
         <ScalarCell label="Source" value={g.source.value} match={g.source.match} />
         <ListCell label="Studio" clue={g.studios} />
         <ListCell label="Genre" clue={g.genres} />
@@ -86,7 +86,7 @@ function rangeText(r: RangeSummary, integer: boolean): string | null {
     return lo != null ? `≥ ${lo}` : `≤ ${hi}`;
   }
   const parts = [r.above != null ? `> ${r.above.toFixed(2)}` : null, r.below != null ? `< ${r.below.toFixed(2)}` : null];
-  return parts.filter(Boolean).join(' dan ');
+  return parts.filter(Boolean).join(' and ');
 }
 
 function SummaryValue({ s }: { s: ScalarSummary }) {
@@ -104,7 +104,7 @@ function SummaryValue({ s }: { s: ScalarSummary }) {
 }
 
 function SummaryList({ s }: { s: ListSummary }) {
-  if (s.complete && !s.has.length) return <span className="chip hit">tidak ada</span>;
+  if (s.complete && !s.has.length) return <span className="chip hit">none</span>;
   if (!s.has.length && !s.not.length) return <span className="muted">—</span>;
   return (
     <>
@@ -113,7 +113,7 @@ function SummaryList({ s }: { s: ListSummary }) {
           {v}
         </span>
       ))}
-      {s.complete && <span className="muted small">(lengkap)</span>}
+      {s.complete && <span className="muted small">(complete)</span>}
       {!s.complete &&
         s.not.map((v) => (
           <span key={v} className="chip miss">
@@ -154,19 +154,19 @@ function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
   return (
     <section className="summary">
       <div className="summary-head">
-        <h3>Yang sudah diketahui</h3>
+        <h3>What you know so far</h3>
         <span className="legend small">
-          <span className="chip hit">pasti</span>
-          <span className="chip miss">pasti bukan</span>
-          <span className="chip range">rentang</span>
+          <span className="chip hit">yes</span>
+          <span className="chip miss">not</span>
+          <span className="chip range">range</span>
         </span>
       </div>
       <div className="summary-grid">
-        {scalar('Tipe', s.mediaType)}
-        {range('Tahun', s.year, true)}
+        {scalar('Type', s.mediaType)}
+        {range('Year', s.year, true)}
         {scalar('Season', s.season)}
         {range('Episode', s.episodes, true)}
-        {range('Skor', s.score, false)}
+        {range('Score', s.score, false)}
         {scalar('Source', s.source)}
         {list('Studio', s.studios)}
         {list('Genre', s.genres)}
@@ -199,22 +199,22 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
     <div className="anidle">
       <header className="page-head game-head">
         <div>
-          <span className="eyebrow">{puzzle.date ? `Harian · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
+          <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>Anidle</h1>
-          <div className="progress" title={puzzle.finished ? 'Selesai' : `Sisa ${left} tebakan`}>
+          <div className="progress" title={puzzle.finished ? 'Finished' : `${left} guesses left`}>
             <span className="pips" aria-hidden="true">
               {Array.from({ length: puzzle.maxGuesses }, (_, i) => (
                 <span key={i} className={`pip${i < puzzle.guesses.length ? (puzzle.guesses[i]!.correct ? ' hit' : ' used') : ''}`} />
               ))}
             </span>
-            <span className="muted small">{puzzle.finished ? 'selesai' : `sisa ${left} dari ${puzzle.maxGuesses} tebakan`}</span>
+            <span className="muted small">{puzzle.finished ? 'finished' : `${left} of ${puzzle.maxGuesses} guesses left`}</span>
           </div>
         </div>
         <div className="legend small">
-          <span className="tag ok">cocok</span>
-          <span className="tag partial">sebagian</span>
-          <span className="tag bad">beda</span>
-          <span className="muted">↑↓ arah jawaban</span>
+          <span className="tag ok">match</span>
+          <span className="tag partial">partial</span>
+          <span className="tag bad">different</span>
+          <span className="muted">↑↓ toward the answer</span>
         </div>
       </header>
 
@@ -222,24 +222,24 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
         <div className={`result ${puzzle.solved ? 'win' : 'lose'}`}>
           {puzzle.answer.cover && <img src={puzzle.answer.cover} alt="" />}
           <div>
-            <div className="muted small">{puzzle.solved ? `Benar dalam ${puzzle.guesses.length} tebakan` : 'Tebakan habis. Jawabannya:'}</div>
+            <div className="muted small">{puzzle.solved ? `Solved in ${puzzle.guesses.length} guesses` : 'Out of guesses. The answer:'}</div>
             <h3>{puzzle.answer.title}</h3>
             <div className="muted answer-meta">
               {puzzle.answer.year ?? ''}
               <span className={`difficulty ${puzzle.answer.difficulty}`}>{puzzle.answer.difficulty}</span>
-              {puzzle.answer.members != null && <span>{puzzle.answer.members.toLocaleString('id-ID')} member</span>}
+              {puzzle.answer.members != null && <span>{puzzle.answer.members.toLocaleString('en-US')} members</span>}
             </div>
-            <div className="score">{puzzle.score ?? 0} poin</div>
+            <div className="score">{puzzle.score ?? 0} pts</div>
             <div className="actions">
               <ShareButton text={anidleShareText(puzzle)} />
               <a className="button" href={`https://myanimelist.net/anime/${puzzle.answer.malId}`} target="_blank" rel="noreferrer">
-                Buka di MAL ↗
+                Open on MAL ↗
               </a>
               <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-                Main unlimited
+                Play unlimited
               </button>
               <a className="button ghost" href="#/">
-                Beranda
+                Home
               </a>
             </div>
           </div>
@@ -254,7 +254,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
         {[...puzzle.guesses].reverse().map((g) => (
           <GuessRow key={g.malId} g={g} />
         ))}
-        {!puzzle.guesses.length && <p className="empty muted">Ketik judul anime, pilih dari daftar, lalu lihat petunjuknya.</p>}
+        {!puzzle.guesses.length && <p className="empty muted">Type an anime title, pick it from the list, then check the clues.</p>}
       </div>
     </div>
   );

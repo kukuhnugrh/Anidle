@@ -27,15 +27,15 @@ export function AuthPage({ onDone }: { onDone: (account: Account) => void }) {
       <form className="card auth-card" onSubmit={submit}>
         <div className="auth-head">
           <img className="brand-mark" src="/logo-128.png" alt="" />
-          <h1>{mode === 'login' ? 'Selamat datang kembali' : 'Buat akun Anidle'}</h1>
-          <p className="muted small">{mode === 'login' ? 'Masuk untuk melanjutkan progres di perangkat mana pun.' : 'Gratis. Cukup username dan password.'}</p>
+          <h1>{mode === 'login' ? 'Welcome back' : 'Create an Anidle account'}</h1>
+          <p className="muted small">{mode === 'login' ? 'Sign in to continue your progress on any device.' : 'Free. Just a username and password.'}</p>
         </div>
         <div className="tabs">
           <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
-            Masuk
+            Sign in
           </button>
           <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>
-            Daftar
+            Sign up
           </button>
         </div>
         <label>
@@ -53,12 +53,12 @@ export function AuthPage({ onDone }: { onDone: (account: Account) => void }) {
             required
           />
         </label>
-        {mode === 'register' && <p className="muted small">Username 3–20 karakter (huruf, angka, _). Password minimal 8 karakter.</p>}
+        {mode === 'register' && <p className="muted small">Username 3–20 characters (letters, numbers, _). Password at least 8 characters.</p>}
         {error && <div className="error-box">{error}</div>}
         <button className="primary" disabled={busy}>
-          {busy ? 'Sebentar…' : mode === 'login' ? 'Masuk' : 'Buat akun'}
+          {busy ? 'One moment…' : mode === 'login' ? 'Sign in' : 'Create account'}
         </button>
-        <p className="muted small">Progres yang kamu mainkan tanpa akun di browser ini ikut pindah ke akunmu.</p>
+        <p className="muted small">Progress you played without an account in this browser moves to your account.</p>
       </form>
     </div>
   );

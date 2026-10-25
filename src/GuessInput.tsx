@@ -12,7 +12,8 @@ function loadTitles(): Promise<TitleEntry[]> {
   return titlesPromise;
 }
 
-export function GuessInput({ exclude, disabled, onPick }: { exclude: ReadonlySet<number>; disabled: boolean; onPick: (malId: number) => void }) {
+/** `compact`: a smaller field without autofocus, for several inputs on one screen (Character mode). */
+export function GuessInput({ exclude, disabled, onPick, compact = false }: { exclude: ReadonlySet<number>; disabled: boolean; onPick: (malId: number) => void; compact?: boolean }) {
   const [titles, setTitles] = useState<TitleEntry[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -34,16 +35,16 @@ export function GuessInput({ exclude, disabled, onPick }: { exclude: ReadonlySet
     input.current?.focus();
   };
 
-  if (loadError) return <div className="error-box">Gagal memuat daftar judul: {loadError}</div>;
+  if (loadError) return <div className="error-box">Could not load the title list: {loadError}</div>;
 
   return (
-    <div className="guess-input">
+    <div className={`guess-input${compact ? ' compact' : ''}`}>
       <input
         ref={input}
-        autoFocus
+        autoFocus={!compact}
         value={query}
         disabled={disabled || !titles}
-        placeholder={titles ? `Tebak anime… (${titles.length} judul)` : 'Memuat daftar judul…'}
+        placeholder={!titles ? 'Loading titles…' : compact ? 'Which anime?' : `Guess the anime… (${titles.length} titles)`}
         onChange={(e) => {
           setQuery(e.target.value);
           setActive(0);
@@ -69,7 +70,7 @@ export function GuessInput({ exclude, disabled, onPick }: { exclude: ReadonlySet
               </button>
             </li>
           ))}
-          {!results.length && <li className="muted small none">Tidak ada judul yang cocok di pool.</li>}
+          {!results.length && <li className="muted small none">No matching title.</li>}
         </ul>
       )}
     </div>

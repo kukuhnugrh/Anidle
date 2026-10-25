@@ -35,3 +35,13 @@ export async function animeCharacters(malId: number): Promise<JikanCharacter[]> 
   const res = await jikanLimiter.schedule(() => getJson<{ data?: JikanCharacter[] } | JikanCharacter[]>(`${base()}/v1/anime/${malId}/characters`));
   return Array.isArray(res) ? res : (res.data ?? []);
 }
+
+export interface JikanCharacterDetail {
+  nicknames?: string[];
+  nameKanji?: string | null;
+}
+
+export async function characterDetail(charId: number): Promise<JikanCharacterDetail> {
+  const res = await jikanLimiter.schedule(() => getJson<{ data: JikanCharacterDetail }>(`${base()}/v1/characters/${charId}`));
+  return res.data;
+}

@@ -25,7 +25,7 @@ export const POST = route(async (req) => {
   const body = await readJson<{ malId?: unknown; kind?: unknown; action?: unknown }>(req);
   const malId = Number(body.malId);
   const kind = parseKind(body.kind);
-  if (!Number.isInteger(malId) || !kind || (body.action !== 'reject' && body.action !== 'restore')) throw new HttpError(400, 'Butuh malId, kind, dan action reject/restore.');
+  if (!Number.isInteger(malId) || !kind || (body.action !== 'reject' && body.action !== 'restore')) throw new HttpError(400, 'Requires malId, kind, and action reject/restore.');
   await setMediaStatus(malId, kind, body.action);
   return json({ ok: true });
 });

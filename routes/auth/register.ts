@@ -3,7 +3,7 @@ import { HttpError, json, readJson, route } from '../../server/http.js';
 
 export const POST = route(async (req) => {
   const body = await readJson<{ username?: unknown; password?: unknown }>(req);
-  if (typeof body.username !== 'string' || typeof body.password !== 'string') throw new HttpError(400, 'Butuh username dan password.');
+  if (typeof body.username !== 'string' || typeof body.password !== 'string') throw new HttpError(400, 'Username and password are required.');
   const { anonKey } = await viewer(req);
   const account = await register(body.username.trim(), body.password);
   await adoptAnonymousPlays(anonKey, account.id);

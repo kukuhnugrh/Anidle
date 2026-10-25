@@ -7,7 +7,7 @@ import { poolUsers } from '../server/env.js';
 import { animeDetail, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { Limiter } from './limiter.js';
-import { stepCharacters, stepMedia, stepScreenshots } from './media.js';
+import { stepCharacters, stepMedia, stepNicknames, stepScreenshots } from './media.js';
 import { migrate } from './migrate.js';
 import { animeGenres } from './sources/jikanEdge.js';
 
@@ -249,7 +249,7 @@ async function writeActionsSummary(row: Record<string, number>) {
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media', 'characters', 'screenshots'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media', 'characters', 'nicknames', 'screenshots'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -274,6 +274,7 @@ for (const step of steps) {
   if (step === 'franchise') await stepFranchise();
   if (step === 'media') await stepMedia(flag('refresh'), limit);
   if (step === 'characters') await stepCharacters(flag('refresh'), limit);
+  if (step === 'nicknames') await stepNicknames(flag('refresh'), limit);
   if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
 }
 await report();

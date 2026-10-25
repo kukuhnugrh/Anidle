@@ -24,7 +24,7 @@ export function route(handler: (req: Request) => Promise<Response>) {
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, { status: err.status });
       console.error(err);
-      return json({ error: 'Terjadi kesalahan di server.' }, { status: 500 });
+      return json({ error: 'Something went wrong on the server.' }, { status: 500 });
     }
   };
 }
@@ -32,12 +32,12 @@ export function route(handler: (req: Request) => Promise<Response>) {
 export async function readJson<T>(req: Request): Promise<T> {
   if (!req.headers.get('content-type')?.includes('application/json')) {
     // Also forces a CORS preflight, so other sites cannot drive these endpoints with a simple form post.
-    throw new HttpError(415, 'Content-Type harus application/json.');
+    throw new HttpError(415, 'Content-Type must be application/json.');
   }
   try {
     return (await req.json()) as T;
   } catch {
-    throw new HttpError(400, 'Body harus JSON valid.');
+    throw new HttpError(400, 'Body must be valid JSON.');
   }
 }
 

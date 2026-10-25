@@ -1,7 +1,7 @@
 {
   "name": "Anidle",
   "short_name": "Anidle",
-  "description": "Game tebak anime harian",
+  "description": "Daily anime guessing game",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0911",

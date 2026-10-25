@@ -1,15 +1,16 @@
+import type { AdminPage } from '../server/admin';
+import type { CharacterState } from '../server/characters';
 import type { AnidleState } from '../server/game';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
 import type { History, Leaderboard } from '../server/stats';
-import type { AdminPage } from '../server/admin';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
 import type { TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AdminPage, AnidleState, History, Leaderboard, PuzzleState, RoundState };
+export type { AdminPage, AnidleState, CharacterState, History, Leaderboard, PuzzleState, RoundState };
 
 export interface MalLink {
   username: string;
@@ -97,6 +98,11 @@ export const api = {
   roundGuess: (puzzleId: string, round: number, malId: number | null) =>
     call<RoundState>('/api/guess', { method: 'POST', body: malId == null ? { puzzleId, round, skip: true } : { puzzleId, round, malId } }),
   replaceRound: (puzzleId: string, round: number) => call<RoundState>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
+  characterName: (puzzleId: string, round: number, slot: number, name: string) =>
+    call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, name } }),
+  characterAnime: (puzzleId: string, round: number, slot: number, malId: number) =>
+    call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, malId } }),
+  characterGiveUp: (puzzleId: string, round: number) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),
   history: () => call<History>('/api/history'),

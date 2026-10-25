@@ -3,6 +3,7 @@ import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
 import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } from './api';
 import type { Mode } from '../shared/modes';
+import { CharacterGame } from './CharacterGame';
 import { RoundGame } from './RoundGame';
 import { AuthPage } from './AuthPage';
 import { AdminPage } from './AdminPage';
@@ -19,9 +20,9 @@ import { Unlimited } from './Unlimited';
 function takeRedirectNotice(): Notice {
   const params = new URLSearchParams(location.search);
   const notice: Notice = params.get('mal_error')
-    ? { kind: 'error', text: `Gagal menghubungkan MAL: ${params.get('mal_error')}` }
+    ? { kind: 'error', text: `Could not link MAL: ${params.get('mal_error')}` }
     : params.get('mal') === 'linked'
-      ? { kind: 'ok', text: 'Akun MAL terhubung. List completed kamu sudah disinkron.' }
+      ? { kind: 'ok', text: 'MAL account linked. Your completed list has been synced.' }
       : null;
   if (location.search) history.replaceState(null, '', location.pathname + location.hash);
   return notice;
@@ -88,7 +89,7 @@ export function App() {
       />
       <div className="content">
         <header className="mobile-bar">
-          <button className="icon-button" onClick={() => setNavOpen(true)} aria-label="Buka menu">
+          <button className="icon-button" onClick={() => setNavOpen(true)} aria-label="Open menu">
             <MenuIcon />
           </button>
           <Brand />
@@ -102,7 +103,7 @@ export function App() {
           {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
           {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
           {route.view === 'history' && <HistoryPage account={account} />}
-          {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">Halaman ini khusus admin.</div>)}
+          {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
           {route.view === 'auth' && (
             <AuthPage
               onDone={(a) => {
@@ -134,7 +135,7 @@ function PuzzleLoader(props: { daily: Mode } | { id: string }) {
     return (
       <div className="center">
         <div className="error-box">{error}</div>
-        <button onClick={reload}>Coba lagi</button>
+        <button onClick={reload}>Try again</button>
       </div>
     );
   if (!puzzle)
@@ -145,9 +146,7 @@ function PuzzleLoader(props: { daily: Mode } | { id: string }) {
     );
   // "Play unlimited" after a game keeps the last unlimited filters but stays in this mode.
   const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`#/play/${p.id}`));
-  return puzzle.mode === 'anidle' ? (
-    <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
-  ) : (
-    <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />
-  );
+  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
 }

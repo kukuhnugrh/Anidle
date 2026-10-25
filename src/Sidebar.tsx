@@ -5,29 +5,29 @@ import { dailyHref, type Route } from './route';
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode. */
 const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType }[] }[] = [
-  { title: 'Main', items: [{ id: 'home', href: '#/', label: 'Beranda', Icon: HomeIcon }] },
+  { title: 'Main', items: [{ id: 'home', href: '#/', label: 'Home', Icon: HomeIcon }] },
   {
-    title: 'Harian',
+    title: 'Daily',
     items: [
       { id: 'daily:anidle', href: dailyHref('anidle'), label: 'Anidle', Icon: PuzzleIcon },
       { id: 'daily:opening', href: dailyHref('opening'), label: 'Opening', Icon: MusicIcon },
       { id: 'daily:ending', href: dailyHref('ending'), label: 'Ending', Icon: DiscIcon },
-      { id: 'daily:character', href: dailyHref('character'), label: 'Karakter', Icon: UsersIcon },
+      { id: 'daily:character', href: dailyHref('character'), label: 'Character', Icon: UsersIcon },
       { id: 'daily:screenshot', href: dailyHref('screenshot'), label: 'Screenshot', Icon: ImageIcon },
     ],
   },
   {
-    title: 'Bebas',
+    title: 'Free play',
     items: [
       { id: 'unlimited', href: '#/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
       { id: 'database', href: '#/database', label: 'Database', Icon: DatabaseIcon },
     ],
   },
   {
-    title: 'Komunitas',
+    title: 'Community',
     items: [
       { id: 'leaderboard', href: '#/leaderboard', label: 'Leaderboard', Icon: TrophyIcon },
-      { id: 'history', href: '#/riwayat', label: 'Riwayat', Icon: ClockIcon },
+      { id: 'history', href: '#/riwayat', label: 'History', Icon: ClockIcon },
     ],
   },
 ];
@@ -63,7 +63,7 @@ export function Sidebar({ route, account, admin, open, onClose, onLogout }: { ro
       <aside className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-head">
           <Brand />
-          <button className="icon-button sidebar-close" onClick={onClose} aria-label="Tutup menu">
+          <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close menu">
             <CloseIcon />
           </button>
         </div>
@@ -83,22 +83,22 @@ export function Sidebar({ route, account, admin, open, onClose, onLogout }: { ro
         <div className="sidebar-foot">
           {account ? (
             <div className="account-row">
-              <a className={`account-chip${current === 'account' ? ' active' : ''}`} href="#/akun" title="Akun & MAL">
+              <a className={`account-chip${current === 'account' ? ' active' : ''}`} href="#/akun" title="Account & MAL">
                 <Avatar account={account} />
                 <span className="account-text">
                   <b>{account.username}</b>
-                  <span className={account.mal ? 'mal-on' : 'muted'}>{account.mal ? `MAL · ${account.mal.username}` : 'MAL belum terhubung'}</span>
+                  <span className={account.mal ? 'mal-on' : 'muted'}>{account.mal ? `MAL · ${account.mal.username}` : 'MAL not linked'}</span>
                 </span>
               </a>
-              <button className="icon-button" onClick={onLogout} title="Keluar" aria-label="Keluar">
+              <button className="icon-button" onClick={onLogout} title="Sign out" aria-label="Sign out">
                 <LogoutIcon />
               </button>
             </div>
           ) : (
             <div className="guest">
-              <p className="muted small">Main sebagai tamu. Progres tersimpan di browser ini.</p>
+              <p className="muted small">Playing as a guest. Progress is saved in this browser.</p>
               <a className={`button primary block${current === 'auth' ? ' active' : ''}`} href="#/masuk">
-                Masuk / Daftar
+                Sign in / Sign up
               </a>
             </div>
           )}

@@ -78,7 +78,7 @@ async function requestTokens(params: Record<string, string>): Promise<MalTokens>
     signal: AbortSignal.timeout(20_000),
   });
   const data = (await parse(res)) as { access_token: string; refresh_token: string; expires_in: number };
-  if (!res.ok) throw new MalError(res.status, `Token MAL ditolak: ${errorText(data, res.status)}`);
+  if (!res.ok) throw new MalError(res.status, `MAL token rejected: ${errorText(data, res.status)}`);
   return { accessToken: data.access_token, refreshToken: data.refresh_token, expiresAt: Date.now() + data.expires_in * 1000 };
 }
 

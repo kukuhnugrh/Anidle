@@ -6,19 +6,19 @@ import { ArrowIcon } from './icons';
 import { go } from './route';
 
 const MODE_HINTS: Record<Mode, string> = {
-  anidle: 'tebak dari petunjuk',
-  opening: '3 ronde lagu opening',
-  ending: '3 ronde lagu ending',
-  character: '3 ronde, 4 karakter',
-  screenshot: '3 ronde, zoom keluar',
+  anidle: 'guess from clues',
+  opening: '3 rounds of openings',
+  ending: '3 rounds of endings',
+  character: '3 rounds, 4 characters',
+  screenshot: '3 rounds, zooming out',
 };
 
 const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: Difficulty[] }> = {
-  all: { label: 'Semua', hint: 'semua judul', value: [] },
-  'easy+medium': { label: 'Easy + Medium', hint: 'seperti harian', value: ['easy', 'medium'] },
-  easy: { label: 'Easy', hint: '≥ 500 rb member', value: ['easy'] },
-  medium: { label: 'Medium', hint: '200–500 rb member', value: ['medium'] },
-  hard: { label: 'Hard', hint: '< 200 rb member', value: ['hard'] },
+  all: { label: 'All', hint: 'every title', value: [] },
+  'easy+medium': { label: 'Easy + Medium', hint: 'like the daily', value: ['easy', 'medium'] },
+  easy: { label: 'Easy', hint: '≥ 500k members', value: ['easy'] },
+  medium: { label: 'Medium', hint: '200k–500k members', value: ['medium'] },
+  hard: { label: 'Hard', hint: '< 200k members', value: ['hard'] },
 };
 const choiceKey = (value: Difficulty[] = []) =>
   Object.keys(DIFFICULTY_CHOICES).find((k) => DIFFICULTY_CHOICES[k]!.value.join() === [...value].sort().join()) ?? 'all';
@@ -51,9 +51,9 @@ export function Unlimited({ account }: { account: Account | null }) {
   return (
     <div className="stack narrow">
       <header className="page-head">
-        <span className="eyebrow">Mode bebas</span>
+        <span className="eyebrow">Free play</span>
         <h1>Unlimited</h1>
-        <p className="muted">Puzzle acak sebanyak yang kamu mau. Pengaturan terakhir disimpan di browser ini.</p>
+        <p className="muted">As many random puzzles as you like. Your last settings are saved in this browser.</p>
       </header>
 
       <section className="card form-card">
@@ -75,13 +75,13 @@ export function Unlimited({ account }: { account: Account | null }) {
             {POOLS.map((p) => (
               <button key={p} type="button" role="radio" aria-checked={pool === p} className={`option${pool === p ? ' selected' : ''}`} onClick={() => setPool(p)}>
                 <span>{POOL_LABELS[p]}</span>
-                {POOL_NEEDS_MAL[p] && !hasMal && <span className="lock">butuh MAL</span>}
+                {POOL_NEEDS_MAL[p] && !hasMal && <span className="lock">needs MAL</span>}
               </button>
             ))}
           </div>
           {poolLocked && (
             <p className="muted small">
-              Pool ini memakai list completed MAL. {account ? <a href="#/akun">Hubungkan akun MAL dulu.</a> : <><a href="#/masuk">Masuk</a> lalu hubungkan akun MAL dulu.</>}
+              This pool uses your MAL completed list. {account ? <a href="#/akun">Link your MAL account first.</a> : <><a href="#/masuk">Sign in</a> and link your MAL account first.</>}
             </p>
           )}
         </div>
@@ -101,7 +101,7 @@ export function Unlimited({ account }: { account: Account | null }) {
         <label className="field">
           <span className="field-label">Genre</span>
           <select value={genreId} onChange={(e) => setGenreId(e.target.value === '' ? '' : Number(e.target.value))}>
-            <option value="">Semua genre</option>
+            <option value="">All genres</option>
             {MAIN_GENRES.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -112,7 +112,7 @@ export function Unlimited({ account }: { account: Account | null }) {
 
         {error && <div className="error-box">{error}</div>}
         <button className="primary big" disabled={busy || poolLocked} onClick={start}>
-          {busy ? 'Membuat puzzle…' : 'Mulai puzzle'}
+          {busy ? 'Creating puzzle…' : 'Start puzzle'}
           <ArrowIcon />
         </button>
       </section>

@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Pool } from '../shared/catalog.js';
-import { ROUND_COUNT, ROUND_MODES, roundPoints, type RoundMode } from '../shared/modes.js';
+import { MODE_MEDIA, ROUND_COUNT, ROUND_STAGES, roundDifficulties, roundPoints, type RoundMode } from '../shared/modes.js';
 import type { Account } from './accounts.js';
 import { all, db } from './db.js';
 import {
@@ -10,7 +10,6 @@ import {
   pickTitles,
   poolSpec,
   poolTitles,
-  randomDraw,
   readPlay,
   writePlay,
   type AnswerInfo,
@@ -20,8 +19,8 @@ import {
 import { HttpError } from './http.js';
 import { mediaUrl } from './media.js';
 
-// Round modes (Opening, Ending, Karakter, Screenshot): ROUND_COUNT rounds, each attempt unlocks the next
-// stage of ROUND_MODES[mode].stages. Stored per player in play.guesses as number[][] (one list per round, 0 = skip).
+// Round modes (Opening, Ending, Screenshot): ROUND_COUNT rounds of one title, each attempt unlocks the
+// next stage of ROUND_STAGES[mode]. Stored per player in play.guesses as number[][] (one list per round, 0 = skip).
 
 export interface SongInfo {
   /** AnimeThemes slug, e.g. OP1 */
@@ -30,20 +29,13 @@ export interface SongInfo {
   artist: string | null;
 }
 
-export interface CharacterInfo {
-  name: string;
-  role: string | null;
-}
-
 export interface RoundAnswer extends AnswerInfo {
   /** Opening / Ending */
   song: SongInfo | null;
-  /** Karakter, in reveal order */
-  characters: CharacterInfo[];
 }
 
 export interface RoundPlayState {
-  /** Opening/Ending: [the 30 s clip]. Karakter: portraits in reveal order. Screenshot: [one frame]. */
+  /** Opening/Ending: [the 30 s clip]. Screenshot: [one frame]. */
   media: string[];
   /** Wrong guesses, skips (null) and, when solved, the correct guess last. */
   attempts: Array<{ malId: number; title: string } | null>;
@@ -59,7 +51,7 @@ export interface RoundState {
   mode: RoundMode;
   date: string | null;
   pool: Pool;
-  /** What each attempt unlocks: seconds of the clip, or number of portraits. */
+  /** What each attempt unlocks: seconds of the clip, or the zoom factor. */
   stages: readonly number[];
   rounds: RoundPlayState[];
   /** First unfinished round, rounds.length once the puzzle is over. */
@@ -74,7 +66,6 @@ interface LoadedRound {
   malId: number;
   media: string[];
   song: SongInfo | null;
-  characters: CharacterInfo[];
 }
 
 async function loadRounds(puzzleId: string, mode: RoundMode): Promise<LoadedRound[]> {
@@ -82,32 +73,22 @@ async function loadRounds(puzzleId: string, mode: RoundMode): Promise<LoadedRoun
   const ids = rounds.map((r) => Number(r.mal_id));
   const marks = ids.map(() => '?').join(',');
   let loaded: LoadedRound[];
-  if (mode === 'character') {
-    const rows = await all<{ mal_id: number; name: string; role: string | null; r2_key: string }>(
-      `SELECT mal_id, name, role, r2_key FROM anime_character WHERE mal_id IN (${marks}) ORDER BY slot`,
-      ids,
-    );
-    const byTitle = Map.groupBy(rows, (r) => Number(r.mal_id));
-    loaded = ids.map((malId) => {
-      const chars = byTitle.get(malId) ?? [];
-      return { malId, media: chars.map((c) => mediaUrl(c.r2_key)), song: null, characters: chars.map((c) => ({ name: c.name, role: c.role })) };
-    });
-  } else if (mode === 'screenshot') {
+  if (mode === 'screenshot') {
     const rows = await all<{ mal_id: number; r2_key: string }>(`SELECT mal_id, r2_key FROM anime_screenshot WHERE mal_id IN (${marks}) ORDER BY slot`, ids);
     const byTitle = Map.groupBy(rows, (r) => Number(r.mal_id));
-    loaded = ids.map((malId) => ({ malId, media: (byTitle.get(malId) ?? []).map((s) => mediaUrl(s.r2_key)), song: null, characters: [] }));
+    loaded = ids.map((malId) => ({ malId, media: (byTitle.get(malId) ?? []).map((s) => mediaUrl(s.r2_key)), song: null }));
   } else {
     const rows = await all<{ mal_id: number; r2_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
       `SELECT mal_id, r2_key, label, song_title, artist FROM anime_media WHERE kind = ? AND mal_id IN (${marks})`,
-      [ROUND_MODES[mode].media, ...ids],
+      [MODE_MEDIA[mode]!, ...ids],
     );
     const byTitle = new Map(rows.map((r) => [Number(r.mal_id), r]));
     loaded = ids.map((malId) => {
       const r = byTitle.get(malId);
-      return { malId, media: r?.r2_key ? [mediaUrl(r.r2_key)] : [], song: r ? { label: r.label, title: r.song_title, artist: r.artist } : null, characters: [] };
+      return { malId, media: r?.r2_key ? [mediaUrl(r.r2_key)] : [], song: r ? { label: r.label, title: r.song_title, artist: r.artist } : null };
     });
   }
-  if (loaded.length !== ROUND_COUNT || loaded.some((r) => !r.media.length)) throw new HttpError(500, 'Data ronde puzzle tidak lengkap.');
+  if (loaded.length !== ROUND_COUNT || loaded.some((r) => !r.media.length)) throw new HttpError(500, 'Puzzle data is incomplete.');
   return loaded;
 }
 
@@ -117,12 +98,12 @@ interface Evaluated {
 }
 
 async function evaluate(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, attempts: number[][]): Promise<Evaluated> {
-  const { stages } = ROUND_MODES[mode];
+  const stages = ROUND_STAGES[mode];
   const rounds = await loadRounds(puzzle.id, mode);
   const anime = await loadAnidle([...rounds.map((r) => r.malId), ...attempts.flat().filter((id) => id > 0)]);
   const states = rounds.map((r, i): RoundPlayState => {
     const answer = anime.get(r.malId);
-    if (!answer) throw new HttpError(500, 'Data jawaban hilang dari database.');
+    if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
     const tries = attempts[i] ?? [];
     const solvedAt = tries.findIndex((id) => {
       const guess = anime.get(id);
@@ -136,7 +117,7 @@ async function evaluate(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, a
       solved,
       finished,
       points: roundPoints(solved ? solvedAt : null, stages.length),
-      answer: finished ? { ...answerInfo(answer), song: r.song, characters: r.characters } : null,
+      answer: finished ? { ...answerInfo(answer), song: r.song } : null,
     };
   });
   const current = states.findIndex((s) => !s.finished);
@@ -171,11 +152,11 @@ export async function roundState(puzzle: PuzzleRow, mode: RoundMode, playerKey: 
 export async function roundGuess(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, round: number, malId: number | null): Promise<RoundState> {
   const attempts = await storedAttempts(puzzle.id, playerKey);
   const before = (await evaluate(puzzle, mode, playerKey, attempts)).state;
-  if (before.finished) throw new HttpError(409, 'Puzzle ini sudah selesai.');
-  if (round !== before.current) throw new HttpError(409, 'Ronde itu sudah selesai atau belum dimulai.');
+  if (before.finished) throw new HttpError(409, 'This puzzle is already finished.');
+  if (round !== before.current) throw new HttpError(409, 'That round is already over or has not started.');
   const tries = attempts[round] ?? [];
   if (malId != null) {
-    if (tries.includes(malId)) throw new HttpError(409, 'Judul itu sudah kamu tebak di ronde ini.');
+    if (tries.includes(malId)) throw new HttpError(409, 'You already guessed that title this round.');
     await assertPlayable(malId);
   }
   attempts[round] = [...tries, malId ?? 0];
@@ -184,23 +165,28 @@ export async function roundGuess(puzzle: PuzzleRow, mode: RoundMode, playerKey: 
   return after.state;
 }
 
-/** Swaps an untouched round of the player's own unlimited puzzle for another title from the same pool. */
+/**
+ * Swaps an untouched round of the player's own unlimited puzzle for another title from the same pool
+ * and the same round difficulty.
+ */
 export async function replaceRound(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, account: Account | null, round: number): Promise<RoundState> {
-  if (puzzle.date != null || puzzle.created_by !== playerKey) throw new HttpError(403, 'Hanya ronde puzzle unlimited milikmu yang bisa diganti.');
-  if (!Number.isInteger(round) || round < 0 || round >= ROUND_COUNT) throw new HttpError(400, 'Ronde tidak dikenal.');
+  if (puzzle.date != null || puzzle.created_by !== playerKey) throw new HttpError(403, 'Only rounds of your own unlimited puzzle can be replaced.');
+  if (!Number.isInteger(round) || round < 0 || round >= ROUND_COUNT) throw new HttpError(400, 'Unknown round.');
   const attempts = await storedAttempts(puzzle.id, playerKey);
-  if (attempts[round]?.length) throw new HttpError(409, 'Ronde yang sudah ditebak tidak bisa diganti.');
+  if (attempts[round]?.length) throw new HttpError(409, 'A round you already guessed cannot be replaced.');
 
   const options: PuzzleOptions = puzzle.options ? (JSON.parse(puzzle.options) as PuzzleOptions) : {};
   const current = await all<{ mal_id: number }>('SELECT mal_id FROM puzzle_round WHERE puzzle_id = ?', [puzzle.id]);
   const taken = new Set(current.map((r) => Number(r.mal_id)));
-  const franchises = [...(await loadAnidle([...taken])).values()].map((a) => a.franchiseId ?? -a.malId);
-  const titles = (await poolTitles(poolSpec(puzzle.pool, account, mode, options))).filter((t) => !taken.has(t.malId));
-  const [replacement] = pickTitles(titles, 1, randomDraw, franchises);
+  const franchises = new Set([...(await loadAnidle([...taken])).values()].map((a) => a.franchiseId ?? -a.malId));
+  const spec = poolSpec(puzzle.pool, account, mode, options);
+  const titles = (await poolTitles({ ...spec, difficulties: roundDifficulties(spec.difficulties, round) })).filter((t) => !taken.has(t.malId));
+  const replacement = pickTitles(titles, 1, (_n, size) => Math.floor(Math.random() * size), franchises)?.[0];
+  if (!replacement) throw new HttpError(404, 'No other title left in this pool.');
   await db().batch(
     [
-      { sql: 'UPDATE puzzle_round SET mal_id = ? WHERE puzzle_id = ? AND round = ?', args: [replacement!, puzzle.id, round] },
-      ...(round === 0 ? [{ sql: 'UPDATE puzzle SET answer_id = ? WHERE id = ?', args: [replacement!, puzzle.id] }] : []),
+      { sql: 'UPDATE puzzle_round SET mal_id = ? WHERE puzzle_id = ? AND round = ?', args: [replacement.malId, puzzle.id, round] },
+      ...(round === 0 ? [{ sql: 'UPDATE puzzle SET answer_id = ? WHERE id = ?', args: [replacement.malId, puzzle.id] }] : []),
     ],
     'write',
   );

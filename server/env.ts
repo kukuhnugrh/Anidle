@@ -1,6 +1,6 @@
 export function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Environment variable ${name} belum di-set (lihat .env.example).`);
+  if (!value) throw new Error(`Environment variable ${name} is not set (see .env.example).`);
   return value;
 }
 

@@ -13,7 +13,7 @@ export function encrypt(plain: string): string {
 
 export function decrypt(sealed: string): string {
   const [iv, tag, data] = sealed.split('.').map((part) => Buffer.from(part, 'base64url'));
-  if (!iv || !tag || !data) throw new Error('Token terenkripsi rusak.');
+  if (!iv || !tag || !data) throw new Error('Encrypted token is corrupted.');
   const decipher = createDecipheriv('aes-256-gcm', keyFrom('TOKEN_ENC_KEY'), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');

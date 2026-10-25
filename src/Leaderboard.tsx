@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { MODE_LABELS, MODES, ROUND_COUNT, todayWib, type Mode } from '../shared/modes';
+import { MODE_LABELS, MODES, todayWib, type Mode } from '../shared/modes';
 import { api, errorMessage, type Account, type Leaderboard } from './api';
-import { fmtDate, fmtNumber } from './format';
+import { fmtDate, fmtNumber, resultText } from './format';
 
 const DAY_MS = 86_400_000;
 type Tab = Mode | 'total';
@@ -21,10 +21,10 @@ interface Row {
 }
 
 function rowsOf(data: Leaderboard, tab: Tab): Row[] {
-  if (tab === 'total') return data.total.map((t) => ({ ...t, detail: `${t.modes} mode` }));
+  if (tab === 'total') return data.total.map((t) => ({ ...t, detail: `${t.modes} ${t.modes === 1 ? 'mode' : 'modes'}` }));
   return data.modes[tab].map((e) => ({
     ...e,
-    detail: tab === 'anidle' ? (e.solved ? `${e.attempts} tebakan` : 'tidak tertebak') : `${e.solved}/${ROUND_COUNT} ronde`,
+    detail: resultText(tab, e.solved, e.attempts),
   }));
 }
 
@@ -52,18 +52,18 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
   return (
     <div className="stack">
       <header className="page-head">
-        <span className="eyebrow">Komunitas</span>
+        <span className="eyebrow">Community</span>
         <h1>Leaderboard</h1>
-        <p className="muted">Skor puzzle harian per tanggal. Hanya pemain dengan akun yang tampil.</p>
+        <p className="muted">Daily puzzle scores by date. Only players with an account are shown.</p>
       </header>
 
       <div className="board-bar">
         <div className="date-nav">
-          <button className="ghost small" onClick={() => setDate((d) => shiftDate(d, -1))} aria-label="Hari sebelumnya">
+          <button className="ghost small" onClick={() => setDate((d) => shiftDate(d, -1))} aria-label="Previous day">
             ←
           </button>
           <b>{fmtDate(date)}</b>
-          <button className="ghost small" disabled={date >= today} onClick={() => setDate((d) => shiftDate(d, 1))} aria-label="Hari berikutnya">
+          <button className="ghost small" disabled={date >= today} onClick={() => setDate((d) => shiftDate(d, 1))} aria-label="Next day">
             →
           </button>
         </div>
@@ -79,13 +79,13 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
       {error && <div className="error-box">{error}</div>}
       {!account && (
         <p className="muted small">
-          <a href="#/masuk">Masuk atau daftar</a> supaya skormu muncul di sini.
+          <a href="#/masuk">Sign in or sign up</a> to get your score listed here.
         </p>
       )}
 
       <section className="card board">
         {!rows && !error && <div className="center board-empty"><span className="spinner" /></div>}
-        {rows && !rows.length && <p className="muted board-empty">Belum ada yang menyelesaikan puzzle {tab === 'total' ? '' : `${MODE_LABELS[tab]} `}di tanggal ini.</p>}
+        {rows && !rows.length && <p className="muted board-empty">Nobody has finished a {tab === 'total' ? '' : `${MODE_LABELS[tab]} `}puzzle on this date yet.</p>}
         {rows && rows.length > 0 && (
           <ol className="board-list">
             {rows.map((r, i) => (

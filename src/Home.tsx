@@ -21,28 +21,34 @@ function Countdown() {
 }
 
 const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
-  anidle: { Icon: PuzzleIcon, text: 'Tebak dari petunjuk tahun, skor, studio, genre, theme, dan demographic. 10 tebakan.' },
-  opening: { Icon: MusicIcon, text: '3 ronde opening. Potongan lagu makin panjang tiap tebakan salah: 1, 3, 6, 12, 30 detik.' },
-  ending: { Icon: DiscIcon, text: '3 ronde ending, aturan sama dengan Opening. Biasanya lebih susah.' },
-  character: { Icon: UsersIcon, text: '3 ronde, tiap ronde 4 karakter dibuka satu per satu. Yang paling terkenal muncul terakhir.' },
-  screenshot: { Icon: ImageIcon, text: '3 ronde, satu adegan dari opening. Mulai dari potongan zoom 4×, makin jauh tiap tebakan salah.' },
+  anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, studio, genres, themes and demographic. 10 guesses.' },
+  opening: { Icon: MusicIcon, text: '3 rounds of openings. The clip grows with every miss: 1, 3, 6, 12, 30 seconds.' },
+  ending: { Icon: DiscIcon, text: '3 rounds of endings, same rules as Opening. Usually harder.' },
+  character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Name each one and their anime.' },
+  screenshot: { Icon: ImageIcon, text: '3 rounds, one scene from an opening. Starts zoomed in 4× and zooms out with every miss.' },
 };
 
 /** A daily puzzle that could not load (e.g. the mode's pool is still empty). */
 type DailyResult = PuzzleState | 'unavailable' | null;
 
 function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean } {
-  if (p === 'unavailable') return { cta: 'Buka', text: 'Belum tersedia' };
-  if (!p) return { cta: 'Main', text: '' };
+  if (p === 'unavailable') return { cta: 'Open', text: 'Not available yet' };
+  if (!p) return { cta: 'Play', text: '' };
   if (p.mode === 'anidle') {
-    if (p.finished) return p.solved ? { cta: 'Lihat hasil', text: `Benar dalam ${p.guesses.length} tebakan · ${p.score ?? 0} poin`, won: true } : { cta: 'Lihat jawaban', text: 'Belum berhasil' };
-    if (p.guesses.length) return { cta: 'Lanjutkan', text: `Sisa ${p.maxGuesses - p.guesses.length} tebakan` };
-    return { cta: 'Main', text: 'Belum dimainkan' };
+    if (p.finished) return p.solved ? { cta: 'See result', text: `Solved in ${p.guesses.length} · ${p.score ?? 0} pts`, won: true } : { cta: 'See answer', text: 'Not solved' };
+    if (p.guesses.length) return { cta: 'Continue', text: `${p.maxGuesses - p.guesses.length} guesses left` };
+    return { cta: 'Play', text: 'Not played yet' };
+  }
+  if (p.mode === 'character') {
+    const right = p.rounds.flatMap((r) => r.slots).filter((s) => s.name.solved && s.anime.solved).length;
+    if (p.finished) return { cta: 'See result', text: `${right} characters · ${p.score ?? 0} pts`, won: right > 0 };
+    const started = p.current > 0 || p.rounds[0]!.slots.some((s) => s.name.tries.length || s.anime.tries.length);
+    return started ? { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` } : { cta: 'Play', text: 'Not played yet' };
   }
   const solved = p.rounds.filter((r) => r.solved).length;
-  if (p.finished) return { cta: 'Lihat hasil', text: `${solved}/${p.rounds.length} ronde · ${p.score ?? 0} poin`, won: solved > 0 };
-  if (p.current > 0 || p.rounds[0]!.attempts.length) return { cta: 'Lanjutkan', text: `Ronde ${p.current + 1} dari ${p.rounds.length}` };
-  return { cta: 'Main', text: 'Belum dimainkan' };
+  if (p.finished) return { cta: 'See result', text: `${solved}/${p.rounds.length} rounds · ${p.score ?? 0} pts`, won: solved > 0 };
+  if (p.current > 0 || p.rounds[0]!.attempts.length) return { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` };
+  return { cta: 'Play', text: 'Not played yet' };
 }
 
 export function Home({ account }: { account: Account | null }) {
@@ -59,14 +65,14 @@ export function Home({ account }: { account: Account | null }) {
     <div className="stack">
       <section className="hero">
         <div className="hero-body">
-          <span className="eyebrow">Puzzle harian · {fmtDate(todayWib())}</span>
-          <h1>Tebak anime hari ini</h1>
-          <p>Empat mode, satu set puzzle yang sama untuk semua orang. Puzzle harian selalu judul easy atau medium, jadi aman buat pemanasan.</p>
+          <span className="eyebrow">Daily puzzle · {fmtDate(todayWib())}</span>
+          <h1>Guess today's anime</h1>
+          <p>Five modes, the same puzzle set for everyone. Daily puzzles are always easy or medium titles, so they make a good warm-up.</p>
         </div>
         <div className="hero-clock">
-          <span className="eyebrow">Puzzle baru dalam</span>
+          <span className="eyebrow">New puzzle in</span>
           <Countdown />
-          <span className="muted small">setiap 00:00 WIB</span>
+          <span className="muted small">every day at 00:00 WIB</span>
         </div>
       </section>
 
@@ -99,26 +105,26 @@ export function Home({ account }: { account: Account | null }) {
             <ShuffleIcon />
           </span>
           <h3>Unlimited</h3>
-          <p className="muted">Puzzle acak sebanyak yang kamu mau di mode mana pun. Atur pool, genre, dan difficulty.</p>
+          <p className="muted">As many random puzzles as you like in any mode. Set the pool, genre, and difficulty.</p>
         </a>
         <a className="tile" href="#/database">
           <span className="tile-icon">
             <DatabaseIcon />
           </span>
           <h3>Database</h3>
-          <p className="muted">Semua judul yang bisa keluar, lengkap dengan filter genre, studio, dan source.</p>
+          <p className="muted">Every title that can show up, with genre, studio, and source filters.</p>
         </a>
         <a className="tile" href={account ? '#/akun' : '#/masuk'}>
           <span className="tile-icon">
             <UserIcon />
           </span>
-          <h3>{account ? 'Akun & MAL' : 'Masuk / Daftar'}</h3>
+          <h3>{account ? 'Account & MAL' : 'Sign in / Sign up'}</h3>
           <p className="muted">
             {account?.mal
-              ? `Terhubung ke ${account.mal.username}, ${account.mal.completed} anime completed.`
+              ? `Linked to ${account.mal.username}, ${account.mal.completed} anime completed.`
               : account
-                ? 'Hubungkan MAL untuk membuka pool dari list completed.'
-                : 'Simpan progres di semua perangkat dan buka pool dari list MAL.'}
+                ? 'Link MAL to unlock pools from your completed list.'
+                : 'Save progress across devices and unlock pools from your MAL list.'}
           </p>
         </a>
       </div>

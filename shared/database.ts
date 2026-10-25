@@ -2,11 +2,11 @@
 import type { Difficulty, GenreType } from './catalog';
 
 export const DB_SORTS = {
-  popularity: 'Popularity (member terbanyak)',
-  score: 'Skor tertinggi',
-  newest: 'Tahun terbaru',
-  oldest: 'Tahun terlama',
-  title: 'Judul A–Z',
+  popularity: 'Popularity (most members)',
+  score: 'Highest score',
+  newest: 'Newest year',
+  oldest: 'Oldest year',
+  title: 'Title A–Z',
 } as const;
 export type DbSort = keyof typeof DB_SORTS;
 

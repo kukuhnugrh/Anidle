@@ -3,7 +3,7 @@ import { MEDIA_KINDS as KINDS, MEDIA_STATUSES as STATUSES, type MediaKind } from
 import { api, errorMessage, type AdminPage as AdminData } from './api';
 import { fmtNumber } from './format';
 
-const KIND_LABELS: Record<MediaKind, string> = { cover: 'Cover', op: 'Opening', ed: 'Ending', chars: 'Karakter', shots: 'Screenshot' };
+const KIND_LABELS: Record<MediaKind, string> = { cover: 'Cover', op: 'Opening', ed: 'Ending', chars: 'Character', shots: 'Screenshot' };
 
 type Item = AdminData['items'][number];
 
@@ -69,7 +69,7 @@ export function AdminPage() {
       <header className="page-head">
         <span className="eyebrow">Admin</span>
         <h1>Review media</h1>
-        <p className="muted">Hasil pipeline per judul. Media yang ditolak tidak dipakai di puzzle baru dan tidak diproses ulang pipeline (kecuali `--refresh`).</p>
+        <p className="muted">Pipeline results per title. Rejected media are not used in new puzzles and are not reprocessed by the pipeline (unless `--refresh`).</p>
       </header>
 
       {data && (
@@ -110,14 +110,14 @@ export function AdminPage() {
 
       <section className="card db-filters">
         <label className="db-search">
-          Cari judul
+          Search titles
           <input
             value={q}
             onChange={(e) => {
               setQ(e.target.value);
               setPage(1);
             }}
-            placeholder="Judul romaji atau Inggris"
+            placeholder="Romaji or English title"
           />
         </label>
         <label>
@@ -129,7 +129,7 @@ export function AdminPage() {
               setPage(1);
             }}
           >
-            <option value="">Semua</option>
+            <option value="">All</option>
             {KINDS.map((k) => (
               <option key={k} value={k}>
                 {KIND_LABELS[k]}
@@ -146,7 +146,7 @@ export function AdminPage() {
               setPage(1);
             }}
           >
-            <option value="">Semua</option>
+            <option value="">All</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -157,7 +157,7 @@ export function AdminPage() {
       </section>
 
       {error && <div className="error-box">{error}</div>}
-      {data && <div className="muted small">{fmtNumber(data.total)} judul</div>}
+      {data && <div className="muted small">{fmtNumber(data.total)} titles</div>}
 
       <div className="admin-list">
         {data?.items.map((item) => (
@@ -169,7 +169,7 @@ export function AdminPage() {
                   <b>{item.title}</b>
                 </a>
                 <div className="muted small">
-                  #{item.malId} · {item.members != null ? `${fmtNumber(item.members)} member` : 'member ?'} · <span className={`difficulty ${item.difficulty}`}>{item.difficulty}</span>
+                  #{item.malId} · {item.members != null ? `${fmtNumber(item.members)} members` : 'members ?'} · <span className={`difficulty ${item.difficulty}`}>{item.difficulty}</span>
                 </div>
               </div>
             </div>
@@ -180,7 +180,7 @@ export function AdminPage() {
                   <div key={k} className="admin-row">
                     <span className="admin-kind">{KIND_LABELS[k]}</span>
                     <span className={`admin-status ${cell?.status ?? 'none'}`} title={cell?.error ?? undefined}>
-                      {cell?.status ?? 'belum'}
+                      {cell?.status ?? 'none'}
                     </span>
                     <div className="admin-preview">
                       {cell?.song && (
@@ -193,12 +193,12 @@ export function AdminPage() {
                     </div>
                     {cell?.status === 'ok' && (
                       <button className="ghost small danger" disabled={busy !== null} onClick={() => act(item, k, 'reject')}>
-                        Tolak
+                        Reject
                       </button>
                     )}
                     {cell?.status === 'rejected' && (
                       <button className="ghost small" disabled={busy !== null} onClick={() => act(item, k, 'restore')}>
-                        Pulihkan
+                        Restore
                       </button>
                     )}
                   </div>
@@ -212,13 +212,13 @@ export function AdminPage() {
       {data && pages > 1 && (
         <div className="db-paging">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
-            ← Sebelumnya
+            ← Previous
           </button>
           <span className="muted">
-            Halaman {page} dari {pages}
+            Page {page} of {pages}
           </span>
           <button disabled={page >= pages} onClick={() => setPage(page + 1)}>
-            Berikutnya →
+            Next →
           </button>
         </div>
       )}

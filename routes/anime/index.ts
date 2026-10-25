@@ -6,7 +6,7 @@ import { HttpError, json, route } from '../../server/http.js';
 const text = (value: string | null, max = 100) => {
   const v = value?.trim();
   if (!v) return undefined;
-  if (v.length > max) throw new HttpError(400, 'Parameter terlalu panjang.');
+  if (v.length > max) throw new HttpError(400, 'Parameter too long.');
   return v;
 };
 
@@ -14,13 +14,13 @@ const text = (value: string | null, max = 100) => {
 export const GET = route(async (req) => {
   const p = new URL(req.url).searchParams;
   const sort = p.get('sort') ?? 'popularity';
-  if (!(sort in DB_SORTS)) throw new HttpError(400, `Sort tidak dikenal: ${sort}`);
+  if (!(sort in DB_SORTS)) throw new HttpError(400, `Unknown sort: ${sort}`);
   const genres = p.getAll('genre').map(Number);
-  if (genres.some((g) => !Number.isInteger(g) || g <= 0) || genres.length > DB_MAX_GENRES) throw new HttpError(400, 'Filter genre tidak valid.');
+  if (genres.some((g) => !Number.isInteger(g) || g <= 0) || genres.length > DB_MAX_GENRES) throw new HttpError(400, 'Invalid genre filter.');
   const difficulty = p.get('difficulty') || undefined;
-  if (difficulty && !(DIFFICULTIES as readonly string[]).includes(difficulty)) throw new HttpError(400, `Difficulty tidak dikenal: ${difficulty}`);
+  if (difficulty && !(DIFFICULTIES as readonly string[]).includes(difficulty)) throw new HttpError(400, `Unknown difficulty: ${difficulty}`);
   const page = Number(p.get('page') ?? 1);
-  if (!Number.isInteger(page) || page < 1 || page > 1000) throw new HttpError(400, 'Halaman tidak valid.');
+  if (!Number.isInteger(page) || page < 1 || page > 1000) throw new HttpError(400, 'Invalid page.');
 
   const result = await listAnime({
     q: text(p.get('q')),

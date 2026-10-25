@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, summarizeAnidle, type AnidleAnime } from './anidle';
 import { difficultyOf, exclusionReason } from './catalog';
+import { characterAnswers, matchesCharacter } from './characters';
 import { franchiseIds } from './franchise';
+import { roundDifficulties } from './modes';
 import { indexTitles, normalizeTitle, searchTitles } from './normalize';
 
 const anime = (over: Partial<AnidleAnime>): AnidleAnime => ({
@@ -152,5 +154,40 @@ describe('exclusionReason', () => {
     expect(exclusionReason(null, [])).toBe('media_type:none');
     expect(exclusionReason('tv', [1], 'not_yet_aired')).toBe('status:not_yet_aired');
     expect(exclusionReason('tv', [1], 'currently_airing')).toBeNull();
+  });
+});
+
+describe('matchesCharacter', () => {
+  const edward = characterAnswers({ name: 'Elric, Edward', nicknames: ['Fullmetal Alchemist', 'Ed'], nameKanji: 'エドワード・エルリック' });
+
+  it('accepts the full name in either order, a single name part, a nickname or the kanji name', () => {
+    for (const guess of ['Edward Elric', 'elric edward', 'Edward', 'Elric', 'fullmetal alchemist', 'Ed', 'エドワード・エルリック']) expect(matchesCharacter(guess, edward)).toBe(true);
+  });
+
+  it('rejects other characters and too-short fragments', () => {
+    for (const guess of ['Alphonse Elric', 'Roy Mustang', 'E', 'Edw']) expect(matchesCharacter(guess, edward)).toBe(false);
+  });
+
+  it('forgives long-vowel romanisation and one typo per six letters, not more', () => {
+    const ryo = characterAnswers({ name: 'Ryougi, Shiki', nicknames: [], nameKanji: null });
+    expect(matchesCharacter('Shiki Ryogi', ryo)).toBe(true);
+    expect(matchesCharacter('Edwrd', edward)).toBe(true);
+    expect(matchesCharacter('Edwerd Elrik', edward)).toBe(true);
+    expect(matchesCharacter('Edwerd Elrikk', edward)).toBe(false);
+    expect(matchesCharacter('Edwxrx', edward)).toBe(false);
+  });
+});
+
+describe('roundDifficulties', () => {
+  it('stages easy then medium for the daily pool and for "every difficulty"', () => {
+    for (const pool of [[], ['easy', 'medium'], ['medium', 'easy']] as const) {
+      expect([0, 1, 2].map((r) => roundDifficulties(pool, r))).toEqual([['easy'], ['medium'], ['medium']]);
+    }
+  });
+
+  it('keeps a narrowed pool for every round', () => {
+    expect(roundDifficulties(['hard'], 0)).toEqual(['hard']);
+    expect(roundDifficulties(['easy'], 2)).toEqual(['easy']);
+    expect(roundDifficulties(['medium', 'hard'], 0)).toEqual(['medium', 'hard']);
   });
 });

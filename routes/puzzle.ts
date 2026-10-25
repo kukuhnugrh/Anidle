@@ -17,7 +17,7 @@ export const POST = route(async (req) => {
   const me = await viewer(req);
   const body = await readJson<{ mode?: unknown; pool?: unknown; genreId?: unknown; difficulties?: unknown }>(req);
   const genreId = body.genreId == null || body.genreId === '' ? undefined : Number(body.genreId);
-  if (genreId !== undefined && !Number.isInteger(genreId)) throw new HttpError(400, 'genreId harus angka.');
+  if (genreId !== undefined && !Number.isInteger(genreId)) throw new HttpError(400, 'genreId must be a number.');
   const mode = parseMode(body.mode ?? 'anidle');
   const options: PuzzleOptions = { genreId, difficulties: parseDifficulties(body.difficulties) };
   const puzzle = await unlimitedPuzzle(mode, poolSpec(parsePool(body.pool ?? 'semua'), me.account, mode, options), options, me.key);

@@ -13,26 +13,23 @@ type LoadStatus = 'loading' | 'ready' | 'error';
 const PRELOAD_TIMEOUT_MS = 20_000;
 
 const INTRO: Record<RoundMode, string> = {
-  opening: 'Tebak anime dari opening-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.',
-  ending: 'Tebak anime dari ending-nya. Tebakan salah atau lewati membuka potongan yang lebih panjang.',
-  character: 'Tebak anime dari karakternya. Tebakan salah atau lewati membuka karakter berikutnya; yang paling terkenal muncul terakhir.',
-  screenshot: 'Tebak anime dari satu adegan opening-nya. Mulai dari potongan zoom 4×; tebakan salah atau lewati memperkecil zoom.',
+  opening: 'Guess the anime from its opening. A wrong guess or a skip unlocks a longer clip.',
+  ending: 'Guess the anime from its ending. A wrong guess or a skip unlocks a longer clip.',
+  screenshot: 'Guess the anime from one scene of its opening. It starts zoomed in 4×; a wrong guess or a skip zooms out.',
 };
 
-/** How a stage reads in the attempt list: "6 dtk", "2 karakter", "zoom 2.5×". */
+/** How a stage reads in the attempt list: "6 s", "zoom 2.5×". */
 const STAGE_LABEL: Record<RoundMode, (stage: number) => string> = {
-  opening: (s) => `${s} dtk`,
-  ending: (s) => `${s} dtk`,
-  character: (s) => `${s} karakter`,
-  screenshot: (s) => (s === 1 ? 'penuh' : `zoom ${s}×`),
+  opening: (s) => `${s} s`,
+  ending: (s) => `${s} s`,
+  screenshot: (s) => (s === 1 ? 'full' : `zoom ${s}×`),
 };
 
 /** The skip button: what the next stage adds. */
 const SKIP_LABEL: Record<RoundMode, (unlocked: number, next: number) => string> = {
-  opening: (unlocked, next) => `Lewati (+${next - unlocked} dtk)`,
-  ending: (unlocked, next) => `Lewati (+${next - unlocked} dtk)`,
-  character: () => 'Lewati (+1 karakter)',
-  screenshot: (_unlocked, next) => (next === 1 ? 'Lewati (gambar penuh)' : `Lewati (zoom ${next}×)`),
+  opening: (unlocked, next) => `Skip (+${next - unlocked} s)`,
+  ending: (unlocked, next) => `Skip (+${next - unlocked} s)`,
+  screenshot: (_unlocked, next) => (next === 1 ? 'Skip (full image)' : `Skip (zoom ${next}×)`),
 };
 
 const isAudio = (mode: RoundMode) => mode === 'opening' || mode === 'ending';
@@ -136,7 +133,7 @@ function ClipPlayer({ audio, seconds, stages }: { audio: HTMLAudioElement | unde
   const pct = (s: number) => `${(Math.min(s, total) / total) * 100}%`;
   return (
     <div className="clip">
-      <button className="play-button primary" onClick={play} disabled={!audio} aria-label={playing ? 'Berhenti' : 'Putar'}>
+      <button className="play-button primary" onClick={play} disabled={!audio} aria-label={playing ? 'Stop' : 'Play'}>
         {playing ? <PauseIcon /> : <PlayIcon />}
       </button>
       <div className="clip-body">
@@ -148,23 +145,10 @@ function ClipPlayer({ audio, seconds, stages }: { audio: HTMLAudioElement | unde
           ))}
         </div>
         <div className="clip-meta small muted">
-          <span>{position.toFixed(1)} dtk</span>
-          <span>terbuka {seconds} dtk</span>
+          <span>{position.toFixed(1)} s</span>
+          <span>{seconds} s unlocked</span>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Portraits({ urls, shown, names }: { urls: string[]; shown: number; names: string[] | null }) {
-  return (
-    <div className="portraits">
-      {urls.map((url, i) => (
-        <figure key={url} className={`portrait${i < shown ? ' open' : ''}`}>
-          {i < shown ? <img src={url} alt="" /> : <span className="portrait-lock">{i + 1}</span>}
-          {names && <figcaption>{names[i]}</figcaption>}
-        </figure>
-      ))}
     </div>
   );
 }
@@ -177,7 +161,7 @@ function ZoomShot({ url, zoom }: { url: string; zoom: number }) {
   return (
     <div className="shot">
       <img src={url} alt="" style={{ transform: `scale(${zoom})`, transformOrigin: `${x}% ${y}%` }} />
-      <span className="shot-zoom">{zoom === 1 ? 'penuh' : `${zoom}×`}</span>
+      <span className="shot-zoom">{zoom === 1 ? 'full' : `${zoom}×`}</span>
     </div>
   );
 }
@@ -214,12 +198,12 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
     return (
       <div className="center">
         <div className="preload">
-          <span className="eyebrow">Menyiapkan {MODE_LABELS[puzzle.mode]}</span>
+          <span className="eyebrow">Preparing {MODE_LABELS[puzzle.mode]}</span>
           <div className="preload-bar">
             <span style={{ width: `${(settled / status.length) * 100}%` }} />
           </div>
           <span className="muted small">
-            Memuat ronde {settled}/{status.length}
+            Loading round {settled}/{status.length}
           </span>
         </div>
       </div>
@@ -229,7 +213,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
     <div className="round-game">
       <header className="page-head game-head">
         <div>
-          <span className="eyebrow">{puzzle.date ? `Harian · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
+          <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">{INTRO[puzzle.mode]}</p>
         </div>
@@ -243,7 +227,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               disabled={i > puzzle.current}
               onClick={() => setView(i)}
             >
-              <span>Ronde {i + 1}</span>
+              <span>Round {i + 1}</span>
               <b>{r.finished ? `${r.points}` : i === puzzle.current ? '…' : '—'}</b>
             </button>
           ))}
@@ -252,12 +236,12 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
 
       {status[view] === 'error' ? (
         <div className="card load-error">
-          <p>Media ronde ini gagal dimuat.</p>
+          <p>This round's media failed to load.</p>
           <div className="actions">
-            <button onClick={() => retry(view)}>Coba lagi</button>
+            <button onClick={() => retry(view)}>Try again</button>
             {puzzle.canReplace && !round.attempts.length && !round.finished && (
               <button className="primary" disabled={sending} onClick={() => send(() => api.replaceRound(puzzle.id, view))}>
-                Ganti dengan judul lain
+                Replace with another title
               </button>
             )}
           </div>
@@ -266,21 +250,19 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <section className="card stage-card">
           {audio ? (
             <ClipPlayer audio={status[view] === 'ready' ? clips.current[view] : undefined} seconds={unlocked} stages={stages} />
-          ) : puzzle.mode === 'screenshot' ? (
-            <ZoomShot url={round.media[0]!} zoom={unlocked} />
           ) : (
-            <Portraits urls={round.media} shown={unlocked} names={round.answer ? round.answer.characters.map((c) => c.name) : null} />
+            <ZoomShot url={round.media[0]!} zoom={unlocked} />
           )}
           {!round.finished && isCurrent && (
             <div className="stage-controls">
               <GuessInput exclude={exclude} disabled={sending} onPick={(malId) => send(() => api.roundGuess(puzzle.id, view, malId))} />
               <div className="stage-actions">
                 <span className="muted small">
-                  Percobaan {round.attempts.length + 1}/{stages.length} · benar sekarang = {roundPoints(round.attempts.length, stages.length)} poin
+                  Attempt {round.attempts.length + 1}/{stages.length} · correct now = {roundPoints(round.attempts.length, stages.length)} pts
                 </span>
                 <button className="ghost" disabled={sending} onClick={() => send(() => api.roundGuess(puzzle.id, view, null))}>
                   <SkipIcon />
-                  {next === undefined ? 'Menyerah' : SKIP_LABEL[puzzle.mode](unlocked, next)}
+                  {next === undefined ? 'Give up' : SKIP_LABEL[puzzle.mode](unlocked, next)}
                 </button>
               </div>
             </div>
@@ -294,7 +276,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <section className={`result ${round.solved ? 'win' : 'lose'}`}>
           {round.answer.cover && <img src={round.answer.cover} alt="" />}
           <div>
-            <div className="muted small">{round.solved ? `Benar di percobaan ${round.attempts.length}` : 'Jawabannya:'}</div>
+            <div className="muted small">{round.solved ? `Solved on attempt ${round.attempts.length}` : 'The answer:'}</div>
             <h3>{round.answer.title}</h3>
             {round.answer.song && (
               <div className="song">{[round.answer.song.label, round.answer.song.title && `“${round.answer.song.title}”`, round.answer.song.artist].filter(Boolean).join(' · ')}</div>
@@ -303,14 +285,14 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               {round.answer.year ?? ''}
               <span className={`difficulty ${round.answer.difficulty}`}>{round.answer.difficulty}</span>
             </div>
-            <div className="score">{round.points} poin</div>
+            <div className="score">{round.points} pts</div>
             <div className="actions">
               <a className="button" href={`https://myanimelist.net/anime/${round.answer.malId}`} target="_blank" rel="noreferrer">
-                Buka di MAL ↗
+                Open on MAL ↗
               </a>
               {view < puzzle.current && puzzle.current < puzzle.rounds.length && (
                 <button className="primary" onClick={() => setView(puzzle.current)}>
-                  Ronde {puzzle.current + 1}
+                  Round {puzzle.current + 1}
                 </button>
               )}
             </div>
@@ -325,7 +307,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             return (
               <li key={i} className={correct ? 'ok' : a ? 'bad' : 'skip'}>
                 <span className="attempt-stage">{STAGE_LABEL[puzzle.mode](stages[i]!)}</span>
-                <span>{a ? a.title : 'Dilewati'}</span>
+                <span>{a ? a.title : 'Skipped'}</span>
                 <span className="attempt-mark">{correct ? '✓' : a ? '✗' : '→'}</span>
               </li>
             );
@@ -336,19 +318,19 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
       {puzzle.finished && (
         <section className="card final">
           <div>
-            <span className="eyebrow">Selesai</span>
-            <h2>{puzzle.score ?? 0} poin</h2>
+            <span className="eyebrow">Finished</span>
+            <h2>{puzzle.score ?? 0} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} dari {puzzle.rounds.length} ronde benar · maksimal {MAX_ROUND_POINTS * puzzle.rounds.length} poin
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {MAX_ROUND_POINTS * puzzle.rounds.length} pts
             </p>
           </div>
           <div className="actions">
             <ShareButton text={roundShareText(puzzle)} />
             <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-              Main {MODE_LABELS[puzzle.mode]} unlimited
+              Play {MODE_LABELS[puzzle.mode]} unlimited
             </button>
             <a className="button ghost" href="#/">
-              Beranda
+              Home
             </a>
           </div>
         </section>

@@ -7,7 +7,7 @@ import { OAUTH_COOKIE, OAUTH_TTL_SEC, type OAuthPending } from '../../server/oau
 // Starts "Hubungkan akun MAL". Only for logged-in accounts: MAL is a link, not a way to log in.
 export const GET = route(async (req) => {
   const { account } = await viewer(req);
-  if (!account) return redirect(`/?mal_error=${encodeURIComponent('Masuk dulu sebelum menghubungkan akun MAL.')}#/akun`);
+  if (!account) return redirect(`/?mal_error=${encodeURIComponent('Sign in before linking a MAL account.')}#/akun`);
   const pending: OAuthPending = {
     state: randomToken(16),
     // 64 bytes → 86 base64url chars, inside PKCE's 43..128 range.

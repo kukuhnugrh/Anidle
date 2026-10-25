@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { AnidleFeedback, Direction, ListClue } from '../shared/anidle';
 import { MODE_LABELS } from '../shared/modes';
-import type { AnidleState, RoundState } from './api';
+import type { AnidleState, CharacterState, RoundState } from './api';
 import { fmtDate } from './format';
 import { ShareIcon } from './icons';
 
@@ -29,8 +29,8 @@ function anidleRow(g: AnidleFeedback): string {
   ].join('');
 }
 
-const heading = (mode: AnidleState['mode'] | RoundState['mode'], date: string | null, score: number | null) =>
-  `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${score ?? 0} poin`;
+const heading = (mode: AnidleState['mode'] | RoundState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>
+  `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${score ?? 0} pts`;
 
 export function anidleShareText(p: AnidleState): string {
   const result = p.solved ? `${p.guesses.length}/${p.maxGuesses}` : `X/${p.maxGuesses}`;
@@ -40,6 +40,12 @@ export function anidleShareText(p: AnidleState): string {
 /** Per round: ⬜ skip, 🟥 wrong, 🟩 the correct guess. */
 export function roundShareText(p: RoundState): string {
   const rows = p.rounds.map((r, i) => `R${i + 1} ${r.attempts.map((a, j) => (!a ? '⬜' : r.solved && j === r.attempts.length - 1 ? '🟩' : '🟥')).join('')}`);
+  return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
+}
+
+/** Per round, per character: name square then anime square, 🟩 right or 🟥 not. */
+export function characterShareText(p: CharacterState): string {
+  const rows = p.rounds.map((r, i) => `R${i + 1} ${r.slots.map((s) => `${s.name.solved ? '🟩' : '🟥'}${s.anime.solved ? '🟩' : '🟥'}`).join(' ')}`);
   return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
 }
 
@@ -62,13 +68,13 @@ export function ShareButton({ text }: { text: string }) {
   const [note, setNote] = useState<string | null>(null);
   const share = () =>
     shareText(text).then(
-      (r) => setNote(r === 'copied' ? 'Tersalin ke clipboard' : 'Dibagikan'),
-      () => setNote('Gagal menyalin'),
+      (r) => setNote(r === 'copied' ? 'Copied to clipboard' : 'Shared'),
+      () => setNote('Could not copy'),
     );
   return (
     <button onClick={share}>
       <ShareIcon />
-      {note ?? 'Bagikan hasil'}
+      {note ?? 'Share result'}
     </button>
   );
 }

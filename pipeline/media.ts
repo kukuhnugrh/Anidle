@@ -2,12 +2,13 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import ffmpegPath from 'ffmpeg-static';
 import { MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
+import { CHARACTER_QUIZ_SLOT } from '../shared/characters.js';
 import { CHARACTERS_PER_TITLE, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { putObject } from './r2.js';
 import { firstThemes, type ThemeSource } from './sources/animeThemes.js';
-import { animeCharacters } from './sources/jikanEdge.js';
+import { animeCharacters, characterDetail } from './sources/jikanEdge.js';
 
 /** Clips are 30 s from the first sound; anything shorter than this is a broken source. */
 const CLIP_SECONDS = 30;
@@ -290,6 +291,47 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   log('characters:', counts);
+}
+
+/**
+ * Nicknames and kanji name of every quiz character (CHARACTER_QUIZ_SLOT, from jikan-edge character detail), so Character mode
+ * also accepts "Ed" or "Fullmetal Alchemist". Characters already fetched are skipped unless --refresh.
+ */
+export async function stepNicknames(refreshAll: boolean, limit: number) {
+  const queue = (
+    await all<{ mal_id: number; char_id: number }>(
+      `SELECT c.mal_id, c.char_id FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
+       WHERE c.slot = ? AND (? OR c.details_at IS NULL) ORDER BY a.members DESC`,
+      [CHARACTER_QUIZ_SLOT, refreshAll ? 1 : 0],
+    )
+  )
+    .slice(0, limit)
+    .reverse();
+  const total = queue.length;
+  log(`nicknames: ${total} karakter`);
+  const counts = { ok: 0, skipped: 0 };
+  let done = 0;
+  const workers = Array.from({ length: 3 }, async () => {
+    for (let row = queue.pop(); row; row = queue.pop()) {
+      try {
+        const d = await characterDetail(Number(row.char_id));
+        await run('UPDATE anime_character SET nicknames = ?, name_kanji = ?, details_at = ? WHERE mal_id = ? AND char_id = ?', [
+          JSON.stringify((d.nicknames ?? []).filter(Boolean)),
+          d.nameKanji || null,
+          nowIso(),
+          row.mal_id,
+          row.char_id,
+        ]);
+        counts.ok++;
+      } catch (err) {
+        counts.skipped++;
+        log(`nicknames: ${row.char_id} dilewati (${errorText(err)})`);
+      }
+      if (++done % 100 === 0) log(`nicknames: ${done}/${total}`, counts);
+    }
+  });
+  await Promise.all(workers);
+  log('nicknames:', counts);
 }
 
 /** Seconds into the opening to try, in order: the middle first, away from the title card at the start. */

@@ -8,8 +8,8 @@ import { replaceRound } from '../../server/rounds.js';
 export const POST = route(async (req) => {
   const me = await viewer(req);
   const body = await readJson<{ puzzleId?: unknown; round?: unknown }>(req);
-  if (typeof body.puzzleId !== 'string') throw new HttpError(400, 'Butuh puzzleId.');
+  if (typeof body.puzzleId !== 'string') throw new HttpError(400, 'puzzleId is required.');
   const puzzle = await getPuzzle(body.puzzleId);
-  if (!isRoundMode(puzzle.mode)) throw new HttpError(400, 'Anidle tidak punya ronde.');
+  if (!isRoundMode(puzzle.mode)) throw new HttpError(400, 'Only Opening, Ending and Screenshot rounds can be replaced.');
   return json(await replaceRound(puzzle, puzzle.mode, me.key, me.account, Number(body.round)), {}, me.cookies);
 });

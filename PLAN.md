@@ -211,6 +211,9 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - State OAuth (state + PKCE verifier) disimpan di cookie bertanda tangan, karena serverless tidak punya memori antar request.
 - Screenshot: **satu** frame per judul (bukan 3–5), dibuka lewat zoom 4× → penuh. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi 3–5 frame × ±1.400 judul terlalu berat untuk host video AnimeThemes; hanya judul easy + medium yang diproses.
 - Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
+- UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
+- Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; yang ditebak nama karakter (alias boleh) **dan** animenya.
+- Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium).
 
 ## 14. Risiko
 

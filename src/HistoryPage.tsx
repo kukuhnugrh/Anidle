@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { MODE_LABELS, MODES, ROUND_COUNT } from '../shared/modes';
+import { MODE_LABELS, MODES } from '../shared/modes';
 import { api, errorMessage, type Account, type History } from './api';
-import { fmtDate, fmtNumber } from './format';
+import { fmtDate, fmtNumber, resultText } from './format';
 
 export function HistoryPage({ account }: { account: Account | null }) {
   const [data, setData] = useState<History | null>(null);
@@ -13,10 +13,10 @@ export function HistoryPage({ account }: { account: Account | null }) {
   return (
     <div className="stack">
       <header className="page-head">
-        <span className="eyebrow">Komunitas</span>
-        <h1>Riwayat</h1>
+        <span className="eyebrow">Community</span>
+        <h1>History</h1>
         <p className="muted">
-          {account ? 'Statistik dan puzzle yang sudah kamu selesaikan.' : 'Statistik puzzle yang kamu mainkan di browser ini. Masuk supaya tersimpan di semua perangkat.'}
+          {account ? 'Stats and puzzles you have finished.' : 'Stats for puzzles you played in this browser. Sign in to keep them across devices.'}
         </p>
       </header>
 
@@ -37,25 +37,25 @@ export function HistoryPage({ account }: { account: Account | null }) {
                   <h3>{MODE_LABELS[mode]}</h3>
                   <dl>
                     <div>
-                      <dt>Dimainkan</dt>
+                      <dt>Played</dt>
                       <dd>{s.played}</dd>
                     </div>
                     <div>
-                      <dt>{mode === 'anidle' ? 'Tertebak' : 'Sempurna'}</dt>
+                      <dt>{mode === 'anidle' ? 'Solved' : 'Perfect'}</dt>
                       <dd>{s.played ? `${Math.round((s.perfect / s.played) * 100)}%` : '—'}</dd>
                     </div>
                     <div>
                       <dt>Streak</dt>
                       <dd>
                         {s.streak}
-                        <span className="muted small"> / terbaik {s.bestStreak}</span>
+                        <span className="muted small"> / best {s.bestStreak}</span>
                       </dd>
                     </div>
                     <div>
-                      <dt>Rata-rata</dt>
+                      <dt>Average</dt>
                       <dd>
                         {fmtNumber(s.averageScore)}
-                        <span className="muted small"> / terbaik {fmtNumber(s.bestScore)}</span>
+                        <span className="muted small"> / best {fmtNumber(s.bestScore)}</span>
                       </dd>
                     </div>
                   </dl>
@@ -65,8 +65,8 @@ export function HistoryPage({ account }: { account: Account | null }) {
           </div>
 
           <section className="card">
-            <h2>Terakhir dimainkan</h2>
-            {!data.recent.length && <p className="muted">Belum ada puzzle yang selesai.</p>}
+            <h2>Recently played</h2>
+            {!data.recent.length && <p className="muted">No finished puzzles yet.</p>}
             <ol className="history-list">
               {data.recent.map((h) => (
                 <li key={h.puzzleId}>
@@ -77,7 +77,7 @@ export function HistoryPage({ account }: { account: Account | null }) {
                     </span>
                     <span className="history-answers">{h.answers.join(' · ')}</span>
                     <span className="history-result muted small">
-                      {h.mode === 'anidle' ? (h.solved ? `${h.attempts} tebakan` : 'tidak tertebak') : `${h.solved}/${ROUND_COUNT} ronde`}
+                      {resultText(h.mode, h.solved, h.attempts)}
                     </span>
                     <span className="history-score">{fmtNumber(h.score)}</span>
                   </a>

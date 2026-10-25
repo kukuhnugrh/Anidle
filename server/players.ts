@@ -28,7 +28,7 @@ export async function savePlayer(me: MalMe, tokens: MalTokens): Promise<void> {
 /** Links a MAL account (after OAuth) to a web account. One MAL account belongs to one web account. */
 export async function linkMal(account: Account, me: MalMe, tokens: MalTokens): Promise<void> {
   const owner = await one<{ id: number }>('SELECT id FROM account WHERE mal_username = ? AND id != ?', [me.name, account.id]);
-  if (owner) throw new HttpError(409, `Akun MAL ${me.name} sudah terhubung ke akun lain.`);
+  if (owner) throw new HttpError(409, `MAL account ${me.name} is already linked to another account.`);
   await savePlayer(me, tokens);
   await run('UPDATE account SET mal_username = ? WHERE id = ?', [me.name, account.id]);
 }

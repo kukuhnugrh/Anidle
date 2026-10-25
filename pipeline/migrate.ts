@@ -12,6 +12,8 @@ import { requireEnv } from '../server/env.js';
 const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // JSON { genreId?, difficulties? }: the filters an unlimited puzzle was made with, for replacing a round.
   puzzle: { options: 'TEXT' },
+  // Character mode accepts nicknames and the kanji name; details_at = when they were fetched.
+  anime_character: { nicknames: "TEXT NOT NULL DEFAULT '[]'", name_kanji: 'TEXT', details_at: 'TEXT' },
 };
 
 export async function migrate(): Promise<void> {

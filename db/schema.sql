@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS puzzle_round (
   PRIMARY KEY (puzzle_id, round)
 );
 
+-- Character mode: per round CHARACTERS_PER_ROUND characters (char_id) from different anime (mal_id).
+CREATE TABLE IF NOT EXISTS puzzle_character (
+  puzzle_id  TEXT NOT NULL,
+  round      INTEGER NOT NULL,
+  slot       INTEGER NOT NULL,
+  mal_id     INTEGER NOT NULL,
+  char_id    INTEGER NOT NULL,
+  PRIMARY KEY (puzzle_id, round, slot)
+);
+
 -- Media copied to R2 by the pipeline step `media`. One row per title and kind; modes that need a kind
 -- only use titles whose row is ok.
 CREATE TABLE IF NOT EXISTS anime_media (

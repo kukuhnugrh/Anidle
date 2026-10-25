@@ -44,18 +44,18 @@ interface AccountRow {
 const toAccount = (row: AccountRow): Account => ({ id: Number(row.id), username: row.username, malUsername: row.mal_username });
 
 export async function register(username: string, password: string): Promise<Account> {
-  if (!USERNAME_RULE.test(username)) throw new HttpError(400, 'Username 3–20 karakter: huruf, angka, atau _.');
-  if (password.length < PASSWORD_MIN || password.length > 200) throw new HttpError(400, `Password minimal ${PASSWORD_MIN} karakter.`);
+  if (!USERNAME_RULE.test(username)) throw new HttpError(400, 'Username must be 3–20 characters: letters, numbers, or _.');
+  if (password.length < PASSWORD_MIN || password.length > 200) throw new HttpError(400, `Password must be at least ${PASSWORD_MIN} characters.`);
   const hash = await hashPassword(password);
   const inserted = await run('INSERT OR IGNORE INTO account (username, password_hash, created_at) VALUES (?, ?, ?)', [username, hash, nowIso()]);
-  if (!inserted) throw new HttpError(409, `Username ${username} sudah dipakai.`);
+  if (!inserted) throw new HttpError(409, `Username ${username} is already taken.`);
   return toAccount((await one<AccountRow>('SELECT * FROM account WHERE username = ?', [username]))!);
 }
 
 export async function login(username: string, password: string): Promise<Account> {
   const row = await one<AccountRow>('SELECT * FROM account WHERE username = ?', [username]);
   const ok = await verifyPassword(password, row?.password_hash ?? (await dummyHash));
-  if (!row || !ok) throw new HttpError(401, 'Username atau password salah.');
+  if (!row || !ok) throw new HttpError(401, 'Wrong username or password.');
   return toAccount(row);
 }
 
@@ -130,7 +130,7 @@ export async function viewer(req: Request): Promise<Viewer> {
 
 export async function requireAccount(req: Request): Promise<Account> {
   const { account } = await viewer(req);
-  if (!account) throw new HttpError(401, 'Masuk dulu.');
+  if (!account) throw new HttpError(401, 'Sign in first.');
   return account;
 }
 

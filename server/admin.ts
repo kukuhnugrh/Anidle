@@ -21,7 +21,7 @@ export const isAdmin = (account: Account | null) => Boolean(account && adminUser
 
 export async function requireAdmin(req: Request): Promise<Account> {
   const account = await requireAccount(req);
-  if (!isAdmin(account)) throw new HttpError(403, 'Halaman ini khusus admin.');
+  if (!isAdmin(account)) throw new HttpError(403, 'This page is for admins only.');
   return account;
 }
 
@@ -131,18 +131,18 @@ export async function listMedia(f: AdminFilters): Promise<AdminPage> {
 /** Rejects a title's media of one kind, or restores it to ok when its files exist. */
 export async function setMediaStatus(malId: number, kind: MediaKind, action: 'reject' | 'restore'): Promise<void> {
   const row = await one<{ status: MediaStatus; r2_key: string | null }>('SELECT status, r2_key FROM anime_media WHERE mal_id = ? AND kind = ?', [malId, kind]);
-  if (!row) throw new HttpError(404, 'Media itu belum pernah diproses.');
+  if (!row) throw new HttpError(404, 'That media has never been processed.');
   if (action === 'reject') {
-    await run(`UPDATE anime_media SET status = 'rejected', error = 'ditolak admin' WHERE mal_id = ? AND kind = ?`, [malId, kind]);
+    await run(`UPDATE anime_media SET status = 'rejected', error = 'rejected by an admin' WHERE mal_id = ? AND kind = ?`, [malId, kind]);
     return;
   }
-  if (row.status !== 'rejected') throw new HttpError(409, 'Hanya media yang ditolak yang bisa dipulihkan.');
+  if (row.status !== 'rejected') throw new HttpError(409, 'Only rejected media can be restored.');
   const hasFiles =
     kind === 'chars'
       ? Boolean(await one('SELECT 1 FROM anime_character WHERE mal_id = ?', [malId]))
       : kind === 'shots'
         ? Boolean(await one('SELECT 1 FROM anime_screenshot WHERE mal_id = ?', [malId]))
         : Boolean(row.r2_key);
-  if (!hasFiles) throw new HttpError(409, 'File media ini tidak ada; jalankan ulang pipeline dengan --refresh.');
+  if (!hasFiles) throw new HttpError(409, 'The files for this media are missing; rerun the pipeline with --refresh.');
   await run(`UPDATE anime_media SET status = 'ok', error = NULL WHERE mal_id = ? AND kind = ?`, [malId, kind]);
 }

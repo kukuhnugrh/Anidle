@@ -328,15 +328,30 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 
 /* ------------------------------------------------------------------ round modes (Opening, Ending, Karakter) */
 .round-game { display: grid; gap: 16px; }
-.portraits { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.portrait { margin: 0; display: grid; gap: 6px; }
-.portrait img, .portrait-lock { width: 100%; aspect-ratio: 225 / 350; border-radius: 12px; object-fit: cover; display: block; }
-.portrait img { animation: rise .3s ease-out; box-shadow: 0 14px 30px -16px rgb(0 0 0 / .9); }
-.portrait-lock {
-  display: grid; place-items: center; font-size: 28px; font-weight: 800; color: var(--faint);
-  background: repeating-linear-gradient(135deg, var(--surface-2) 0 10px, var(--surface) 10px 20px); border: 1px dashed var(--border-strong);
-}
-.portrait figcaption { font-size: 12.5px; font-weight: 600; text-align: center; color: var(--muted); }
+
+/* Character mode */
+.character-game { display: grid; gap: 16px; }
+.char-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.char-card { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 14px; padding: 14px; align-items: start; }
+.char-card.done { border-color: var(--accent-line); }
+.char-portrait { width: 130px; aspect-ratio: 225 / 350; object-fit: cover; border-radius: 10px; box-shadow: 0 14px 30px -16px rgb(0 0 0 / .9); }
+.char-fields { display: grid; gap: 10px; min-width: 0; }
+.char-field { display: grid; gap: 6px; padding: 10px; border-radius: var(--radius-sm); background: var(--bg); border: 1px solid var(--border); }
+.char-field.ok { border-color: var(--ok-line); background: var(--ok-bg); }
+.char-field.bad { border-color: var(--bad-line); background: var(--bad-bg); }
+.char-field-head { display: flex; justify-content: space-between; align-items: center; }
+.tries { display: flex; gap: 4px; }
+.try { width: 14px; height: 5px; border-radius: 3px; background: var(--surface-3); }
+.try.used { background: var(--bad); }
+.try.hit { background: var(--ok); }
+.char-name-form { display: flex; gap: 6px; }
+.char-name-form input { flex: 1; padding: 8px 10px; }
+.char-result { font-weight: 650; }
+.char-misses { display: flex; flex-wrap: wrap; gap: 4px; }
+.char-answer { display: grid; gap: 4px; }
+.char-answer b { font-size: 17px; }
+.char-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.guess-input.compact input { font-size: 14px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg); }
 .shot { position: relative; width: 100%; max-width: 820px; margin: 0 auto; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px; background: var(--bg); border: 1px solid var(--border-strong); }
 .shot img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .45s ease; }
 .shot-zoom { position: absolute; right: 10px; bottom: 10px; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: rgb(11 9 17 / .75); border: 1px solid var(--border-strong); }
@@ -512,7 +527,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
   .history-list a { grid-template-columns: 1fr auto; }
   .history-answers, .history-result { grid-column: 1 / -1; grid-row: 2; }
   .history-result { display: none; }
-  .portraits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .char-grid { grid-template-columns: 1fr; }
+  .char-card { grid-template-columns: 96px minmax(0, 1fr); }
+  .char-portrait { width: 96px; }
   .round-tabs { width: 100%; }
   .round-tab { flex: 1; min-width: 0; }
   .cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
