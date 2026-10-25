@@ -26,6 +26,7 @@ npm run pipeline                       # semua step
 npm run pipeline -- completed enrich   # step tertentu: genres, completed, top, enrich, franchise
 npm run pipeline -- enrich --refresh   # ambil ulang detail semua judul
 npm run pipeline -- enrich --limit=50  # cicil
+npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, lalu .env untuk sisanya
 ```
 
 | Step | Isi |
@@ -34,7 +35,6 @@ npm run pipeline -- enrich --limit=50  # cicil
 | `completed` | List completed setiap `POOL_USERS` (default `ALLOWED_USERS`). Pakai token pemain kalau dia sudah login (list private ikut), kalau belum lewat Client ID (list publik saja) |
 | `top` | Top 100 per 18 genre utama dari jikan-edge, urut skor, `members ≥ 30.000`, tanpa Music/CM/PV |
 | `enrich` | Detail MAL untuk judul baru / lebih tua dari 30 hari: judul alternatif, cover, tahun, skor, source, studio, genre, relasi. Hentai/Erotica dan music/CM/PV ditandai `excluded` |
-npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, lalu .env untuk sisanya
 | `franchise` | Kelompok prequel/sequel (mis. semua season Shingeki no Kyojin satu franchise) |
 
 Bisa dijalankan ulang kapan saja; tidak membuat duplikat. Rate limit: MAL 3 req/dtk, jikan-edge 25 req/10 dtk dan 50 req/menit, dengan retry untuk timeout/429/5xx.
