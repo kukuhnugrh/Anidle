@@ -3,12 +3,7 @@ import { summarizeAnidle, type AnidleFeedback, type Direction, type ListClue, ty
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type PuzzleState } from './api';
 import { GuessInput } from './GuessInput';
-
-const MEDIA_LABELS: Record<string, string> = {
-  tv: 'TV', movie: 'Movie', ova: 'OVA', ona: 'ONA', special: 'Special', tv_special: 'TV Special',
-};
-
-const pretty = (value: string | null) => (value == null ? '?' : MEDIA_LABELS[value] ?? value.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()));
+import { pretty } from './format';
 
 const ARROW: Record<Direction, string> = { equal: '', higher: '↑', lower: '↓', unknown: '' };
 const DIRECTION_HINT: Record<Direction, string> = {

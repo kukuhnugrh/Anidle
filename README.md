@@ -54,6 +54,14 @@ Hasil run Okt 2026 (1 pemain, `Velvetaco`): 621 completed + 3.701 populer → 3.
 - Setiap tebakan dibandingkan dengan jawaban: tipe, tahun ↑↓, season, episode ↑↓, skor ↑↓, source, studio, genre, theme, demographic (cocok/sebagian/beda). 10 tebakan, skor 1000 − 100 per tebakan tambahan. Satu franchise dianggap benar.
 - Jawaban dicek di server dan baru dikirim ke browser setelah game selesai.
 
+## Database
+
+Halaman `#/database` menampilkan semua judul yang bisa keluar di Anidle (`GET /api/anime`, 48 per halaman; opsi filter dari `GET /api/anime/facets`).
+
+- **Sort**: popularity (member terbanyak), skor, tahun terbaru/terlama, judul A–Z.
+- **Filter**: cari judul (romaji/Inggris/Jepang/sinonim), genre, theme, demographic (digabung AND), studio, source, tipe, difficulty.
+- Chip studio, source, genre, theme, dan demographic di kartu bisa diklik untuk menambah filter. Filter tersimpan di URL (`#/database?genre=22&sort=score`), jadi bisa dibagikan dan bertahan saat reload.
+
 ## Struktur
 
 ```

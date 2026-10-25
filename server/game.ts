@@ -35,7 +35,8 @@ export interface PoolSpec {
   difficulties: readonly Difficulty[];
 }
 
-const DIFFICULTY_SQL: Record<Difficulty, string> = {
+/** Difficulty condition on alias `a` (thresholds from shared/catalog.ts). */
+export const DIFFICULTY_SQL: Record<Difficulty, string> = {
   easy: `a.members >= ${EASY_MIN_MEMBERS}`,
   medium: `a.members >= ${MEDIUM_MIN_MEMBERS} AND a.members < ${EASY_MIN_MEMBERS}`,
   hard: `(a.members < ${MEDIUM_MIN_MEMBERS} OR a.members IS NULL)`,

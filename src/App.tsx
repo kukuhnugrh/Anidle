@@ -3,13 +3,15 @@ import { DIFFICULTY_LABELS, MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, typ
 import { Anidle } from './Anidle';
 import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type UnlimitedOptions } from './api';
 import { AuthPage } from './AuthPage';
+import { Database } from './Database';
 
-type Route = { view: 'home' } | { view: 'daily' } | { view: 'play'; id: string } | { view: 'auth' };
+type Route = { view: 'home' } | { view: 'daily' } | { view: 'play'; id: string } | { view: 'auth' } | { view: 'database' };
 
 function readRoute(): Route {
   const hash = location.hash.replace(/^#\/?/, '');
   if (hash === 'daily') return { view: 'daily' };
   if (hash === 'masuk') return { view: 'auth' };
+  if (hash === 'database' || hash.startsWith('database?')) return { view: 'database' };
   if (hash.startsWith('play/')) return { view: 'play', id: hash.slice('play/'.length) };
   return { view: 'home' };
 }
@@ -49,9 +51,14 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <a className="brand" href="#/">
-          Anidle
-        </a>
+        <nav className="nav">
+          <a className="brand" href="#/">
+            Anidle
+          </a>
+          <a className={route.view === 'database' ? 'active' : ''} href="#/database">
+            Database
+          </a>
+        </nav>
         {account ? (
           <AccountMenu account={account} onLogout={() => api.logout().then(() => setAccount(null))} />
         ) : (
@@ -72,6 +79,7 @@ export function App() {
         )}
         {route.view === 'daily' && <PuzzleLoader key="daily" />}
         {route.view === 'play' && <PuzzleLoader key={route.id} id={route.id} />}
+        {route.view === 'database' && <Database />}
       </main>
     </div>
   );

@@ -1,5 +1,6 @@
 import type { AnidleFeedback } from '../shared/anidle';
 import type { Difficulty, Pool } from '../shared/catalog';
+import type { DbFacets, DbPage } from '../shared/database';
 import type { TitleEntry } from '../shared/normalize';
 
 export interface MalLink {
@@ -94,4 +95,6 @@ export const api = {
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: { mode: 'anidle', ...options } }),
   guess: (puzzleId: string, malId: number) => call<PuzzleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
+  animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
+  animeFacets: () => call<DbFacets>('/api/anime/facets'),
 };
