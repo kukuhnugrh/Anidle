@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
+import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
 import { LockIcon, UnlockIcon } from './icons';
@@ -177,9 +178,17 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {fmtNumber(worth)} pts</span>
-                <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<RoundState>(puzzle.id, roundView))}>
+                <ConfirmButton
+                  className="ghost danger"
+                  disabled={sending}
+                  danger
+                  title="Give up this round?"
+                  message="The answer is shown and the round scores 0."
+                  confirmLabel="Give up"
+                  onConfirm={() => send(() => api.roundGiveUp<RoundState>(puzzle.id, roundView))}
+                >
                   Give up
-                </button>
+                </ConfirmButton>
               </div>
             </div>
           )}

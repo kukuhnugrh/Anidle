@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SONG_CLUE_SHARE } from '../shared/modes';
 import { api, errorMessage, type SongState } from './api';
+import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
 import { PauseIcon, PlayIcon } from './icons';
@@ -295,9 +296,17 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
                       Show clue (−{fmtNumber(round.max * (1 - SONG_CLUE_SHARE))} pts)
                     </button>
                   )}
-                  <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<SongState>(puzzle.id, view))}>
+                  <ConfirmButton
+                    className="ghost danger"
+                    disabled={sending}
+                    danger
+                    title="Give up this round?"
+                    message="The answer is shown and the round scores 0."
+                    confirmLabel="Give up"
+                    onConfirm={() => send(() => api.roundGiveUp<SongState>(puzzle.id, view))}
+                  >
                     Give up
-                  </button>
+                  </ConfirmButton>
                 </div>
               </div>
             </div>

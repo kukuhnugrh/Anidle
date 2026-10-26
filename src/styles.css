@@ -77,6 +77,16 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .ghost { background: transparent; border-color: var(--border-strong); }
 .danger { color: var(--bad); }
 .danger:hover:not(:disabled) { border-color: var(--bad-line); background: var(--bad-bg); }
+.danger-fill { background: #e11d48; border-color: var(--bad-line); color: #fff; }
+.danger-fill:hover:not(:disabled) { background: #f43f5e; }
+.confirm { padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: inherit; width: min(420px, calc(100vw - 32px)); box-shadow: 0 30px 80px -20px rgb(0 0 0 / .9); }
+.confirm::backdrop { background: rgb(6 4 12 / .7); backdrop-filter: blur(2px); }
+.confirm[open] { animation: confirm-in .14s ease-out; }
+@keyframes confirm-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+.confirm-box { display: grid; gap: 10px; padding: 22px 24px 20px; }
+.confirm-box h2 { margin: 0; font-size: 18px; }
+.confirm-box p { margin: 0; line-height: 1.5; }
+.confirm-box .actions { justify-content: flex-end; margin-top: 8px; }
 .big { padding: 13px 22px; font-size: 15.5px; }
 button.small, .button.small { padding: 5px 10px; font-size: 13px; }
 .block { width: 100%; }

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_MAX_POINTS } from '../shared/modes';
 import { api, errorMessage, type CharacterPick, type CharacterState } from './api';
+import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
 import { RoundTitle } from './RoundTitle';
@@ -68,10 +69,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
     setPicks(({ [`${slot}:${field}`]: _old, ...rest }) => (id == null ? rest : { ...rest, [`${slot}:${field}`]: { slot, field, id } }));
   const pending = Object.values(picks);
   const empty = round.slots.length * 2 - pending.length;
-  const guess = () => {
-    if (empty && !confirm(`${empty} field${empty > 1 ? 's are' : ' is'} still empty and will count as wrong. Guess anyway?`)) return;
-    quiet(send(() => api.characterGuess(puzzle.id, view, pending)).then(() => setPicks({})));
-  };
+  const guess = () => quiet(send(() => api.characterGuess(puzzle.id, view, pending)).then(() => setPicks({})));
 
   // Warm the cache for every portrait so later rounds show instantly.
   useEffect(() => {
@@ -171,9 +169,17 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
         </span>
         <div className="actions">
           {isCurrent && !round.finished && (
-            <button className="primary" disabled={sending} onClick={guess}>
+            <ConfirmButton
+              className="primary"
+              disabled={sending}
+              ask={empty > 0}
+              title="Guess with empty fields?"
+              message={`${empty} field${empty === 1 ? ' is' : 's are'} still empty and will count as wrong. This round can't be guessed again.`}
+              confirmLabel="Guess anyway"
+              onConfirm={guess}
+            >
               Guess ({pending.length}/{round.slots.length * 2})
-            </button>
+            </ConfirmButton>
           )}
           {round.finished && view < puzzle.current && puzzle.current < puzzle.rounds.length && (
             <button className="primary" onClick={() => setView(puzzle.current)}>

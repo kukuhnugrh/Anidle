@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, errorMessage, type Account } from './api';
+import { ConfirmButton } from './ConfirmButton';
 import { Avatar } from './Sidebar';
 
 export type Notice = { kind: 'ok' | 'error'; text: string } | null;
@@ -32,7 +33,6 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
 
   const unlink = () =>
     act('unlink', async () => {
-      if (!confirm('Unlink your MAL account? Your completed pools cannot be played until you link it again.')) return;
       onAccount((await api.unlinkMal()).account);
       setMessage({ kind: 'ok', text: 'MAL account unlinked.' });
     });
@@ -103,9 +103,17 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
                 {busy === 'sync' ? 'Syncing…' : 'Resync from MAL'}
               </button>
               {account.hasPassword && (
-                <button className="ghost danger" disabled={busy !== null} onClick={unlink}>
+                <ConfirmButton
+                  className="ghost danger"
+                  disabled={busy !== null}
+                  danger
+                  title="Unlink your MAL account?"
+                  message="Your completed-list pools cannot be played until you link it again."
+                  confirmLabel="Unlink"
+                  onConfirm={unlink}
+                >
                   Unlink
-                </button>
+                </ConfirmButton>
               )}
             </div>
           </>
