@@ -10,7 +10,7 @@ const text = (value: string | null, max = 100) => {
   return v;
 };
 
-/** Browse playable titles: ?q=&sort=&genre=1&genre=62&studio=&source=&type=&difficulty=&page= */
+/** Browse playable shows: ?q=&sort=&genre=1&genre=62&studio=&source=&difficulty=&page= */
 export const GET = route(async (req) => {
   const p = new URL(req.url).searchParams;
   const sort = p.get('sort') ?? 'popularity';
@@ -28,7 +28,6 @@ export const GET = route(async (req) => {
     genres,
     studio: text(p.get('studio')),
     source: text(p.get('source'), 40),
-    type: text(p.get('type'), 40),
     difficulty: difficulty as Difficulty | undefined,
     page,
   });

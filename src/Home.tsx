@@ -21,11 +21,11 @@ function Countdown() {
 }
 
 const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
-  anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, studio, genres, themes and demographic. 10 guesses.' },
-  opening: { Icon: MusicIcon, text: '3 rounds of full openings, one guess each. Stuck? A blurred clip of the opening costs half the points.' },
-  ending: { Icon: DiscIcon, text: '3 rounds of full endings, one guess each. The clue is the blurred anime cover.' },
-  character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Name each one and their anime.' },
-  screenshot: { Icon: ImageIcon, text: '3 rounds, one scene from an opening. Starts zoomed in 4× and zooms out with every miss.' },
+  anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, source, studio, genres and tags. 10 guesses.' },
+  opening: { Icon: MusicIcon, text: '3 rounds of full openings, one guess each. Stuck? The blurred music video costs half the points.' },
+  ending: { Icon: DiscIcon, text: '3 rounds of full endings, one guess each. The clue: the blurred music video and cover.' },
+  character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Pick each name and anime, then one Guess.' },
+  screenshot: { Icon: ImageIcon, text: '3 rounds, one screenshot from an opening. Unlock two more screenshots and a title hint if you need them.' },
 };
 
 /** A daily puzzle that could not load (e.g. the mode's pool is still empty). */

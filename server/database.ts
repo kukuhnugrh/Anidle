@@ -37,10 +37,6 @@ function where(f: DbFilters): { sql: string; args: Array<string | number> } {
     parts.push('a.source = ?');
     args.push(f.source);
   }
-  if (f.type) {
-    parts.push('a.media_type = ?');
-    args.push(f.type);
-  }
   if (f.difficulty) parts.push(`(${DIFFICULTY_SQL[f.difficulty]})`);
   return { sql: parts.join(' AND '), args };
 }
@@ -51,10 +47,7 @@ interface Row {
   title_en: string | null;
   cover_src: string | null;
   cover_key: string | null;
-  media_type: string | null;
   year: number | null;
-  season: string | null;
-  num_episodes: number | null;
   score: number | null;
   members: number | null;
   rank: number | null;
@@ -69,7 +62,7 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
   const w = where(f);
   const total = Number((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM anime a WHERE ${w.sql}`, w.args))?.n ?? 0);
   const rows = await all<Row>(
-    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.media_type, a.year, a.season, a.num_episodes, a.score, a.members, p.rank, a.source, a.studios,
+    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.year, a.score, a.members, p.rank, a.source, a.studios,
             (SELECT COUNT(*) FROM anime x WHERE x.canonical_id = a.mal_id AND x.excluded IS NULL) AS entries
      FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
      WHERE ${w.sql} ORDER BY ${ORDER_BY[f.sort]}, a.mal_id LIMIT ? OFFSET ?`,
@@ -89,10 +82,7 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
     title: r.title,
     titleEn: r.title_en,
     cover: coverOf(r.cover_key, r.cover_src),
-    mediaType: r.media_type,
     year: num(r.year),
-    season: r.season,
-    episodes: num(r.num_episodes),
     score: num(r.score),
     members: num(r.members),
     popularityRank: num(r.rank),
@@ -107,7 +97,7 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
 
 /** Filter options with how many shows each has. */
 export async function facets(): Promise<DbFacets> {
-  const [genres, studios, sources, types] = await Promise.all([
+  const [genres, studios, sources] = await Promise.all([
     all<{ id: number; name: string; type: GenreType; count: number }>(
       `SELECT g.id, g.name, g.type, COUNT(*) AS count FROM anime_genre ag
        JOIN genre g ON g.id = ag.genre_id JOIN anime a ON a.mal_id = ag.mal_id
@@ -120,14 +110,10 @@ export async function facets(): Promise<DbFacets> {
     all<{ value: string; count: number }>(
       `SELECT source AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND source IS NOT NULL GROUP BY source ORDER BY count DESC`,
     ),
-    all<{ value: string; count: number }>(
-      `SELECT media_type AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND media_type IS NOT NULL GROUP BY media_type ORDER BY count DESC`,
-    ),
   ]);
   return {
     genres: genres.map((g) => ({ id: Number(g.id), name: g.name, type: g.type, count: Number(g.count) })),
     studios: studios.map((s) => ({ name: s.name, count: Number(s.count) })),
     sources: sources.map((s) => ({ value: s.value, count: Number(s.count) })),
-    types: types.map((t) => ({ value: t.value, count: Number(t.count) })),
   };
 }

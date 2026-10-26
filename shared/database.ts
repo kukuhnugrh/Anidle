@@ -11,17 +11,16 @@ export const DB_SORTS = {
 export type DbSort = keyof typeof DB_SORTS;
 
 export const DB_PAGE_SIZE = 48;
-/** Genre, theme and demographic filters share MAL genre ids; this caps how many may be combined (AND). */
+/** Genre and tag filters share MAL genre ids; this caps how many may be combined (AND). */
 export const DB_MAX_GENRES = 6;
 
 export interface DbFilters {
   q?: string;
   sort: DbSort;
-  /** MAL genre ids of any type (genre, theme, demographic); the title must have all of them. */
+  /** MAL genre ids of any type (genre, theme, demographic = tag); the title must have all of them. */
   genres: number[];
   studio?: string;
   source?: string;
-  type?: string;
   difficulty?: Difficulty;
   page: number;
 }
@@ -37,10 +36,7 @@ export interface DbItem {
   title: string;
   titleEn: string | null;
   cover: string | null;
-  mediaType: string | null;
   year: number | null;
-  season: string | null;
-  episodes: number | null;
   score: number | null;
   members: number | null;
   /** MAL popularity rank, when the title is in the popular pool. */
@@ -64,5 +60,4 @@ export interface DbFacets {
   genres: Array<DbGenre & { count: number }>;
   studios: Array<{ name: string; count: number }>;
   sources: Array<{ value: string; count: number }>;
-  types: Array<{ value: string; count: number }>;
 }

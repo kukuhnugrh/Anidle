@@ -60,16 +60,12 @@ function GuessRow({ g }: { g: AnidleFeedback }) {
         {g.correct && !g.exact && <span className="muted small"> (same franchise as the answer)</span>}
       </div>
       <div className="cells">
-        <ScalarCell label="Type" value={g.mediaType.value} match={g.mediaType.match} />
         <NumberCell label="Year" value={g.year.value} direction={g.year.direction} />
-        <ScalarCell label="Season" value={g.season.value} match={g.season.match} />
-        <NumberCell label="Episode" value={g.episodes.value} direction={g.episodes.direction} />
         <NumberCell label="Score" value={g.score.value} direction={g.score.direction} format={(v) => v.toFixed(2)} />
         <ScalarCell label="Source" value={g.source.value} match={g.source.match} />
         <ListCell label="Studio" clue={g.studios} />
         <ListCell label="Genre" clue={g.genres} />
-        <ListCell label="Theme" clue={g.themes} />
-        <ListCell label="Demographic" clue={g.demographics} />
+        <ListCell label="Tags" clue={g.tags} />
       </div>
     </div>
   );
@@ -162,16 +158,12 @@ function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
         </span>
       </div>
       <div className="summary-grid">
-        {scalar('Type', s.mediaType)}
         {range('Year', s.year, true)}
-        {scalar('Season', s.season)}
-        {range('Episode', s.episodes, true)}
         {range('Score', s.score, false)}
         {scalar('Source', s.source)}
         {list('Studio', s.studios)}
         {list('Genre', s.genres)}
-        {list('Theme', s.themes)}
-        {list('Demographic', s.demographics)}
+        {list('Tags', s.tags)}
       </div>
     </section>
   );

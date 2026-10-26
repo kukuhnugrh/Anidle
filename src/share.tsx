@@ -15,18 +15,7 @@ const list = (c: ListClue) => (c.overlap === 'full' ? '🟩' : c.overlap === 'pa
 
 /** One row per guess, one square per clue column in table order. */
 function anidleRow(g: AnidleFeedback): string {
-  return [
-    scalar(g.mediaType.match),
-    number(g.year.direction),
-    scalar(g.season.match),
-    number(g.episodes.direction),
-    number(g.score.direction),
-    scalar(g.source.match),
-    list(g.studios),
-    list(g.genres),
-    list(g.themes),
-    list(g.demographics),
-  ].join('');
+  return [number(g.year.direction), number(g.score.direction), scalar(g.source.match), list(g.studios), list(g.genres), list(g.tags)].join('');
 }
 
 const heading = (mode: AnidleState['mode'] | RoundState['mode'] | SongState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>

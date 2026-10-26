@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import { MODE_LABELS } from '../shared/modes';
 import type { Account } from './api';
 import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
@@ -9,11 +10,11 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
   {
     title: 'Daily',
     items: [
-      { id: 'daily:anidle', href: dailyHref('anidle'), label: 'Anidle', Icon: PuzzleIcon },
-      { id: 'daily:opening', href: dailyHref('opening'), label: 'Opening', Icon: MusicIcon },
-      { id: 'daily:ending', href: dailyHref('ending'), label: 'Ending', Icon: DiscIcon },
-      { id: 'daily:character', href: dailyHref('character'), label: 'Character', Icon: UsersIcon },
-      { id: 'daily:screenshot', href: dailyHref('screenshot'), label: 'Screenshot', Icon: ImageIcon },
+      { id: 'daily:anidle', href: dailyHref('anidle'), label: MODE_LABELS.anidle, Icon: PuzzleIcon },
+      { id: 'daily:opening', href: dailyHref('opening'), label: MODE_LABELS.opening, Icon: MusicIcon },
+      { id: 'daily:ending', href: dailyHref('ending'), label: MODE_LABELS.ending, Icon: DiscIcon },
+      { id: 'daily:character', href: dailyHref('character'), label: MODE_LABELS.character, Icon: UsersIcon },
+      { id: 'daily:screenshot', href: dailyHref('screenshot'), label: MODE_LABELS.screenshot, Icon: ImageIcon },
     ],
   },
   {

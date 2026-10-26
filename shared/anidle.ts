@@ -3,16 +3,13 @@
 export interface AnidleAnime {
   malId: number;
   title: string;
-  mediaType: string | null;
   year: number | null;
-  season: string | null;
-  episodes: number | null;
   score: number | null;
   source: string | null;
   studios: string[];
   genres: string[];
-  themes: string[];
-  demographics: string[];
+  /** MAL themes and demographics together (Isekai, School, Shounen…). */
+  tags: string[];
   franchiseId: number | null;
 }
 
@@ -39,16 +36,12 @@ export interface AnidleFeedback {
   /** Same title, or same prequel/sequel franchise. */
   correct: boolean;
   exact: boolean;
-  mediaType: ScalarClue<string | null>;
   year: NumberClue;
-  season: ScalarClue<string | null>;
-  episodes: NumberClue;
   score: NumberClue;
   source: ScalarClue<string | null>;
   studios: ListClue;
   genres: ListClue;
-  themes: ListClue;
-  demographics: ListClue;
+  tags: ListClue;
 }
 
 function direction(answer: number | null, guess: number | null, epsilon = 0): Direction {
@@ -76,16 +69,12 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
     title: guess.title,
     correct: isCorrect(answer, guess),
     exact: guess.malId === answer.malId,
-    mediaType: { value: guess.mediaType, match: guess.mediaType === answer.mediaType },
     year: { value: guess.year, direction: direction(answer.year, guess.year) },
-    season: { value: guess.season, match: guess.season != null && guess.season === answer.season },
-    episodes: { value: guess.episodes, direction: direction(answer.episodes, guess.episodes) },
     score: { value: guess.score, direction: direction(answer.score, guess.score, 0.005) },
     source: { value: guess.source, match: guess.source === answer.source },
     studios: list(answer.studios, guess.studios),
     genres: list(answer.genres, guess.genres),
-    themes: list(answer.themes, guess.themes),
-    demographics: list(answer.demographics, guess.demographics),
+    tags: list(answer.tags, guess.tags),
   };
 }
 
@@ -121,16 +110,12 @@ export interface ListSummary {
 }
 
 export interface AnidleSummary {
-  mediaType: ScalarSummary;
   year: RangeSummary;
-  season: ScalarSummary;
-  episodes: RangeSummary;
   score: RangeSummary;
   source: ScalarSummary;
   studios: ListSummary;
   genres: ListSummary;
-  themes: ListSummary;
-  demographics: ListSummary;
+  tags: ListSummary;
 }
 
 function scalarSummary(clues: Array<ScalarClue<string | null>>): ScalarSummary {
@@ -162,15 +147,11 @@ function listSummary(clues: ListClue[]): ListSummary {
 /** Everything the guesses so far proved about the answer. */
 export function summarizeAnidle(guesses: AnidleFeedback[]): AnidleSummary {
   return {
-    mediaType: scalarSummary(guesses.map((g) => g.mediaType)),
     year: rangeSummary(guesses.map((g) => g.year)),
-    season: scalarSummary(guesses.map((g) => g.season)),
-    episodes: rangeSummary(guesses.map((g) => g.episodes)),
     score: rangeSummary(guesses.map((g) => g.score)),
     source: scalarSummary(guesses.map((g) => g.source)),
     studios: listSummary(guesses.map((g) => g.studios)),
     genres: listSummary(guesses.map((g) => g.genres)),
-    themes: listSummary(guesses.map((g) => g.themes)),
-    demographics: listSummary(guesses.map((g) => g.demographics)),
+    tags: listSummary(guesses.map((g) => g.tags)),
   };
 }

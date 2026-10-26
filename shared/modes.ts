@@ -16,7 +16,7 @@ export type SongMode = 'opening' | 'ending';
 /** Clue modes: one title per round, one guess, clues opened on demand (Screenshot). */
 export type RoundMode = 'screenshot';
 
-export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Character', screenshot: 'Screenshot' };
+export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Character', screenshot: 'Guess the Anime' };
 
 /** anime_media.kind: media the pipeline found or copied to R2 for a title (op/ed: the AnimeThemes source). */
 export const MEDIA_KINDS = ['cover', 'op', 'ed', 'chars', 'shots'] as const;

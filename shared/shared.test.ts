@@ -8,32 +8,28 @@ import { indexNames, normalizeTitle, searchNames, titleHint } from './normalize'
 const anime = (over: Partial<AnidleAnime>): AnidleAnime => ({
   malId: 1,
   title: 'A',
-  mediaType: 'tv',
   year: 2020,
-  season: 'fall',
-  episodes: 12,
   score: 8,
   source: 'manga',
   studios: ['Madhouse'],
   genres: ['Action', 'Drama'],
-  themes: [],
-  demographics: ['Shounen'],
+  tags: ['Shounen'],
   franchiseId: null,
   ...over,
 });
 
 describe('compareAnidle', () => {
-  const answer = anime({ malId: 52991, year: 2023, score: 9.3, episodes: 28, franchiseId: 52991 });
+  const answer = anime({ malId: 52991, year: 2023, score: 9.3, franchiseId: 52991 });
 
   it('points numeric clues toward the answer', () => {
-    const f = compareAnidle(answer, anime({ malId: 2, year: 2010, score: 9.5, episodes: 28 }));
+    const f = compareAnidle(answer, anime({ malId: 2, year: 2010, score: 9.5 }));
     expect(f.year.direction).toBe('higher');
     expect(f.score.direction).toBe('lower');
-    expect(f.episodes.direction).toBe('equal');
+    expect(compareAnidle(answer, anime({ malId: 2, year: 2023 })).year.direction).toBe('equal');
   });
 
   it('treats a missing number as unknown, not as a mismatch direction', () => {
-    expect(compareAnidle(answer, anime({ malId: 2, episodes: null })).episodes.direction).toBe('unknown');
+    expect(compareAnidle(answer, anime({ malId: 2, score: null })).score.direction).toBe('unknown');
   });
 
   it('grades list overlap: full, partial, none, and both-empty as full', () => {
@@ -45,7 +41,7 @@ describe('compareAnidle', () => {
       { name: 'Comedy', hit: false },
     ]);
     expect(compareAnidle(answer, anime({ malId: 2, genres: ['Comedy'] })).genres.overlap).toBe('none');
-    expect(compareAnidle(answer, anime({ malId: 2, themes: [] })).themes.overlap).toBe('full');
+    expect(compareAnidle(anime({ tags: [] }), anime({ malId: 2, tags: [] })).tags.overlap).toBe('full');
     // A superset of the answer's genres is not a full match.
     expect(compareAnidle(answer, anime({ malId: 2, genres: ['Action', 'Drama', 'Comedy'] })).genres.overlap).toBe('partial');
   });
@@ -81,7 +77,7 @@ describe('difficultyOf', () => {
 });
 
 describe('summarizeAnidle', () => {
-  const answer = anime({ malId: 100, year: 2018, score: 8.5, episodes: 24, season: 'spring', source: 'manga', genres: ['Action', 'Drama'] });
+  const answer = anime({ malId: 100, year: 2018, score: 8.5, source: 'manga', genres: ['Action', 'Drama'] });
   const guess = (over: Partial<AnidleAnime>) => compareAnidle(answer, anime({ malId: Math.random(), ...over }));
 
   it('narrows numeric ranges to the tightest bounds from every guess', () => {
@@ -91,13 +87,12 @@ describe('summarizeAnidle', () => {
   });
 
   it('records an exact number once a guess matched it', () => {
-    expect(summarizeAnidle([guess({ episodes: 12 }), guess({ episodes: 24 })]).episodes.exact).toBe(24);
+    expect(summarizeAnidle([guess({ year: 2012 }), guess({ year: 2018 })]).year.exact).toBe(2018);
   });
 
   it('keeps confirmed and ruled-out values, ignoring guesses with an unknown value', () => {
-    const s = summarizeAnidle([guess({ source: 'novel', season: null }), guess({ source: 'original', season: 'fall' })]);
+    const s = summarizeAnidle([guess({ source: 'novel' }), guess({ source: null }), guess({ source: 'original' })]);
     expect(s.source).toEqual({ known: null, ruledOut: ['novel', 'original'] });
-    expect(s.season.ruledOut).toEqual(['fall']);
     expect(summarizeAnidle([guess({ source: 'manga' })]).source.known).toEqual({ value: 'manga' });
   });
 

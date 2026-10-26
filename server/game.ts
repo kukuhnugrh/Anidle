@@ -174,10 +174,7 @@ export async function titleEntries(): Promise<TitleEntry[]> {
 interface AnimeRow {
   mal_id: number;
   title: string;
-  media_type: string | null;
   year: number | null;
-  season: string | null;
-  num_episodes: number | null;
   score: number | null;
   source: string | null;
   studios: string;
@@ -193,7 +190,7 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
   if (!ids.length) return new Map();
   const marks = ids.map(() => '?').join(',');
   const rows = await all<AnimeRow>(
-    `SELECT a.mal_id, a.title, a.media_type, a.year, a.season, a.num_episodes, a.score, a.source, a.studios, a.franchise_id, a.cover_src,
+    `SELECT a.mal_id, a.title, a.year, a.score, a.source, a.studios, a.franchise_id, a.cover_src,
             ${COVER_KEY_SQL} AS cover_key, a.members
      FROM anime a WHERE a.mal_id IN (${marks})`,
     ids,
@@ -207,16 +204,12 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
     out.set(Number(r.mal_id), {
       malId: Number(r.mal_id),
       title: r.title,
-      mediaType: r.media_type,
       year: r.year == null ? null : Number(r.year),
-      season: r.season,
-      episodes: r.num_episodes == null ? null : Number(r.num_episodes),
       score: r.score == null ? null : Number(r.score),
       source: r.source,
       studios: JSON.parse(r.studios) as string[],
       genres: [],
-      themes: [],
-      demographics: [],
+      tags: [],
       franchiseId: r.franchise_id == null ? null : Number(r.franchise_id),
       cover: coverOf(r.cover_key, r.cover_src),
       members: r.members == null ? null : Number(r.members),
@@ -224,8 +217,8 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
   }
   for (const g of genreRows) {
     const anime = out.get(Number(g.mal_id));
-    // Explicit genres (Ecchi) count as genres for the clue table.
-    if (anime) (g.type === 'themes' ? anime.themes : g.type === 'demographics' ? anime.demographics : anime.genres).push(g.name);
+    // Explicit genres (Ecchi) count as genres; themes and demographics are tags.
+    if (anime) (g.type === 'themes' || g.type === 'demographics' ? anime.tags : anime.genres).push(g.name);
   }
   return out;
 }

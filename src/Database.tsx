@@ -16,7 +16,6 @@ function readFilters(): DbFilters {
     genres: p.getAll('genre').map(Number).filter((n) => Number.isInteger(n) && n > 0),
     studio: p.get('studio') || undefined,
     source: p.get('source') || undefined,
-    type: p.get('type') || undefined,
     difficulty: difficulty && (DIFFICULTIES as readonly string[]).includes(difficulty) ? (difficulty as Difficulty) : undefined,
     page: Math.max(1, Number(p.get('page')) || 1),
   };
@@ -29,20 +28,18 @@ function toQuery(f: DbFilters): string {
   for (const g of f.genres) p.append('genre', String(g));
   if (f.studio) p.set('studio', f.studio);
   if (f.source) p.set('source', f.source);
-  if (f.type) p.set('type', f.type);
   if (f.difficulty) p.set('difficulty', f.difficulty);
   if (f.page > 1) p.set('page', String(f.page));
   return p.toString();
 }
 
-/** The genre select for one category edits only the id of that category in the AND-list. */
-type GenreSlot = 'genre' | 'theme' | 'demographic';
+/** The genre select for one category edits only the id of that category in the AND-list. Tags = MAL themes + demographics. */
+type GenreSlot = 'genre' | 'tag';
 const SLOT_TYPES: Record<GenreSlot, GenreType[]> = {
   genre: ['genres', 'explicit_genres'],
-  theme: ['themes'],
-  demographic: ['demographics'],
+  tag: ['themes', 'demographics'],
 };
-const slotOf = (type: GenreType): GenreSlot => (type === 'themes' ? 'theme' : type === 'demographics' ? 'demographic' : 'genre');
+const slotOf = (type: GenreType): GenreSlot => (type === 'themes' || type === 'demographics' ? 'tag' : 'genre');
 
 // ------------------------------------------------------------------ page
 
@@ -142,7 +139,7 @@ export function Database() {
       <header className="page-head">
         <span className="eyebrow">Browse</span>
         <h1>Anime database</h1>
-        <p className="muted">Every title that can show up in Anidle. Click a genre, theme, demographic, or studio on a card to filter.</p>
+        <p className="muted">Every title that can show up in Anidle. Click a genre, tag, or studio on a card to filter.</p>
       </header>
 
       <section className="card db-filters">
@@ -161,8 +158,7 @@ export function Database() {
           </select>
         </label>
         {genreSelect('genre', 'Genre')}
-        {genreSelect('theme', 'Theme')}
-        {genreSelect('demographic', 'Demographic')}
+        {genreSelect('tag', 'Tags')}
         <label>
           Studio
           <input list="db-studios" value={studioInput} onChange={(e) => setStudioInput(e.target.value)} placeholder="All" />
@@ -179,17 +175,6 @@ export function Database() {
             {(facets?.sources ?? []).map((s) => (
               <option key={s.value} value={s.value}>
                 {pretty(s.value)} ({fmtNumber(s.count)})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Type
-          <select value={filters.type ?? ''} onChange={(e) => update({ type: e.target.value || undefined })}>
-            <option value="">All</option>
-            {(facets?.types ?? []).map((t) => (
-              <option key={t.value} value={t.value}>
-                {pretty(t.value)} ({fmtNumber(t.count)})
               </option>
             ))}
           </select>
@@ -244,7 +229,6 @@ export function Database() {
 type CardActions = { onGenre: (g: DbGenre) => void; onStudio: (name: string) => void; onSource: (source: string) => void };
 
 function DbCard({ item, onGenre, onStudio, onSource }: { item: DbItem } & CardActions) {
-  const meta = [item.year, item.season ? pretty(item.season) : null, pretty(item.mediaType), item.episodes ? `${item.episodes} eps` : null].filter(Boolean);
   return (
     <article className="db-card">
       <a className="db-cover" href={`https://myanimelist.net/anime/${item.malId}`} target="_blank" rel="noreferrer" title="Open on MAL">
@@ -256,7 +240,7 @@ function DbCard({ item, onGenre, onStudio, onSource }: { item: DbItem } & CardAc
           {item.title}
         </a>
         {item.titleEn && item.titleEn !== item.title && <div className="muted small">{item.titleEn}</div>}
-        <div className="muted small">{meta.join(' · ')}</div>
+        {item.year != null && <div className="muted small">{item.year}</div>}
         <div className="db-stats small">
           {item.score != null && <span>★ {item.score.toFixed(2)}</span>}
           {item.members != null && <span>{fmtNumber(item.members)} members</span>}
