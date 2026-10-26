@@ -389,8 +389,11 @@ export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> 
     ).map((r) => Number(r.mal_id)),
   );
   // Anidle keeps the seed it has always used (`date:mode`, then `date:mode:n`), so its answers did not change.
+  // A rerolled date (npm run daily:reroll) seeds with `date#n` instead, so the draw comes out different.
+  const reroll = await one<{ n: number }>('SELECT n FROM daily_reroll WHERE date = ?', [date]);
+  const day = reroll ? `${date}#${reroll.n}` : date;
   const seeded: Draw = (round, n, size) =>
-    Number(seedOf(mode === 'anidle' ? (n ? `${date}:${mode}:${n}` : `${date}:${mode}`) : `${date}:${mode}:${round}:${n}`) % BigInt(size));
+    Number(seedOf(mode === 'anidle' ? (n ? `${day}:${mode}:${n}` : `${day}:${mode}`) : `${day}:${mode}:${round}:${n}`) % BigInt(size));
   const answers = await drawRounds(mode, poolSpec('semua', null, mode, { difficulties: DAILY_DIFFICULTIES }), seeded, recent);
 
   // Concurrent first requests race here; UNIQUE(date, mode) keeps exactly one puzzle, and both

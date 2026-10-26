@@ -112,4 +112,5 @@ Semua `/api/*` (dan `/oauth/callback`) di-rewrite ke `api/router.ts` oleh `verce
 | `npm run typecheck` | TypeScript |
 | `npm run build` | Build frontend ke `dist/` |
 | `npm run db:migrate` | Buat/upgrade schema |
+| `npm run daily:reroll -- [--date=YYYY-MM-DD] [--mode=anidle,opening] [--turso]` | Buang puzzle harian satu tanggal (default hari ini, semua mode) beserta play-nya, lalu puzzle diundi ulang saat dibuka berikutnya: seed tanggal itu jadi `<date>#<n>` (tabel `daily_reroll`), jadi hasilnya beda dari sebelumnya |
 | `npm run pipeline` | Isi/update database |

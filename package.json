@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "tsx pipeline/migrate.ts",
+    "daily:reroll": "tsx pipeline/reroll.ts",
     "pipeline": "tsx pipeline/index.ts"
   },
   "dependencies": {

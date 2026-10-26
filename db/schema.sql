@@ -85,6 +85,13 @@ CREATE TABLE IF NOT EXISTS puzzle (
   UNIQUE (date, mode)         -- NULL dates are distinct in SQLite, so unlimited puzzles never collide
 );
 
+-- Daily puzzles of a date that were thrown away and drawn again (npm run daily:reroll): the date's
+-- seed becomes "<date>#<n>", so the new draw differs from the old one.
+CREATE TABLE IF NOT EXISTS daily_reroll (
+  date  TEXT PRIMARY KEY,
+  n     INTEGER NOT NULL
+);
+
 -- Rounds of multi-round modes (opening, ending). puzzle.answer_id repeats round 0.
 CREATE TABLE IF NOT EXISTS puzzle_round (
   puzzle_id  TEXT NOT NULL,
