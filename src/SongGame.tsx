@@ -198,12 +198,36 @@ function ClueVideo({
   );
 }
 
-/** The opened clue: the theme's blurred video, or the blurred cover when the video will not play. */
-function ClueView({ clue, audio, stage, onTakeOver }: { clue: Clue; audio: HTMLAudioElement | null; stage: RefObject<HTMLDivElement | null>; onTakeOver: (video: HTMLVideoElement | null) => void }) {
+/**
+ * The opened clue: the theme's blurred video (just the blurred cover when the video will not play).
+ * Endings also keep the blurred cover beside the video: their videos are often a single still.
+ */
+function ClueView({
+  clue,
+  withCover,
+  audio,
+  stage,
+  onTakeOver,
+}: {
+  clue: Clue;
+  withCover: boolean;
+  audio: HTMLAudioElement | null;
+  stage: RefObject<HTMLDivElement | null>;
+  onTakeOver: (video: HTMLVideoElement | null) => void;
+}) {
   const [videoFailed, setVideoFailed] = useState(false);
   const onFail = useCallback(() => setVideoFailed(true), []);
-  if (clue.url && !videoFailed) return <ClueVideo url={clue.url} audio={audio} stage={stage} onTakeOver={onTakeOver} onFail={onFail} />;
-  return clue.fallback ? <img className="clue-media cover" src={clue.fallback} alt="" /> : null;
+  const cover = clue.cover ? <img className="clue-media cover" src={clue.cover} alt="" /> : null;
+  if (!clue.url || videoFailed) return cover;
+  const video = <ClueVideo url={clue.url} audio={audio} stage={stage} onTakeOver={onTakeOver} onFail={onFail} />;
+  return withCover ? (
+    <div className="clue-pair">
+      {video}
+      {cover}
+    </div>
+  ) : (
+    video
+  );
 }
 
 export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongState; onChange: (p: SongState) => void; onNewUnlimited: () => Promise<void> }) {
@@ -277,7 +301,9 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
       ) : (
         <section className="card stage-card">
           <div ref={stage} className="song-stage">
-            {round.clue.opened && !round.finished && <ClueView key={round.audio} clue={round.clue} audio={song?.audio ?? null} stage={stage} onTakeOver={setClueVideo} />}
+            {round.clue.opened && !round.finished && (
+              <ClueView key={round.audio} clue={round.clue} withCover={puzzle.mode === 'ending'} audio={song?.audio ?? null} stage={stage} onTakeOver={setClueVideo} />
+            )}
             <SongPlayer media={clueVideo ?? song?.audio ?? null} loading={song?.status === 'loading'} />
           </div>
           {!round.finished && isCurrent && (

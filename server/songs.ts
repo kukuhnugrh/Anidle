@@ -30,8 +30,8 @@ export interface SongRoundState {
     opened: boolean;
     /** Only once opened: the blurred video stream of the same theme (it carries the song too). */
     url: string | null;
-    /** The cover to show (blurred) if the video does not load. */
-    fallback: string | null;
+    /** Only once opened: the cover, shown blurred (Ending: beside the video; both: when the video does not load). */
+    cover: string | null;
   };
   /** The answer's difficulty: shown from the start, like the round's label. */
   difficulty: Difficulty;
@@ -108,7 +108,7 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
       clue: {
         opened: played.c,
         url: played.c || finished ? media(i, 'video') : null,
-        fallback: played.c || finished ? answer.cover : null,
+        cover: played.c || finished ? answer.cover : null,
       },
       guess: played.g ? { malId: played.g, title: guessed?.title ?? `#${played.g}` } : null,
       gaveUp: played.g === 0,

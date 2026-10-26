@@ -380,6 +380,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .seek:focus { box-shadow: none; }
 .clue-media { display: block; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--bg); filter: blur(16px) saturate(1.1); transform: scale(1.02); transition: filter .5s; }
 .clue-media.cover { aspect-ratio: 225 / 320; max-width: 220px; }
+.clue-pair { display: flex; justify-content: center; align-items: center; gap: 14px; }
+.clue-pair .clue-frame { flex: 1 1 auto; min-width: 0; margin: 0; }
+.clue-pair .clue-media.cover { flex: 0 0 auto; width: clamp(110px, 22%, 200px); margin: 0; }
+.song-stage:fullscreen .clue-pair { min-height: 0; height: 100%; }
 .song-stage { display: grid; gap: 14px; }
 .song-stage:fullscreen { grid-template-rows: minmax(0, 1fr) auto; padding: 16px 24px 20px; background: #000; }
 .clue-frame { position: relative; width: 100%; max-width: 640px; margin: 0 auto; border-radius: 12px; overflow: hidden; background: var(--bg); }
