@@ -32,6 +32,8 @@ export interface Account {
   id: number;
   username: string;
   malUsername: string | null;
+  /** False for accounts made by signing in with MAL: MAL is their only way in. */
+  hasPassword: boolean;
 }
 
 interface AccountRow {
@@ -41,7 +43,8 @@ interface AccountRow {
   mal_username: string | null;
 }
 
-const toAccount = (row: AccountRow): Account => ({ id: Number(row.id), username: row.username, malUsername: row.mal_username });
+// Accounts made through MAL store an empty hash, which never verifies.
+const toAccount = (row: AccountRow): Account => ({ id: Number(row.id), username: row.username, malUsername: row.mal_username, hasPassword: row.password_hash !== '' });
 
 export async function register(username: string, password: string): Promise<Account> {
   if (!USERNAME_RULE.test(username)) throw new HttpError(400, 'Username must be 3–20 characters: letters, numbers, or _.');
@@ -50,6 +53,17 @@ export async function register(username: string, password: string): Promise<Acco
   const inserted = await run('INSERT OR IGNORE INTO account (username, password_hash, created_at) VALUES (?, ?, ?)', [username, hash, nowIso()]);
   if (!inserted) throw new HttpError(409, `Username ${username} is already taken.`);
   return toAccount((await one<AccountRow>('SELECT * FROM account WHERE username = ?', [username]))!);
+}
+
+/** A password-less account for someone signing in with MAL, named after the MAL name (made unique when taken). */
+export async function registerFromMal(malName: string): Promise<Account> {
+  const base = malName.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 20).padEnd(3, '_');
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const username = attempt === 0 ? base : `${base.slice(0, 15)}_${randomBytes(2).toString('hex')}`;
+    const inserted = await run("INSERT OR IGNORE INTO account (username, password_hash, created_at) VALUES (?, '', ?)", [username, nowIso()]);
+    if (inserted) return toAccount((await one<AccountRow>('SELECT * FROM account WHERE username = ?', [username]))!);
+  }
+  throw new HttpError(409, `Could not pick a free username for ${malName}.`);
 }
 
 export async function login(username: string, password: string): Promise<Account> {
@@ -66,12 +80,13 @@ export async function accountById(id: number): Promise<Account | null> {
 
 export interface AccountView {
   username: string;
+  hasPassword: boolean;
   mal: { username: string; avatar: string | null; completed: number; lastSyncAt: string | null } | null;
 }
 
 /** What the browser may know about an account (never the hash or tokens). */
 export async function describeAccount(account: Account): Promise<AccountView> {
-  if (!account.malUsername) return { username: account.username, mal: null };
+  if (!account.malUsername) return { username: account.username, hasPassword: account.hasPassword, mal: null };
   const row = await one<{ avatar: string | null; last_sync_at: string | null; completed: number }>(
     `SELECT (SELECT avatar FROM player WHERE username = ?1) AS avatar,
             (SELECT last_sync_at FROM player WHERE username = ?1) AS last_sync_at,
@@ -80,6 +95,7 @@ export async function describeAccount(account: Account): Promise<AccountView> {
   );
   return {
     username: account.username,
+    hasPassword: account.hasPassword,
     mal: { username: account.malUsername, avatar: row?.avatar ?? null, completed: Number(row?.completed ?? 0), lastSyncAt: row?.last_sync_at ?? null },
   };
 }

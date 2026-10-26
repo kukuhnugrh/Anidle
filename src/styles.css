@@ -261,6 +261,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .auth-head p { margin: 0; }
 .auth-card label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .auth-card p { margin: 0; }
+.auth-card .mal-button { justify-self: stretch; text-align: center; }
+.auth-or { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+.auth-or::before, .auth-or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
 .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: 12px; }
 .tabs button { background: transparent; border-color: transparent; }
 .tabs button.active { background: var(--surface-3); border-color: var(--border-strong); }
@@ -323,7 +326,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .anidle-clues { display: grid; grid-template-columns: 1.2fr 1.6fr 1fr; gap: 10px; }
 .anidle-clue { display: grid; align-content: start; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--accent-line); }
 .anidle-clue.locked { border-style: dashed; border-color: var(--border-strong); opacity: .7; }
-.anidle-shot { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; filter: blur(9px) saturate(1.1); transform: scale(1.02); }
+.anidle-shot { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; filter: blur(5px) saturate(1.1); transform: scale(1.02); }
 .anidle-clue.screenshot { overflow: hidden; }
 .anidle-synopsis { margin: 0; font-size: 13px; line-height: 1.5; max-height: 220px; overflow-y: auto; white-space: pre-line; }
 .anidle-chars { display: flex; gap: 10px; }
@@ -392,7 +395,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .clip-body { flex: 1; display: grid; gap: 6px; min-width: 0; }
 .seek { width: 100%; padding: 0; accent-color: var(--accent-2); background: transparent; border: 0; cursor: pointer; }
 .seek:focus { box-shadow: none; }
-.clue-media { display: block; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--bg); filter: blur(16px) saturate(1.1); transform: scale(1.02); transition: filter .5s; }
+.clue-media { display: block; width: 100%; max-width: 640px; margin: 0 auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; background: var(--bg); filter: blur(8px) saturate(1.1); transform: scale(1.02); transition: filter .5s; }
 .clue-media.cover { aspect-ratio: 225 / 320; max-width: 220px; }
 .clue-pair { display: flex; justify-content: center; align-items: center; gap: 14px; }
 .clue-pair .clue-frame { flex: 1 1 auto; min-width: 0; margin: 0; }

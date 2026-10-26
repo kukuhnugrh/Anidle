@@ -49,9 +49,14 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
         {notice}
         <section className="card">
           <p className="muted">You can play without an account too. Sign in or sign up to save your progress across devices and link your MAL account.</p>
-          <a className="button primary" href="#/masuk">
-            Sign in / Sign up
-          </a>
+          <div className="actions">
+            <a className="button mal-button" href="/api/oauth/login">
+              Continue with MyAnimeList
+            </a>
+            <a className="button primary" href="#/masuk">
+              Sign in / Sign up
+            </a>
+          </div>
         </section>
       </div>
     );
@@ -78,7 +83,7 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
           <span className="mal-mark">MAL</span>
           <div>
             <h2>MyAnimeList</h2>
-            <p className="muted small">{mal ? `Linked to ${mal.username}` : 'Not linked'}</p>
+            <p className="muted small">{mal ? `Linked to ${mal.username}${account.hasPassword ? '' : ' (you sign in with MAL)'}` : 'Not linked'}</p>
           </div>
         </div>
         {mal ? (
@@ -97,9 +102,11 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
               <button className="primary" disabled={busy !== null} onClick={sync}>
                 {busy === 'sync' ? 'Syncing…' : 'Resync from MAL'}
               </button>
-              <button className="ghost danger" disabled={busy !== null} onClick={unlink}>
-                Unlink
-              </button>
+              {account.hasPassword && (
+                <button className="ghost danger" disabled={busy !== null} onClick={unlink}>
+                  Unlink
+                </button>
+              )}
             </div>
           </>
         ) : (

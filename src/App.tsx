@@ -17,11 +17,11 @@ import { go, readRoute } from './route';
 import { Brand, Sidebar } from './Sidebar';
 import { Unlimited } from './Unlimited';
 
-/** One-shot message from the MAL link redirect (?mal=linked / ?mal_error=…), then cleaned from the URL. */
+/** One-shot message from the MAL redirect (?mal=linked / ?mal_error=…), then cleaned from the URL. */
 function takeRedirectNotice(): Notice {
   const params = new URLSearchParams(location.search);
   const notice: Notice = params.get('mal_error')
-    ? { kind: 'error', text: `Could not link MAL: ${params.get('mal_error')}` }
+    ? { kind: 'error', text: `MyAnimeList: ${params.get('mal_error')}` }
     : params.get('mal') === 'linked'
       ? { kind: 'ok', text: 'MAL account linked. Your completed list has been synced.' }
       : null;
@@ -111,6 +111,7 @@ export function App() {
           {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
           {route.view === 'auth' && (
             <AuthPage
+              notice={notice}
               onDone={(a) => {
                 setAccount(a);
                 void refreshMe();

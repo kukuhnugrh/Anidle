@@ -11,7 +11,7 @@ Domain: `https://anidle.velvetaco.dev` · Repo GitHub terpisah dari portofolio �
    - Media **divalidasi saat pipeline**. Judul yang medianya rusak tidak masuk pool, jadi tidak ada ronde yang tidak bisa dijawab.
    - Satu request untuk satu game, lalu **semua media ronde di-preload** sebelum game mulai.
 3. **Jawaban dicek di server**: kunci jawaban tidak pernah dikirim ke browser (beda dengan mode screenshot aniguessr yang mengirim `accepted_titles`).
-4. **Terbuka, akun opsional**: siapa pun bisa main tanpa akun. Akun Anidle (username + password) menyimpan progres lintas perangkat; menghubungkan MAL membuka pool dari list completed.
+4. **Terbuka, akun opsional**: siapa pun bisa main tanpa akun. Akun Anidle (username + password, atau masuk langsung dengan MAL) menyimpan progres lintas perangkat; menghubungkan MAL membuka pool dari list completed.
 
 ## 2. Stack (semua gratis)
 
@@ -22,7 +22,7 @@ Domain: `https://anidle.velvetaco.dev` · Repo GitHub terpisah dari portofolio �
 | Media | **Cloudflare R2**, custom domain `media.velvetaco.dev` | 10 GB, egress gratis. Aktivasi mungkin minta kartu (cek saat daftar) |
 | Pipeline | **GitHub Actions** (jadwal mingguan + manual) atau PC lokal | Private repo: 2.000 menit/bulan. Run pertama sebaiknya di PC |
 | Proses media | `ffmpeg-static` (audio) + `sharp` (gambar) dari npm | ffmpeg belum ter-install di PC; paket npm ini menghindari install manual |
-| Login | Akun sendiri: username + password (scrypt) + cookie session ber-HMAC. Pemain anonim pakai cookie id acak. **MAL OAuth2 PKCE `plain`** hanya untuk *menghubungkan* akun MAL | App MAL **kedua** untuk produksi (MAL hanya izinkan 1 redirect URL per app) |
+| Login | Akun sendiri: username + password (scrypt) + cookie session ber-HMAC. Pemain anonim pakai cookie id acak. **MAL OAuth2 PKCE `plain`** untuk menghubungkan akun MAL, atau masuk langsung (akun tanpa password dibuat otomatis) | App MAL **kedua** untuk produksi (MAL hanya izinkan 1 redirect URL per app) |
 | Test | Vitest untuk logika di `shared/` | |
 
 DNS `velvetaco.dev` sudah di Cloudflare (NS `mckinley`/`agustin.ns.cloudflare.com`, ada wildcard `*` ke portofolio):
@@ -138,7 +138,7 @@ Puzzle harian **disimpan** saat pertama diminta (dipilih dari seed `tanggal+mode
 | Route | Fungsi |
 | --- | --- |
 | `POST /api/auth/register` · `POST /api/auth/login` · `POST /api/logout` | Akun Anidle (username + password). Progres anonim di browser itu dipindah ke akun |
-| `GET /api/oauth/login` · `GET /api/oauth/callback` · `POST /api/mal/unlink` | Hubungkan / putuskan akun MAL (butuh akun Anidle) |
+| `GET /api/oauth/login` · `GET /api/oauth/callback` · `POST /api/mal/unlink` | Sudah masuk: hubungkan / putuskan akun MAL. Tamu: masuk dengan MAL (akun dibuat kalau belum ada) |
 | `GET /api/me` | Akun yang masuk + status MAL |
 | `POST /api/sync` | Sync list completed akun MAL yang terhubung. Judul baru masuk `enrich_queue` |
 | `GET /api/puzzle?mode=&date=` · `POST /api/puzzle/unlimited` | Puzzle tanpa jawaban: ronde + URL media R2 |
@@ -217,6 +217,8 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Season/movie/OVA satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
 - Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium). Pengecualian: Character, yang ronde 1/2/3-nya easy/medium/hard menurut karakter.
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde, clue = video OP/ED blur tanpa suara yang mengikuti lagu (klip 240p di R2 untuk show easy + medium, selebihnya video terkecil AnimeThemes lewat proxy; cover blur kalau video gagal).
+- Masuk dengan MAL: callback memakai `accountId` di cookie OAuth (`null` = tamu → masuk). Akun baru dari MAL punya `password_hash` kosong (tidak pernah cocok), jadi login password ditolak dan unlink MAL diblokir supaya akunnya tidak terkunci.
+- Blur clue dikurangi (terlalu susah): video/poster OP/ED 16 → 8 px, screenshot Anidle 9 → 5 px.
 
 ## 14. Risiko
 

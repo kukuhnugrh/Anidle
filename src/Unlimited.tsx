@@ -81,7 +81,7 @@ export function Unlimited({ account }: { account: Account | null }) {
           </div>
           {poolLocked && (
             <p className="muted small">
-              This pool uses your MAL completed list. {account ? <a href="#/akun">Link your MAL account first.</a> : <><a href="#/masuk">Sign in</a> and link your MAL account first.</>}
+              This pool uses your MAL completed list. {account ? <a href="#/akun">Link your MAL account first.</a> : <a href="/api/oauth/login">Sign in with MyAnimeList first.</a>}
             </p>
           )}
         </div>

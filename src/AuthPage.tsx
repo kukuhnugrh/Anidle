@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react';
+import type { Notice } from './AccountPage';
 import { api, errorMessage, type Account } from './api';
 
-export function AuthPage({ onDone }: { onDone: (account: Account) => void }) {
+export function AuthPage({ notice, onDone }: { notice: Notice; onDone: (account: Account) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // A failed MAL sign-in comes back here as a redirect notice.
+  const [error, setError] = useState<string | null>(notice?.kind === 'error' ? notice.text : null);
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: FormEvent) => {
@@ -30,6 +32,11 @@ export function AuthPage({ onDone }: { onDone: (account: Account) => void }) {
           <h1>{mode === 'login' ? 'Welcome back' : 'Create an Anidle account'}</h1>
           <p className="muted small">{mode === 'login' ? 'Sign in to continue your progress on any device.' : 'Free. Just a username and password.'}</p>
         </div>
+        <a className="button mal-button" href="/api/oauth/login">
+          Continue with MyAnimeList
+        </a>
+        <p className="muted small">First time? An account named after your MAL username is made for you, with your completed list synced.</p>
+        <div className="auth-or">or with an Anidle username</div>
         <div className="tabs">
           <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
             Sign in

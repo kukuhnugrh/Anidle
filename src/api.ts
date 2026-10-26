@@ -22,6 +22,8 @@ export interface MalLink {
 
 export interface Account {
   username: string;
+  /** False when the account was made by signing in with MAL (MAL is its only way in). */
+  hasPassword: boolean;
   mal: MalLink | null;
 }
 

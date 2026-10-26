@@ -1,4 +1,4 @@
-import type { Account } from './accounts.js';
+import { accountById, registerFromMal, type Account } from './accounts.js';
 import { decrypt, encrypt } from './crypto.js';
 import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
@@ -33,12 +33,26 @@ export async function linkMal(account: Account, me: MalMe, tokens: MalTokens): P
   await run('UPDATE account SET mal_username = ? WHERE id = ?', [me.name, account.id]);
 }
 
+/** Signing in with MAL: the web account linked to this MAL account, or a new password-less one linked to it. */
+export async function signInWithMal(me: MalMe, tokens: MalTokens): Promise<Account> {
+  const linked = await one<{ id: number }>('SELECT id FROM account WHERE mal_username = ?', [me.name]);
+  const existing = linked ? await accountById(Number(linked.id)) : null;
+  if (existing) {
+    await savePlayer(me, tokens);
+    return existing;
+  }
+  const account = await registerFromMal(me.name);
+  await linkMal(account, me, tokens);
+  return { ...account, malUsername: me.name };
+}
+
 /**
  * Forgets the link and the stored MAL tokens. The completed list stays only when it is part of the
  * shared pool (POOL_USERS), where the pipeline keeps it up to date from the public list.
  */
 export async function unlinkMal(account: Account): Promise<void> {
   if (!account.malUsername) return;
+  if (!account.hasPassword) throw new HttpError(409, 'This account signs in with MAL only, so MAL cannot be unlinked.');
   const shared = poolUsers().some((u) => u.toLowerCase() === account.malUsername!.toLowerCase());
   await db().batch(
     [
