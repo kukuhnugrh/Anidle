@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
-import { CHARACTER_MIN_FAVORITES, CHARACTERS_PER_DIFFICULTY, characterDifficultyOf } from '../shared/characters.js';
+import { CHARACTER_MIN_FAVORITES, CHARACTERS_PER_DIFFICULTY, characterDifficultyOf, isRomaji } from '../shared/characters.js';
 import { SCREENSHOTS_PER_TITLE, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
@@ -254,7 +254,7 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
             const keys = await Promise.all(picked.map((c) => processImage(c.imageUrl!, 'char', PORTRAIT_WIDTH)));
             // Nicknames already fetched for a character (step `nicknames`) carry over.
             const details = new Map(
-              (await all<{ char_id: number; nicknames: string; name_kanji: string | null; details_at: string | null }>('SELECT char_id, nicknames, name_kanji, details_at FROM anime_character WHERE mal_id = ?', [id])).map(
+              (await all<{ char_id: number; nicknames: string; details_at: string | null }>('SELECT char_id, nicknames, details_at FROM anime_character WHERE mal_id = ?', [id])).map(
                 (d) => [Number(d.char_id), d],
               ),
             );
@@ -265,9 +265,9 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
                 ...picked.map((c, slot) => {
                   const d = details.get(c.malId);
                   return {
-                    sql: `INSERT INTO anime_character (mal_id, slot, char_id, name, role, favorites, r2_key, nicknames, name_kanji, details_at)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    args: [id, slot, c.malId, c.name, c.role, c.favorites, keys[slot]!, d?.nicknames ?? '[]', d?.name_kanji ?? null, d?.details_at ?? null],
+                    sql: `INSERT INTO anime_character (mal_id, slot, char_id, name, role, favorites, r2_key, nicknames, details_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [id, slot, c.malId, c.name, c.role, c.favorites, keys[slot]!, d?.nicknames ?? '[]', d?.details_at ?? null],
                   };
                 }),
               ],
@@ -294,9 +294,10 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
 }
 
 /**
- * Nicknames and kanji name of every stored character (jikan-edge character detail), so the name
- * autocomplete also finds "Ed" or "Fullmetal Alchemist". Best-known characters first; ones already
- * fetched are skipped unless --refresh. A character listed under several shows is asked for once.
+ * Romaji nicknames of every stored character (jikan-edge character detail), so the name autocomplete
+ * also finds "Ed" or "Fullmetal Alchemist" (kana/kanji ones are dropped: names are answered in romaji).
+ * Best-known characters first; ones already fetched are skipped unless --refresh. A character listed
+ * under several shows is asked for once.
  */
 export async function stepNicknames(refreshAll: boolean, limit: number) {
   const queue = (
@@ -315,9 +316,8 @@ export async function stepNicknames(refreshAll: boolean, limit: number) {
     for (let row = queue.pop(); row; row = queue.pop()) {
       try {
         const d = await characterDetail(Number(row.char_id));
-        await run('UPDATE anime_character SET nicknames = ?, name_kanji = ?, details_at = ? WHERE char_id = ?', [
-          JSON.stringify((d.nicknames ?? []).filter(Boolean)),
-          d.nameKanji || null,
+        await run('UPDATE anime_character SET nicknames = ?, details_at = ? WHERE char_id = ?', [
+          JSON.stringify((d.nicknames ?? []).filter((n) => n && isRomaji(n))),
           nowIso(),
           row.char_id,
         ]);

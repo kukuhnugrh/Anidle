@@ -32,3 +32,9 @@ export const CHARACTER_FIELDS_PER_ROUND = CHARACTERS_PER_ROUND * 2;
 
 /** MAL lists names family-first ("Elric, Edward"); show them the way people say them. */
 export const displayName = (name: string) => name.split(', ').reverse().join(' ');
+
+/**
+ * Character names are answered in romaji only: a nickname in kana, kanji, hangul or any other non-Latin
+ * script ("宮村 伊澄") is not offered or accepted. Digits, punctuation and macrons (Ōta) are fine.
+ */
+export const isRomaji = (name: string) => /^[\p{Script=Latin}\p{N}\p{P}\p{S}\p{Zs}\p{M}]+$/u.test(name);

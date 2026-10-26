@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
-import { characterDifficultyOf } from './characters';
+import { characterDifficultyOf, isRomaji } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
 import { roundDifficulties } from './modes';
@@ -73,6 +73,17 @@ describe('characterDifficultyOf', () => {
     expect(characterDifficultyOf(4_999)).toBe('medium');
     expect(characterDifficultyOf(500)).toBe('medium');
     expect(characterDifficultyOf(499)).toBe('hard');
+  });
+});
+
+describe('isRomaji', () => {
+  it('accepts Latin names with macrons, digits and punctuation, and rejects other scripts', () => {
+    expect(isRomaji('Hitokiri Battousai')).toBe(true);
+    expect(isRomaji('Yūji Ōta')).toBe(true);
+    expect(isRomaji('No. 2B (Unit-01)')).toBe(true);
+    expect(isRomaji('宮村 伊澄')).toBe(false);
+    expect(isRomaji('Nazunacchi ナズナ')).toBe(false);
+    expect(isRomaji('박은하')).toBe(false);
   });
 });
 

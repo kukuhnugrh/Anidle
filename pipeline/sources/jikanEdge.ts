@@ -38,7 +38,6 @@ export async function animeCharacters(malId: number): Promise<JikanCharacter[]> 
 
 export interface JikanCharacterDetail {
   nicknames?: string[];
-  nameKanji?: string | null;
 }
 
 export async function characterDetail(charId: number): Promise<JikanCharacterDetail> {

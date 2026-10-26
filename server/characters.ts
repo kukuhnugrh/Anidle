@@ -31,7 +31,7 @@ export interface CharacterSlotState {
   portrait: string;
   name: FieldState<{ charId: number; name: string }>;
   anime: FieldState<{ malId: number; title: string }>;
-  /** Once both fields are over. aliases: kanji name and nicknames (they find the same name entry); otherShows: the other shows that count as the anime. */
+  /** Once both fields are over. aliases: the romaji nicknames (they find the same name entry); otherShows: the other shows that count as the anime. */
   answer: { name: string; aliases: string[]; anime: AnswerInfo; otherShows: Array<{ malId: number; title: string }> } | null;
 }
 
@@ -66,14 +66,13 @@ interface SlotRow {
   char_id: number;
   name: string;
   nicknames: string;
-  name_kanji: string | null;
   favorites: number | null;
   r2_key: string;
 }
 
 async function loadSlots(puzzleId: string): Promise<SlotRow[][]> {
   const rows = await all<SlotRow>(
-    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.name_kanji, c.favorites, c.r2_key
+    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.favorites, c.r2_key
      FROM puzzle_character p JOIN anime_character c ON c.mal_id = p.mal_id AND c.char_id = p.char_id
      WHERE p.puzzle_id = ? ORDER BY p.round, p.slot`,
     [puzzleId],
@@ -142,7 +141,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
         answer: done
           ? {
               name: displayName(s.name),
-              aliases: [s.name_kanji, ...(JSON.parse(s.nicknames) as string[])].filter((n): n is string => Boolean(n)),
+              aliases: JSON.parse(s.nicknames) as string[],
               anime: info,
               otherShows: shows.filter((row) => Number(row.show) !== info.malId).map((row) => ({ malId: Number(row.show), title: row.title })),
             }
@@ -227,8 +226,8 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
  * characters sharing a name (several "Rin"): they cannot be told apart without giving the anime away.
  */
 export async function characterEntries(): Promise<CharacterEntry[]> {
-  const rows = await all<{ char_id: number; name: string; name_kanji: string | null; nicknames: string }>(
-    `SELECT c.char_id, MIN(c.name) AS name, MAX(c.name_kanji) AS name_kanji, MAX(c.nicknames) AS nicknames
+  const rows = await all<{ char_id: number; name: string; nicknames: string }>(
+    `SELECT c.char_id, MIN(c.name) AS name, MAX(c.nicknames) AS nicknames
      FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
      WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY c.char_id ORDER BY MAX(a.members) DESC`,
   );
@@ -237,7 +236,7 @@ export async function characterEntries(): Promise<CharacterEntry[]> {
   for (const r of rows) {
     const shown = displayName(r.name);
     const entry = byName.get(shown.toLowerCase()) ?? { id: Number(r.char_id), names: [shown] };
-    for (const n of [r.name_kanji, ...(JSON.parse(r.nicknames) as string[])]) if (n && !entry.names.includes(n)) entry.names.push(n);
+    for (const n of JSON.parse(r.nicknames) as string[]) if (!entry.names.includes(n)) entry.names.push(n);
     byName.set(shown.toLowerCase(), entry);
   }
   return [...byName.values()];
