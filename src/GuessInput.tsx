@@ -18,7 +18,10 @@ const loadCharacters = once(api.characters);
 interface PickerProps {
   exclude?: ReadonlySet<number>;
   disabled: boolean;
-  onPick: (id: number) => void;
+  /** With its own Guess button: called with the chosen id when it is pressed (or Enter). */
+  onPick?: (id: number) => void;
+  /** Without a button: told every time the choice changes (null = cleared); a parent button sends it. */
+  onChoose?: (id: number | null) => void;
   /** A smaller field without autofocus, for several inputs on one screen (Character mode). */
   compact?: boolean;
 }
@@ -31,6 +34,7 @@ function Autocomplete<T extends SearchEntry>({
   exclude,
   disabled,
   onPick,
+  onChoose,
   compact = false,
 }: PickerProps & { load: () => Promise<T[]>; detail: (entry: T) => string; placeholder: (count: number) => string; noneText: string }) {
   const [entries, setEntries] = useState<T[] | null>(null);
@@ -48,17 +52,21 @@ function Autocomplete<T extends SearchEntry>({
   const index = useMemo(() => (entries ? indexNames(entries) : []), [entries]);
   const results = useMemo(() => (selected ? [] : searchNames(index, query, 8, exclude)), [index, query, exclude, selected]);
 
+  const select = (entry: T | null) => {
+    setSelected(entry);
+    onChoose?.(entry?.id ?? null);
+  };
   const choose = (entry: T | undefined) => {
     if (!entry) return;
-    setSelected(entry);
+    select(entry);
     setQuery(entry.names[0]!);
     setActive(0);
     input.current?.focus();
   };
   const submit = () => {
-    if (!selected) return;
+    if (!selected || !onPick) return;
     onPick(selected.id);
-    setSelected(null);
+    select(null);
     setQuery('');
   };
 
@@ -75,7 +83,7 @@ function Autocomplete<T extends SearchEntry>({
           placeholder={entries ? placeholder(entries.length) : 'Loading…'}
           onChange={(e) => {
             setQuery(e.target.value);
-            setSelected(null);
+            if (selected) select(null);
             setActive(0);
           }}
           onKeyDown={(e) => {
@@ -86,14 +94,16 @@ function Autocomplete<T extends SearchEntry>({
               else choose(results[active]);
             } else if (e.key === 'Escape') {
               setQuery('');
-              setSelected(null);
+              if (selected) select(null);
             } else return;
             e.preventDefault();
           }}
         />
-        <button className="primary guess-button" disabled={disabled || !selected} onClick={submit}>
-          Guess
-        </button>
+        {onPick && (
+          <button className="primary guess-button" disabled={disabled || !selected} onClick={submit}>
+            Guess
+          </button>
+        )}
       </div>
       {query && !selected && (
         <ul className="suggestions">

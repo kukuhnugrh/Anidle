@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import { CANONICAL_SQL, DIFFICULTIES, type Difficulty, type Pool } from '../shared/catalog.js';
-import { CHARACTER_FIELD_POINTS, displayName } from '../shared/characters.js';
+import { CHARACTER_FIELD_POINTS, displayName, type CharacterField } from '../shared/characters.js';
 import { ROUND_COUNT } from '../shared/modes.js';
 import type { CharacterEntry } from '../shared/normalize.js';
 import { all } from './db.js';
@@ -152,9 +152,16 @@ export async function characterState(puzzle: PuzzleRow, playerKey: string): Prom
   return (await evaluate(puzzle, await storedOf(puzzle.id, playerKey))).state;
 }
 
-export type CharacterMove = { kind: 'name'; slot: number; charId: number } | { kind: 'anime'; slot: number; malId: number } | { kind: 'giveUp' };
+export interface CharacterPick {
+  slot: number;
+  field: CharacterField;
+  /** char_id for a name, mal_id for an anime. */
+  id: number;
+}
 
-/** One pick in the current round: a character, an anime, or giving up on every field left in it. */
+export type CharacterMove = { kind: 'picks'; picks: CharacterPick[] } | { kind: 'giveUp' };
+
+/** One move in the current round: the picks made so far (all sent with one Guess), or giving up on every field left. */
 export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round: number, move: CharacterMove): Promise<CharacterState> {
   const stored = await storedOf(puzzle.id, playerKey);
   const before = (await evaluate(puzzle, stored)).state;
@@ -168,16 +175,20 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
       s.a ??= 0;
     }
   } else {
-    const slot = slots[move.slot];
-    if (!slot) throw new HttpError(400, 'Unknown character.');
-    if (move.kind === 'name') {
-      if (slot.n != null) throw new HttpError(409, "That character's name is already settled.");
-      if (!(await characterNames([move.charId])).size) throw new HttpError(400, 'Unknown character.');
-      slot.n = move.charId;
-    } else {
-      if (slot.a != null) throw new HttpError(409, "That character's anime is already settled.");
-      await assertPlayable(move.malId);
-      slot.a = move.malId;
+    if (!move.picks.length) throw new HttpError(400, 'Pick a name or an anime first.');
+    const names = await characterNames(move.picks.filter((p) => p.field === 'name').map((p) => p.id));
+    for (const pick of move.picks) {
+      const slot = slots[pick.slot];
+      if (!slot) throw new HttpError(400, 'Unknown character.');
+      if (pick.field === 'name') {
+        if (slot.n != null) throw new HttpError(409, "That character's name is already settled.");
+        if (!names.has(pick.id)) throw new HttpError(400, 'Unknown character.');
+        slot.n = pick.id;
+      } else {
+        if (slot.a != null) throw new HttpError(409, "That character's anime is already settled.");
+        await assertPlayable(pick.id);
+        slot.a = pick.id;
+      }
     }
   }
 

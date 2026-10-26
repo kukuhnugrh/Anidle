@@ -1,5 +1,5 @@
 import type { AdminPage } from '../server/admin';
-import type { CharacterState } from '../server/characters';
+import type { CharacterPick, CharacterState } from '../server/characters';
 import type { AnidleState } from '../server/game';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
@@ -11,7 +11,7 @@ import type { Mode } from '../shared/modes';
 import type { CharacterEntry, TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AdminPage, AnidleState, CharacterState, History, Leaderboard, PuzzleState, RoundState, SongState };
+export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, PuzzleState, RoundState, SongState };
 
 export interface MalLink {
   username: string;
@@ -102,10 +102,7 @@ export const api = {
   roundGiveUp: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   /** Song and Screenshot puzzles; answers with the same kind of state it was asked for. */
   replaceRound: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
-  characterName: (puzzleId: string, round: number, slot: number, charId: number) =>
-    call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, charId } }),
-  characterAnime: (puzzleId: string, round: number, slot: number, malId: number) =>
-    call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, malId } }),
+  characterGuess: (puzzleId: string, round: number, picks: CharacterPick[]) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, picks } }),
   characterGiveUp: (puzzleId: string, round: number) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),

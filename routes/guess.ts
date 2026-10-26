@@ -1,6 +1,6 @@
-import { isRoundMode, isSongMode } from '../shared/modes.js';
+import { CHARACTERS_PER_ROUND, isRoundMode, isSongMode } from '../shared/modes.js';
 import { viewer } from '../server/accounts.js';
-import { characterGuess, type CharacterMove } from '../server/characters.js';
+import { characterGuess, type CharacterMove, type CharacterPick } from '../server/characters.js';
 import { anidleGuess, getPuzzle } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
 import { roundMove } from '../server/rounds.js';
@@ -10,11 +10,11 @@ import { songMove, type SongMove } from '../server/songs.js';
  * Anidle: { puzzleId, malId }.
  * Opening/Ending: { puzzleId, round, malId } | { puzzleId, round, clue: true } | { puzzleId, round, giveUp: true }.
  * Screenshot: { puzzleId, round, malId } | { puzzleId, round, clue: true } (next clue) | { puzzleId, round, giveUp: true }.
- * Character: { puzzleId, round, slot, charId } | { puzzleId, round, slot, malId } | { puzzleId, round, giveUp: true }.
+ * Character: { puzzleId, round, picks: [{ slot, field: 'name' | 'anime', id }] } (one Guess for every pick made) | { puzzleId, round, giveUp: true }.
  */
 export const POST = route(async (req) => {
   const me = await viewer(req);
-  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; slot?: unknown; charId?: unknown; giveUp?: unknown; clue?: unknown }>(req);
+  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; picks?: unknown; giveUp?: unknown; clue?: unknown }>(req);
   if (typeof body.puzzleId !== 'string') throw new HttpError(400, 'puzzleId is required.');
   const puzzle = await getPuzzle(body.puzzleId);
   const malId = Number(body.malId);
@@ -36,12 +36,15 @@ export const POST = route(async (req) => {
     return json(state, {}, me.cookies);
   }
 
-  const slot = Number(body.slot);
-  const charId = Number(body.charId);
   let move: CharacterMove;
   if (body.giveUp === true) move = { kind: 'giveUp' };
-  else if (Number.isInteger(charId) && charId > 0) move = { kind: 'name', slot, charId };
-  else if (Number.isInteger(malId)) move = { kind: 'anime', slot, malId };
-  else throw new HttpError(400, 'Send a charId, a malId, or giveUp.');
+  else if (Array.isArray(body.picks) && body.picks.length <= 2 * CHARACTERS_PER_ROUND) {
+    const picks = body.picks.map((p: unknown): CharacterPick => {
+      const { slot, field, id } = (p ?? {}) as Record<string, unknown>;
+      if (!Number.isInteger(slot) || (field !== 'name' && field !== 'anime') || !Number.isInteger(id)) throw new HttpError(400, 'Each pick needs slot, field (name|anime) and id.');
+      return { slot: Number(slot), field, id: Number(id) };
+    });
+    move = { kind: 'picks', picks };
+  } else throw new HttpError(400, 'Send picks or giveUp.');
   return json(await characterGuess(puzzle, me.key, round, move), {}, me.cookies);
 });

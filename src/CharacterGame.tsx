@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { CHARACTER_FIELD_POINTS } from '../shared/characters';
 import { MAX_ROUND_POINTS } from '../shared/modes';
-import { api, errorMessage, type CharacterState } from './api';
+import { api, errorMessage, type CharacterPick, type CharacterState } from './api';
 import { fmtDate } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
 import { RoundTitle } from './RoundTitle';
@@ -44,6 +44,12 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
   const [zoomed, setZoomed] = useState<string | null>(null);
   const round = puzzle.rounds[view]!;
   const isCurrent = view === puzzle.current;
+  // Names and anime chosen in this round, not sent yet: one Guess sends them all. Key `${slot}:${field}`.
+  const [picks, setPicks] = useState<Record<string, CharacterPick>>({});
+  useEffect(() => setPicks({}), [view, puzzle.id]);
+  const choose = (slot: number, field: CharacterPick['field']) => (id: number | null) =>
+    setPicks(({ [`${slot}:${field}`]: _old, ...rest }) => (id == null ? rest : { ...rest, [`${slot}:${field}`]: { slot, field, id } }));
+  const pending = Object.values(picks);
 
   // Warm the cache for every portrait so later rounds show instantly.
   useEffect(() => {
@@ -74,7 +80,8 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>Character</h1>
           <p className="muted small">
-            Four characters from four different anime. Pick each one's name and their anime — one pick per field, {CHARACTER_FIELD_POINTS} pts each.
+            Four characters from four different anime. Pick each one's name and their anime, then press Guess (fields you leave empty stay open) — one pick per field,{' '}
+            {CHARACTER_FIELD_POINTS} pts each.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -120,10 +127,10 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
               {!slot.answer && isCurrent && (
                 <>
                   <PickField label="Name" field={slot.name} shown={slot.name.pick?.name}>
-                    <CharacterInput disabled={sending} onPick={(charId) => quiet(send(() => api.characterName(puzzle.id, view, i, charId)))} />
+                    <CharacterInput disabled={sending} onChoose={choose(i, 'name')} />
                   </PickField>
                   <PickField label="Anime" field={slot.anime} shown={slot.anime.pick?.title}>
-                    <GuessInput compact disabled={sending} onPick={(malId) => quiet(send(() => api.characterAnime(puzzle.id, view, i, malId)))} />
+                    <GuessInput compact disabled={sending} onChoose={choose(i, 'anime')} />
                   </PickField>
                 </>
               )}
@@ -138,13 +145,18 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
         </span>
         <div className="actions">
           {isCurrent && !round.finished && (
-            <button
-              className="ghost danger"
-              disabled={sending}
-              onClick={() => confirm('Give up the rest of this round? Unanswered names and anime score 0.') && quiet(send(() => api.characterGiveUp(puzzle.id, view)))}
-            >
-              Give up round
-            </button>
+            <>
+              <button
+                className="ghost danger"
+                disabled={sending}
+                onClick={() => confirm('Give up the rest of this round? Unanswered names and anime score 0.') && quiet(send(() => api.characterGiveUp(puzzle.id, view)))}
+              >
+                Give up round
+              </button>
+              <button className="primary" disabled={sending || !pending.length} onClick={() => quiet(send(() => api.characterGuess(puzzle.id, view, pending)).then(() => setPicks({})))}>
+                Guess{pending.length ? ` (${pending.length})` : ''}
+              </button>
+            </>
           )}
           {round.finished && view < puzzle.current && puzzle.current < puzzle.rounds.length && (
             <button className="primary" onClick={() => setView(puzzle.current)}>
