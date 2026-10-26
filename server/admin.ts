@@ -1,5 +1,5 @@
-import { difficultyOf, type Difficulty } from '../shared/catalog.js';
-import type { MediaKind, MediaStatus } from '../shared/modes.js';
+import { CANONICAL_SQL, difficultyOf, type Difficulty } from '../shared/catalog.js';
+import { SCREENSHOTS_PER_TITLE, type MediaKind, type MediaStatus } from '../shared/modes.js';
 import { requireAccount, type Account } from './accounts.js';
 import { all, one, run } from './db.js';
 import { optionalEnv } from './env.js';
@@ -64,7 +64,8 @@ export interface AdminFilters {
 }
 
 export async function listMedia(f: AdminFilters): Promise<AdminPage> {
-  const parts = ['a.excluded IS NULL'];
+  // Only shows (canonical entries) are asked, so only their media needs review.
+  const parts = ['a.excluded IS NULL', CANONICAL_SQL];
   const args: Array<string | number> = [];
   if (f.q) {
     parts.push('(a.title LIKE ? OR a.title_en LIKE ?)');
@@ -142,7 +143,7 @@ export async function setMediaStatus(malId: number, kind: MediaKind, action: 're
     kind === 'chars'
       ? Boolean(await one('SELECT 1 FROM anime_character WHERE mal_id = ?', [malId]))
       : kind === 'shots'
-        ? Boolean(await one('SELECT 1 FROM anime_screenshot WHERE mal_id = ?', [malId]))
+        ? Number((await one<{ n: number }>('SELECT COUNT(*) AS n FROM anime_screenshot WHERE mal_id = ?', [malId]))?.n ?? 0) >= SCREENSHOTS_PER_TITLE
         : Boolean(row.r2_key);
   if (!hasFiles) throw new HttpError(409, 'The files for this media are missing; rerun the pipeline with --refresh.');
   await run(`UPDATE anime_media SET status = 'ok', error = NULL WHERE mal_id = ? AND kind = ?`, [malId, kind]);

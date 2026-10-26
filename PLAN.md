@@ -75,7 +75,7 @@ Playground `D:\Personal Project\MAL-WebAPI` dipakai untuk uji coba query sebelum
   - `bareng`: completed semua teman yang aktif,
   - `saya`: completed akun MAL milik pemain (butuh MAL terhubung; begitu juga `teman` dan `bareng`),
   - `populer`: hanya ranking populer MAL.
-- **Franchise**: dihitung dari relasi MAL `prequel`/`sequel` (graph terhubung → `franchise_id`). Dipakai untuk aturan jawaban (lihat §8).
+- **Franchise**: dihitung dari relasi MAL `prequel`/`sequel`/`side_story`/`parent_story`/`summary`/`full_story` (graph terhubung → `franchise_id`). Entri paling populer = entri kanonik (`canonical_id`), satu show per franchise. Dipakai untuk aturan jawaban (lihat §8).
 
 ## 6. Media
 
@@ -184,7 +184,7 @@ db/                  schema.sql + migrations
 | Pertanyaan | Default | Alternatif |
 | --- | --- | --- |
 | Pool populer | Ranking popularitas MAL sampai `members ≥ 50.000` | Ambang lain |
-| Season 2/3 | Entri MAL terpisah di pool; jawaban satu franchise dianggap benar | Hanya entri persis yang benar |
+| Season 2/3 | Digabung jadi satu show per franchise (entri paling populer, member-nya menentukan difficulty); menebak entri mana pun dari franchise benar | Entri MAL terpisah di pool |
 | Difficulty | easy ≥ 500 rb, medium 200–500 rb, hard < 200 rb member; harian = easy + medium | Ambang lain |
 | Konten | Tanpa Hentai/Erotica | Ikutkan dengan toggle |
 | Zona waktu puzzle harian | WIB (UTC+7) | UTC |
@@ -209,10 +209,11 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Klip: 30 dtk mulai dari bunyi pertama (`silenceremove`), hanya 1,6 MB awal file AnimeThemes yang diunduh.
 - Fallback ronde: klip yang gagal dimuat bisa dicoba lagi; di puzzle unlimited milik sendiri, ronde yang belum ditebak bisa diganti judul lain. Puzzle harian tidak bisa diganti (berlaku untuk semua orang).
 - State OAuth (state + PKCE verifier) disimpan di cookie bertanda tangan, karena serverless tidak punya memori antar request.
-- Screenshot: **satu** frame per judul (bukan 3–5), dibuka lewat zoom 4× → penuh. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi 3–5 frame × ±1.400 judul terlalu berat untuk host video AnimeThemes; hanya judul easy + medium yang diproses.
+- Screenshot: 3 frame per show (bukan 5), tanpa zoom: mulai dari screenshot 1, clue = screenshot 2, screenshot 3, lalu petunjuk judul `N_____` (500/375/250/125). Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi hanya show easy + medium yang diproses.
 - Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
-- Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; yang ditebak nama karakter (alias boleh) **dan** animenya.
+- Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu pilihan per kolom, 62,5 poin per kolom benar.
+- Season/movie/OVA satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
 - Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium).
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde (500 / 250 dengan clue / 0), clue = video OP blur atau cover blur untuk ED. Klip lama di R2 dihapus.
 

@@ -1,33 +1,52 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { indexTitles, searchTitles, type TitleEntry } from '../shared/normalize';
+import { indexNames, searchNames, type CharacterEntry, type SearchEntry, type TitleEntry } from '../shared/normalize';
 import { api, errorMessage } from './api';
 
-// One download per page load, shared by every puzzle.
-let titlesPromise: Promise<TitleEntry[]> | null = null;
-function loadTitles(): Promise<TitleEntry[]> {
-  titlesPromise ??= api.titles().catch((err: unknown) => {
-    titlesPromise = null;
-    throw err;
-  });
-  return titlesPromise;
+/** One download per page load, shared by every puzzle; a failed one is tried again next time. */
+function once<T>(fetch: () => Promise<T>): () => Promise<T> {
+  let promise: Promise<T> | null = null;
+  return () =>
+    (promise ??= fetch().catch((err: unknown) => {
+      promise = null;
+      throw err;
+    }));
 }
 
-/** `compact`: a smaller field without autofocus, for several inputs on one screen (Character mode). */
-export function GuessInput({ exclude, disabled, onPick, compact = false }: { exclude: ReadonlySet<number>; disabled: boolean; onPick: (malId: number) => void; compact?: boolean }) {
-  const [titles, setTitles] = useState<TitleEntry[] | null>(null);
+const loadTitles = once(api.titles);
+const loadCharacters = once(api.characters);
+
+interface PickerProps {
+  exclude?: ReadonlySet<number>;
+  disabled: boolean;
+  onPick: (id: number) => void;
+  /** A smaller field without autofocus, for several inputs on one screen (Character mode). */
+  compact?: boolean;
+}
+
+function Autocomplete<T extends SearchEntry>({
+  load,
+  detail,
+  placeholder,
+  noneText,
+  exclude,
+  disabled,
+  onPick,
+  compact = false,
+}: PickerProps & { load: () => Promise<T[]>; detail: (entry: T) => string; placeholder: (count: number) => string; noneText: string }) {
+  const [entries, setEntries] = useState<T[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    loadTitles().then(setTitles, (err: unknown) => setLoadError(errorMessage(err)));
-  }, []);
+    load().then(setEntries, (err: unknown) => setLoadError(errorMessage(err)));
+  }, [load]);
 
-  const index = useMemo(() => (titles ? indexTitles(titles) : []), [titles]);
-  const results = useMemo(() => searchTitles(index, query, 8, exclude), [index, query, exclude]);
+  const index = useMemo(() => (entries ? indexNames(entries) : []), [entries]);
+  const results = useMemo(() => searchNames(index, query, 8, exclude), [index, query, exclude]);
 
-  const pick = (entry: TitleEntry | undefined) => {
+  const pick = (entry: T | undefined) => {
     if (!entry) return;
     setQuery('');
     setActive(0);
@@ -35,7 +54,7 @@ export function GuessInput({ exclude, disabled, onPick, compact = false }: { exc
     input.current?.focus();
   };
 
-  if (loadError) return <div className="error-box">Could not load the title list: {loadError}</div>;
+  if (loadError) return <div className="error-box">Could not load the list: {loadError}</div>;
 
   return (
     <div className={`guess-input${compact ? ' compact' : ''}`}>
@@ -43,8 +62,8 @@ export function GuessInput({ exclude, disabled, onPick, compact = false }: { exc
         ref={input}
         autoFocus={!compact}
         value={query}
-        disabled={disabled || !titles}
-        placeholder={!titles ? 'Loading titles…' : compact ? 'Which anime?' : `Guess the anime… (${titles.length} titles)`}
+        disabled={disabled || !entries}
+        placeholder={entries ? placeholder(entries.length) : 'Loading…'}
         onChange={(e) => {
           setQuery(e.target.value);
           setActive(0);
@@ -64,15 +83,35 @@ export function GuessInput({ exclude, disabled, onPick, compact = false }: { exc
             <li key={entry.id}>
               <button className={i === active ? 'active' : ''} onMouseEnter={() => setActive(i)} onClick={() => pick(entry)}>
                 <span>{entry.names[0]}</span>
-                <span className="muted small">
-                  {[entry.names[1], entry.type?.toUpperCase(), entry.year].filter(Boolean).join(' · ')}
-                </span>
+                <span className="muted small">{detail(entry)}</span>
               </button>
             </li>
           ))}
-          {!results.length && <li className="muted small none">No matching title.</li>}
+          {!results.length && <li className="muted small none">{noneText}</li>}
         </ul>
       )}
     </div>
   );
+}
+
+const titleDetail = (t: TitleEntry) => [t.names[1], t.type?.toUpperCase(), t.year].filter(Boolean).join(' · ');
+const characterDetail = (c: CharacterEntry) => c.names[1] ?? '';
+
+/** Picks an anime (one entry per show) by any of its names. */
+export function GuessInput({ compact, ...props }: PickerProps) {
+  return (
+    <Autocomplete
+      {...props}
+      compact={compact}
+      load={loadTitles}
+      detail={titleDetail}
+      placeholder={(n) => (compact ? 'Which anime?' : `Guess the anime… (${n} titles)`)}
+      noneText="No matching title."
+    />
+  );
+}
+
+/** Picks a character by name, kanji or nickname (Character mode). */
+export function CharacterInput(props: PickerProps) {
+  return <Autocomplete {...props} compact load={loadCharacters} detail={characterDetail} placeholder={() => 'Who is this?'} noneText="No matching character." />;
 }

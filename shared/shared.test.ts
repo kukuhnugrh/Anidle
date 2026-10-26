@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, summarizeAnidle, type AnidleAnime } from './anidle';
 import { difficultyOf, exclusionReason } from './catalog';
-import { characterAnswers, matchesCharacter } from './characters';
 import { franchiseIds } from './franchise';
 import { roundDifficulties } from './modes';
-import { indexTitles, normalizeTitle, searchTitles } from './normalize';
+import { indexNames, normalizeTitle, searchNames, titleHint } from './normalize';
 
 const anime = (over: Partial<AnidleAnime>): AnidleAnime => ({
   malId: 1,
@@ -129,20 +128,29 @@ describe('normalize & search', () => {
     expect(normalizeTitle('葬送のフリーレン')).toBe('葬送のフリーレン');
   });
 
-  const index = indexTitles([
+  const index = indexNames([
     { id: 1, names: ['Sousou no Frieren', "Frieren: Beyond Journey's End"], year: 2023, type: 'tv' },
     { id: 2, names: ['Sousou no Frieren 2nd Season'], year: 2026, type: 'tv' },
     { id: 3, names: ['Shingeki no Kyojin', 'Attack on Titan'], year: 2013, type: 'tv' },
   ]);
 
   it('matches any name, every word, and ranks prefix matches first', () => {
-    expect(searchTitles(index, 'frieren').map((e) => e.id)).toEqual([1, 2]);
-    expect(searchTitles(index, 'titan attack').map((e) => e.id)).toEqual([3]);
-    expect(searchTitles(index, 'beyond journey').map((e) => e.id)).toEqual([1]);
+    expect(searchNames(index, 'frieren').map((e) => e.id)).toEqual([1, 2]);
+    expect(searchNames(index, 'titan attack').map((e) => e.id)).toEqual([3]);
+    expect(searchNames(index, 'beyond journey').map((e) => e.id)).toEqual([1]);
   });
 
   it('skips already guessed titles', () => {
-    expect(searchTitles(index, 'frieren', 8, new Set([1])).map((e) => e.id)).toEqual([2]);
+    expect(searchNames(index, 'frieren', 8, new Set([1])).map((e) => e.id)).toEqual([2]);
+  });
+});
+
+describe('titleHint', () => {
+  it("keeps each word's first letter, spaces and punctuation, and masks the rest", () => {
+    expect(titleHint('Naruto')).toBe('N_____');
+    expect(titleHint('Shingeki no Kyojin')).toBe('S_______ n_ K_____');
+    expect(titleHint('Re:Zero kara Hajimeru Isekai Seikatsu 2nd Season')).toBe('R_:Z___ k___ H_______ I_____ S_______ 2__ S_____');
+    expect(titleHint('Shōnen')).toBe('S_____');
   });
 });
 
@@ -154,27 +162,6 @@ describe('exclusionReason', () => {
     expect(exclusionReason(null, [])).toBe('media_type:none');
     expect(exclusionReason('tv', [1], 'not_yet_aired')).toBe('status:not_yet_aired');
     expect(exclusionReason('tv', [1], 'currently_airing')).toBeNull();
-  });
-});
-
-describe('matchesCharacter', () => {
-  const edward = characterAnswers({ name: 'Elric, Edward', nicknames: ['Fullmetal Alchemist', 'Ed'], nameKanji: 'エドワード・エルリック' });
-
-  it('accepts the full name in either order, a single name part, a nickname or the kanji name', () => {
-    for (const guess of ['Edward Elric', 'elric edward', 'Edward', 'Elric', 'fullmetal alchemist', 'Ed', 'エドワード・エルリック']) expect(matchesCharacter(guess, edward)).toBe(true);
-  });
-
-  it('rejects other characters and too-short fragments', () => {
-    for (const guess of ['Alphonse Elric', 'Roy Mustang', 'E', 'Edw']) expect(matchesCharacter(guess, edward)).toBe(false);
-  });
-
-  it('forgives long-vowel romanisation and one typo per six letters, not more', () => {
-    const ryo = characterAnswers({ name: 'Ryougi, Shiki', nicknames: [], nameKanji: null });
-    expect(matchesCharacter('Shiki Ryogi', ryo)).toBe(true);
-    expect(matchesCharacter('Edwrd', edward)).toBe(true);
-    expect(matchesCharacter('Edwerd Elrik', edward)).toBe(true);
-    expect(matchesCharacter('Edwerd Elrikk', edward)).toBe(false);
-    expect(matchesCharacter('Edwxrx', edward)).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-import { difficultyOf, type GenreType } from '../shared/catalog.js';
+import { CANONICAL_SQL, difficultyOf, type GenreType } from '../shared/catalog.js';
 import { DB_PAGE_SIZE, type DbFacets, type DbFilters, type DbItem, type DbPage, type DbSort } from '../shared/database.js';
 import { all, one } from './db.js';
 import { DIFFICULTY_SQL } from './game.js';
@@ -13,13 +13,16 @@ const ORDER_BY: Record<DbSort, string> = {
 };
 
 function where(f: DbFilters): { sql: string; args: Array<string | number> } {
-  const parts = ['a.excluded IS NULL'];
+  const parts = ['a.excluded IS NULL', CANONICAL_SQL];
   const args: Array<string | number> = [];
   if (f.q) {
-    // Synonyms are a JSON array of strings; a LIKE over its text is enough for a search box.
+    // Synonyms are a JSON array of strings; a LIKE over its text is enough for a search box. Any
+    // entry of the show may match: searching "Season 2" finds the show it was merged into.
     const like = `%${f.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
-    const columns = ['a.title', 'a.title_en', 'a.title_ja', 'a.synonyms'];
-    parts.push(`(${columns.map((c) => `${c} LIKE ? ESCAPE '\\'`).join(' OR ')})`);
+    const columns = ['x.title', 'x.title_en', 'x.title_ja', 'x.synonyms'];
+    parts.push(
+      `EXISTS (SELECT 1 FROM anime x WHERE (x.mal_id = a.mal_id OR x.canonical_id = a.mal_id) AND (${columns.map((c) => `${c} LIKE ? ESCAPE '\\'`).join(' OR ')}))`,
+    );
     args.push(...columns.map(() => like));
   }
   for (const id of f.genres) {
@@ -57,6 +60,7 @@ interface Row {
   rank: number | null;
   source: string | null;
   studios: string;
+  entries: number;
 }
 
 const num = (v: number | null) => (v == null ? null : Number(v));
@@ -65,7 +69,8 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
   const w = where(f);
   const total = Number((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM anime a WHERE ${w.sql}`, w.args))?.n ?? 0);
   const rows = await all<Row>(
-    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.media_type, a.year, a.season, a.num_episodes, a.score, a.members, p.rank, a.source, a.studios
+    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.media_type, a.year, a.season, a.num_episodes, a.score, a.members, p.rank, a.source, a.studios,
+            (SELECT COUNT(*) FROM anime x WHERE x.canonical_id = a.mal_id AND x.excluded IS NULL) AS entries
      FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
      WHERE ${w.sql} ORDER BY ${ORDER_BY[f.sort]}, a.mal_id LIMIT ? OFFSET ?`,
     [...w.args, DB_PAGE_SIZE, (f.page - 1) * DB_PAGE_SIZE],
@@ -91,6 +96,7 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
     score: num(r.score),
     members: num(r.members),
     popularityRank: num(r.rank),
+    entries: Math.max(1, Number(r.entries)),
     difficulty: difficultyOf(num(r.members)),
     source: r.source,
     studios: JSON.parse(r.studios) as string[],
@@ -99,23 +105,23 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
   return { items, total, page: f.page, pageSize: DB_PAGE_SIZE };
 }
 
-/** Filter options with how many playable titles each has. */
+/** Filter options with how many shows each has. */
 export async function facets(): Promise<DbFacets> {
   const [genres, studios, sources, types] = await Promise.all([
     all<{ id: number; name: string; type: GenreType; count: number }>(
       `SELECT g.id, g.name, g.type, COUNT(*) AS count FROM anime_genre ag
        JOIN genre g ON g.id = ag.genre_id JOIN anime a ON a.mal_id = ag.mal_id
-       WHERE a.excluded IS NULL GROUP BY g.id ORDER BY g.name`,
+       WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY g.id ORDER BY g.name`,
     ),
     all<{ name: string; count: number }>(
       `SELECT s.value AS name, COUNT(*) AS count FROM anime a, json_each(a.studios) s
-       WHERE a.excluded IS NULL GROUP BY s.value ORDER BY count DESC, name`,
+       WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY s.value ORDER BY count DESC, name`,
     ),
     all<{ value: string; count: number }>(
-      'SELECT source AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND source IS NOT NULL GROUP BY source ORDER BY count DESC',
+      `SELECT source AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND source IS NOT NULL GROUP BY source ORDER BY count DESC`,
     ),
     all<{ value: string; count: number }>(
-      'SELECT media_type AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND media_type IS NOT NULL GROUP BY media_type ORDER BY count DESC',
+      `SELECT media_type AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND media_type IS NOT NULL GROUP BY media_type ORDER BY count DESC`,
     ),
   ]);
   return {

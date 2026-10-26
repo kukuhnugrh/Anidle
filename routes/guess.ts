@@ -10,11 +10,11 @@ import { songMove, type SongMove } from '../server/songs.js';
  * Anidle: { puzzleId, malId }.
  * Opening/Ending: { puzzleId, round, malId } | { puzzleId, round, clue: true } | { puzzleId, round, giveUp: true }.
  * Screenshot: { puzzleId, round, malId } or { puzzleId, round, skip: true }.
- * Character: { puzzleId, round, slot, name } | { puzzleId, round, slot, malId } | { puzzleId, round, giveUp: true }.
+ * Character: { puzzleId, round, slot, charId } | { puzzleId, round, slot, malId } | { puzzleId, round, giveUp: true }.
  */
 export const POST = route(async (req) => {
   const me = await viewer(req);
-  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; skip?: unknown; slot?: unknown; name?: unknown; giveUp?: unknown; clue?: unknown }>(req);
+  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; skip?: unknown; slot?: unknown; charId?: unknown; giveUp?: unknown; clue?: unknown }>(req);
   if (typeof body.puzzleId !== 'string') throw new HttpError(400, 'puzzleId is required.');
   const puzzle = await getPuzzle(body.puzzleId);
   const malId = Number(body.malId);
@@ -42,10 +42,11 @@ export const POST = route(async (req) => {
   }
 
   const slot = Number(body.slot);
+  const charId = Number(body.charId);
   let move: CharacterMove;
   if (body.giveUp === true) move = { kind: 'giveUp' };
-  else if (typeof body.name === 'string') move = { kind: 'name', slot, text: body.name };
+  else if (Number.isInteger(charId) && charId > 0) move = { kind: 'name', slot, charId };
   else if (Number.isInteger(malId)) move = { kind: 'anime', slot, malId };
-  else throw new HttpError(400, 'Send a name, a malId, or giveUp.');
+  else throw new HttpError(400, 'Send a charId, a malId, or giveUp.');
   return json(await characterGuess(puzzle, me.key, round, move), {}, me.cookies);
 });

@@ -261,6 +261,7 @@ function DbCard({ item, onGenre, onStudio, onSource }: { item: DbItem } & CardAc
           {item.score != null && <span>★ {item.score.toFixed(2)}</span>}
           {item.members != null && <span>{fmtNumber(item.members)} members</span>}
           {item.popularityRank != null && <span className="muted">#{item.popularityRank}</span>}
+          {item.entries > 1 && <span className="muted">{item.entries} entries</span>}
         </div>
         <div className="db-chips">
           {item.studios.map((s) => (

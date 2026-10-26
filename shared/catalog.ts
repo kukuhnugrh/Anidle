@@ -25,6 +25,11 @@ export const MAIN_GENRES: ReadonlyArray<{ id: number; name: string }> = [
 /** The popular pool: MAL's popularity ranking down to this many members (~3.700 titles in Oct 2026). */
 export const POPULAR_MIN_MEMBERS = 50_000;
 
+/** MAL relations that make two entries the same show (one franchise, asked once). */
+export const FRANCHISE_RELATIONS = ['prequel', 'sequel', 'side_story', 'parent_story', 'summary', 'full_story'] as const;
+/** SQL (alias `a`): a show's own row, its franchise's most popular entry (or itself before the franchise step ran). */
+export const CANONICAL_SQL = '(a.canonical_id IS NULL OR a.canonical_id = a.mal_id)';
+
 // Difficulty by MAL members (Oct 2026: ~540 easy, ~890 medium among the popular pool).
 export const DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];

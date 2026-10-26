@@ -13,7 +13,7 @@ export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot'] 
 export type Mode = (typeof MODES)[number];
 /** Song modes: one title per round, the full song plays, one guess, an optional blurred clue. */
 export type SongMode = 'opening' | 'ending';
-/** Staged modes: one title per round, each attempt reveals more (Screenshot zooms out). */
+/** Staged modes: one title per round, each wrong guess or skip unlocks the next clue. */
 export type RoundMode = 'screenshot';
 
 export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Character', screenshot: 'Screenshot' };
@@ -34,9 +34,16 @@ export const MODE_MEDIA: Record<Mode, Exclude<MediaKind, 'cover'> | null> = { an
 
 export const ROUND_COUNT = 3;
 
-/** What each attempt unlocks per staged mode: Screenshot zooms out of one opening frame (4× crop → full). */
-export const ROUND_STAGES: Record<RoundMode, readonly number[]> = {
-  screenshot: [4, 2.5, 1.6, 1],
+/** Screenshots per title: the first is shown, the others are clues. */
+export const SCREENSHOTS_PER_TITLE = 3;
+
+/**
+ * What each attempt shows per staged mode. Screenshot: one more frame of the opening per attempt, then
+ * the title masked to its initials (N_____ and, when it has one, the English title too).
+ */
+export type RoundStage = 'shot' | 'hint';
+export const ROUND_STAGES: Record<RoundMode, readonly RoundStage[]> = {
+  screenshot: [...Array.from({ length: SCREENSHOTS_PER_TITLE }, (): RoundStage => 'shot'), 'hint'],
 };
 
 /** Song modes: a right guess scores 500, or 250 after opening the clue (blurred OP video / blurred cover); a miss scores 0. */
@@ -72,7 +79,7 @@ export const CHARACTERS_PER_TITLE = 4;
 
 export const MAX_ROUND_POINTS = 500;
 
-/** Points for a round solved on attempt `solvedAt` (0-based) out of `stages`; unsolved = 0. 5 stages: 500/400/300/200/100. */
+/** Points for a round solved on attempt `solvedAt` (0-based) out of `stages`; unsolved = 0. 4 stages: 500/375/250/125. */
 export function roundPoints(solvedAt: number | null, stages: number): number {
   return solvedAt == null || solvedAt >= stages ? 0 : Math.round((MAX_ROUND_POINTS * (stages - solvedAt)) / stages);
 }

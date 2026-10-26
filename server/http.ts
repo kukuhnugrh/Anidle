@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -14,6 +16,15 @@ export function json(body: unknown, init: ResponseInit = {}, cookies: string[] =
   if (!headers.has('cache-control')) headers.set('cache-control', 'no-store');
   for (const cookie of cookies) headers.append('set-cookie', cookie);
   return new Response(JSON.stringify(body), { ...init, headers });
+}
+
+/** Public JSON the browser may keep but must revalidate (an ETag of the body answers 304 when unchanged). */
+export function revalidatedJson(req: Request, data: unknown): Response {
+  const body = JSON.stringify(data);
+  const etag = `"${createHash('sha256').update(body).digest('base64url').slice(0, 16)}"`;
+  const headers = { etag, 'cache-control': 'public, no-cache' };
+  if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
+  return new Response(body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8' } });
 }
 
 /** Wraps a handler so HttpError becomes a JSON error and anything else a logged 500. */

@@ -1,6 +1,6 @@
 import './env.js';
 import { appendFileSync } from 'node:fs';
-import { EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason, MEDIUM_MIN_MEMBERS, POPULAR_MIN_MEMBERS } from '../shared/catalog.js';
+import { CANONICAL_SQL, EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason, FRANCHISE_RELATIONS, MEDIUM_MIN_MEMBERS, POPULAR_MIN_MEMBERS } from '../shared/catalog.js';
 import { franchiseIds } from '../shared/franchise.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { poolUsers } from '../server/env.js';
@@ -180,18 +180,36 @@ async function stepEnrich(refreshAll: boolean, limit: number) {
   log(`enrich: ok ${counts.ok}, dikecualikan ${counts.excluded}, tidak ada di MAL ${counts.gone}, gagal ${counts.failed}`);
 }
 
+/**
+ * Groups a show's seasons, OVAs, movies, recaps and side stories into one franchise, and marks its
+ * canonical entry: the most popular playable one (most MAL members). Only canonical entries are asked,
+ * listed and guessed; their member count sets the franchise's difficulty. Spin-offs, alternative
+ * versions/settings and shared-character links stay separate shows.
+ */
 async function stepFranchise() {
   const edges = await all<{ mal_id: number; related_id: number }>(
-    `SELECT mal_id, related_id FROM anime_relation WHERE relation IN ('prequel', 'sequel')`,
+    `SELECT mal_id, related_id FROM anime_relation WHERE relation IN (${FRANCHISE_RELATIONS.map(() => '?').join(',')})`,
+    [...FRANCHISE_RELATIONS],
   );
   const groups = franchiseIds(edges.map((e) => [Number(e.mal_id), Number(e.related_id)] as const));
-  const animeIds = (await all<{ mal_id: number }>('SELECT mal_id FROM anime')).map((r) => Number(r.mal_id));
+  const anime = await all<{ mal_id: number; members: number | null; excluded: string | null }>('SELECT mal_id, members, excluded FROM anime');
+  const canonical = new Map<number, { id: number; members: number }>();
+  for (const a of anime) {
+    const id = Number(a.mal_id);
+    const group = groups.get(id) ?? -id;
+    const members = a.excluded ? -1 : Number(a.members ?? 0);
+    const best = canonical.get(group);
+    if (!best || members > best.members || (members === best.members && id < best.id)) canonical.set(group, { id, members });
+  }
   await db().batch(
-    animeIds.map((id) => ({ sql: 'UPDATE anime SET franchise_id = ? WHERE mal_id = ?', args: [groups.get(id) ?? null, id] })),
+    anime.map((a) => {
+      const id = Number(a.mal_id);
+      return { sql: 'UPDATE anime SET franchise_id = ?, canonical_id = ? WHERE mal_id = ?', args: [groups.get(id) ?? null, canonical.get(groups.get(id) ?? -id)!.id, id] };
+    }),
     'write',
   );
-  const grouped = animeIds.filter((id) => groups.has(id)).length;
-  log(`franchise: ${grouped} judul dalam ${new Set(animeIds.map((id) => groups.get(id)).filter((g) => g != null)).size} franchise`);
+  const shows = new Set([...canonical.values()].filter((c) => c.members >= 0).map((c) => c.id)).size;
+  log(`franchise: ${anime.length} judul → ${shows} show (entri kanonik)`);
 }
 
 async function report() {
@@ -202,9 +220,10 @@ async function report() {
       (SELECT COUNT(DISTINCT mal_id) FROM completed) AS completed_titles,
       (SELECT COUNT(DISTINCT username) FROM completed) AS players,
       (SELECT COUNT(*) FROM popular) AS popular_titles,
-      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND a.members >= ?) AS easy,
-      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND a.members >= ? AND a.members < ?) AS medium,
-      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND (a.members < ? OR a.members IS NULL)) AS hard,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL}) AS shows,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND a.members >= ?) AS easy,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND a.members >= ? AND a.members < ?) AS medium,
+      (SELECT COUNT(*) FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND (a.members < ? OR a.members IS NULL)) AS hard,
       (SELECT COUNT(*) FROM enrich_queue) AS queue,
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'cover' AND status = 'ok') AS cover_ok,
       (SELECT COUNT(*) FROM anime_media WHERE kind = 'op' AND status = 'ok') AS op_ok,

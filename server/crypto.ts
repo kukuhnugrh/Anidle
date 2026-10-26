@@ -25,6 +25,9 @@ export function sign(value: unknown): string {
   return `${payload}.${createHmac('sha256', keyFrom('SESSION_SECRET')).update(payload).digest('base64url')}`;
 }
 
+/** Short opaque HMAC of `text` (SESSION_SECRET): changes with its input, reveals nothing about it. */
+export const opaqueTag = (text: string) => createHmac('sha256', keyFrom('SESSION_SECRET')).update(text).digest('base64url').slice(0, 12);
+
 export function verify<T>(token: string | undefined): T | null {
   if (!token) return null;
   const dot = token.lastIndexOf('.');

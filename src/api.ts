@@ -8,7 +8,7 @@ import type { History, Leaderboard } from '../server/stats';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
-import type { TitleEntry } from '../shared/normalize';
+import type { CharacterEntry, TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
 export type { AdminPage, AnidleState, CharacterState, History, Leaderboard, PuzzleState, RoundState, SongState };
@@ -91,6 +91,7 @@ export const api = {
   unlinkMal: () => call<{ account: Account }>('/api/mal/unlink', { method: 'POST' }),
   sync: () => call<SyncResult>('/api/sync', { method: 'POST' }),
   titles: () => call<TitleEntry[]>('/api/titles'),
+  characters: () => call<CharacterEntry[]>('/api/characters'),
   daily: (mode: Mode) => call<PuzzleState>(`/api/puzzle?mode=${mode}`),
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
@@ -103,8 +104,8 @@ export const api = {
   songGiveUp: (puzzleId: string, round: number) => call<SongState>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   /** Song and Screenshot puzzles; answers with the same kind of state it was asked for. */
   replaceRound: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
-  characterName: (puzzleId: string, round: number, slot: number, name: string) =>
-    call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, name } }),
+  characterName: (puzzleId: string, round: number, slot: number, charId: number) =>
+    call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, charId } }),
   characterAnime: (puzzleId: string, round: number, slot: number, malId: number) =>
     call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, slot, malId } }),
   characterGiveUp: (puzzleId: string, round: number) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),

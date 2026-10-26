@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { anidleScore, compareAnidle, type AnidleAnime, type AnidleFeedback } from '../shared/anidle.js';
 import {
   ANIDLE_MAX_GUESSES,
+  CANONICAL_SQL,
   DAILY_DIFFICULTIES,
   DIFFICULTIES,
   difficultyOf,
@@ -51,36 +52,43 @@ export const DIFFICULTY_SQL: Record<Difficulty, string> = {
   hard: `(a.members < ${MEDIUM_MIN_MEMBERS} OR a.members IS NULL)`,
 };
 
-/** Which titles a pool contains, before filters. */
+/**
+ * SQL (on aliases `a` = the canonical entry and `col` = some table's mal_id) for "col is an entry of
+ * a's show": a itself or any entry the franchise step pointed at it. A friend who completed season 2
+ * has completed the show.
+ */
+const ofShow = (col: string) => `(${col} = a.mal_id OR ${col} IN (SELECT x.mal_id FROM anime x WHERE x.canonical_id = a.mal_id))`;
+
+/** Which shows a pool contains, before filters. */
 function poolSource({ pool, members, malUsername }: PoolSpec): { sql: string; args: Array<string | number> } {
   const marks = members.map(() => '?').join(',');
-  const byFriend = members.length ? `EXISTS (SELECT 1 FROM completed c WHERE c.mal_id = a.mal_id AND c.username IN (${marks}))` : '0';
-  const popular = 'EXISTS (SELECT 1 FROM popular p WHERE p.mal_id = a.mal_id)';
+  const byFriend = members.length ? `EXISTS (SELECT 1 FROM completed c WHERE c.username IN (${marks}) AND ${ofShow('c.mal_id')})` : '0';
+  const popular = `EXISTS (SELECT 1 FROM popular p WHERE ${ofShow('p.mal_id')})`;
   switch (pool) {
     case 'semua':
       return { sql: `(${byFriend} OR ${popular})`, args: members };
     case 'teman':
       return { sql: byFriend, args: members };
     case 'bareng':
-      // Completed by every member that has a list at all.
+      // Completed (any entry of the show) by every member that has a list at all.
       if (!members.length) return { sql: '0', args: [] };
       return {
-        sql: `${byFriend} AND (SELECT COUNT(DISTINCT c.username) FROM completed c WHERE c.mal_id = a.mal_id AND c.username IN (${marks}))
+        sql: `${byFriend} AND (SELECT COUNT(DISTINCT c.username) FROM completed c WHERE c.username IN (${marks}) AND ${ofShow('c.mal_id')})
               = (SELECT COUNT(DISTINCT username) FROM completed WHERE username IN (${marks}))`,
         args: [...members, ...members, ...members],
       };
     case 'saya':
       if (!malUsername) return { sql: '0', args: [] };
-      return { sql: 'EXISTS (SELECT 1 FROM completed c WHERE c.mal_id = a.mal_id AND c.username = ?)', args: [malUsername] };
+      return { sql: `EXISTS (SELECT 1 FROM completed c WHERE c.username = ? AND ${ofShow('c.mal_id')})`, args: [malUsername] };
     case 'populer':
       return { sql: popular, args: [] };
   }
 }
 
-/** SQL condition (on alias `a`) selecting the titles of a pool with its filters. Excluded titles never qualify. */
+/** SQL condition (on alias `a`) selecting the shows of a pool with its filters. Excluded titles never qualify. */
 function poolWhere(spec: PoolSpec): { sql: string; args: Array<string | number> } {
   const source = poolSource(spec);
-  const parts = ['a.excluded IS NULL', source.sql];
+  const parts = ['a.excluded IS NULL', CANONICAL_SQL, source.sql];
   const args = [...source.args];
   if (spec.genreId) {
     parts.push('EXISTS (SELECT 1 FROM anime_genre g WHERE g.mal_id = a.mal_id AND g.genre_id = ?)');
@@ -143,19 +151,24 @@ export async function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
 }
 
 /**
- * Autocomplete list: every usable title in the database, so any pool's answer can be typed and the
- * list itself does not hint at which pool (or answer) is in play.
+ * Autocomplete list: every show in the database (one entry per franchise, named after its canonical
+ * entry but also found by its other seasons' names), so any pool's answer can be typed and the list
+ * itself does not hint at which pool (or answer) is in play.
  */
 export async function titleEntries(): Promise<TitleEntry[]> {
-  const rows = await all<{ mal_id: number; title: string; title_en: string | null; title_ja: string | null; synonyms: string; year: number | null; media_type: string | null }>(
-    'SELECT mal_id, title, title_en, title_ja, synonyms, year, media_type FROM anime WHERE excluded IS NULL ORDER BY members DESC',
+  const rows = await all<{ mal_id: number; show: number; title: string; title_en: string | null; title_ja: string | null; synonyms: string; year: number | null; media_type: string | null }>(
+    `SELECT mal_id, COALESCE(canonical_id, mal_id) AS show, title, title_en, title_ja, synonyms, year, media_type
+     FROM anime WHERE excluded IS NULL ORDER BY (COALESCE(canonical_id, mal_id) = mal_id) DESC, members DESC`,
   );
-  return rows.map((r) => ({
-    id: Number(r.mal_id),
-    names: [...new Set([r.title, r.title_en, r.title_ja, ...(JSON.parse(r.synonyms) as string[])].filter((n): n is string => Boolean(n)))],
-    year: r.year == null ? null : Number(r.year),
-    type: r.media_type,
-  }));
+  // Canonical rows come first, so every show exists before its other entries add their names.
+  const shows = new Map<number, { entry: Omit<TitleEntry, 'names'>; names: Set<string> }>();
+  for (const r of rows) {
+    const names = [r.title, r.title_en, r.title_ja, ...(JSON.parse(r.synonyms) as string[])].filter((n): n is string => Boolean(n));
+    const show = shows.get(Number(r.show));
+    if (show) for (const n of names) show.names.add(n);
+    else if (Number(r.show) === Number(r.mal_id)) shows.set(Number(r.mal_id), { entry: { id: Number(r.mal_id), year: r.year == null ? null : Number(r.year), type: r.media_type }, names: new Set(names) });
+  }
+  return [...shows.values()].map(({ entry, names }) => ({ ...entry, names: [...names] }));
 }
 
 interface AnimeRow {

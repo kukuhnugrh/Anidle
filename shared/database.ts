@@ -45,6 +45,8 @@ export interface DbItem {
   members: number | null;
   /** MAL popularity rank, when the title is in the popular pool. */
   popularityRank: number | null;
+  /** Seasons, movies, OVAs… merged into this show (1 = a standalone title). */
+  entries: number;
   difficulty: Difficulty;
   source: string | null;
   studios: string[];

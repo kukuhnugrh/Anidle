@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MAX_ROUND_POINTS, MODE_LABELS, roundPoints } from '../shared/modes';
+import { MAX_ROUND_POINTS, MODE_LABELS, roundPoints, type RoundStage } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
@@ -8,11 +8,15 @@ import { SkipIcon } from './icons';
 import { roundShareText, ShareButton } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
+type Round = RoundState['rounds'][number];
 
 /** Gives up on a round whose frame has not decoded in this long (a screenshot is ~60 KB). */
 const PRELOAD_TIMEOUT_MS = 20_000;
 
-const zoomLabel = (stage: number) => (stage === 1 ? 'full' : `zoom ${stage}×`);
+const SKIP_LABELS: Record<RoundStage, string> = { shot: 'Skip (another screenshot)', hint: 'Skip (title hint)' };
+
+/** Attempt labels: what was on screen for each attempt ("Shot 2", "Hint"). */
+const stageLabels = (stages: readonly RoundStage[]) => stages.map((s, i) => (s === 'hint' ? 'Hint' : `Shot ${i + 1}`));
 
 /**
  * Decodes every round's frame up front so a round never waits on the network. A round whose URL
@@ -49,15 +53,35 @@ function useFrames(urls: string[]) {
   return { status, retry: (i: number) => load(i, urls[i]!) };
 }
 
-/** One frame shown at `zoom` (1 = whole frame) around a focus point derived from its URL, so it stays put. */
-function ZoomShot({ url, zoom }: { url: string; zoom: number }) {
-  const hash = [...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
-  const x = 30 + (hash % 41);
-  const y = 30 + ((hash >>> 8) % 41);
+/** The unlocked screenshots: the newest one large, the earlier ones as thumbnails to look back at. */
+function Shots({ media }: { media: string[] }) {
+  const [picked, setPicked] = useState(media.length - 1);
+  useEffect(() => setPicked(media.length - 1), [media.length]);
+  const shown = media[Math.min(picked, media.length - 1)]!;
   return (
-    <div className="shot">
-      <img src={url} alt="" style={{ transform: `scale(${zoom})`, transformOrigin: `${x}% ${y}%` }} />
-      <span className="shot-zoom">{zoom === 1 ? 'full' : `${zoom}×`}</span>
+    <div className="shots">
+      <div className="shot">
+        <img src={shown} alt="" />
+      </div>
+      {media.length > 1 && (
+        <div className="shot-thumbs">
+          {media.map((url, i) => (
+            <button key={url} className={`shot-thumb${url === shown ? ' active' : ''}`} onClick={() => setPicked(i)} aria-label={`Screenshot ${i + 1}`}>
+              <img src={url} alt="" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Hint({ hint }: { hint: NonNullable<Round['hint']> }) {
+  return (
+    <div className="title-hint">
+      <span className="field-label">Title hint</span>
+      <code>{hint.title}</code>
+      {hint.english && <code className="muted">{hint.english}</code>}
     </div>
   );
 }
@@ -73,7 +97,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
   const round = puzzle.rounds[view]!;
   const isCurrent = view === puzzle.current;
   const stages = puzzle.stages;
-  const unlocked = round.finished ? stages.at(-1)! : stages[round.attempts.length]!;
+  const labels = stageLabels(stages);
   const next = stages[round.attempts.length + 1];
   const exclude = useMemo(() => new Set(round.attempts.flatMap((a) => (a ? [a.malId] : []))), [round.attempts]);
 
@@ -110,7 +134,9 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <div>
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
-          <p className="muted small">Guess the anime from one scene of its opening. It starts zoomed in 4×; a wrong guess or a skip zooms out.</p>
+          <p className="muted small">
+            Guess the anime from a screenshot of its opening. Each wrong guess or skip shows another screenshot, then a title hint.
+          </p>
         </div>
         <div className="round-tabs" role="tablist">
           {puzzle.rounds.map((r, i) => (
@@ -143,7 +169,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         </div>
       ) : (
         <section className="card stage-card">
-          <ZoomShot url={round.media[0]!} zoom={unlocked} />
+          <Shots key={view} media={round.media} />
+          {round.hint && <Hint hint={round.hint} />}
           {!round.finished && isCurrent && (
             <div className="stage-controls">
               <GuessInput exclude={exclude} disabled={sending} onPick={(malId) => send(() => api.roundGuess(puzzle.id, view, malId))} />
@@ -153,7 +180,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
                 </span>
                 <button className="ghost" disabled={sending} onClick={() => send(() => api.roundGuess(puzzle.id, view, null))}>
                   <SkipIcon />
-                  {next === undefined ? 'Give up' : next === 1 ? 'Skip (full image)' : `Skip (zoom ${next}×)`}
+                  {next === undefined ? 'Give up' : SKIP_LABELS[next]}
                 </button>
               </div>
             </div>
@@ -194,7 +221,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             const correct = round.solved && i === round.attempts.length - 1;
             return (
               <li key={i} className={correct ? 'ok' : a ? 'bad' : 'skip'}>
-                <span className="attempt-stage">{zoomLabel(stages[i]!)}</span>
+                <span className="attempt-stage">{labels[i]}</span>
                 <span>{a ? a.title : 'Skipped'}</span>
                 <span className="attempt-mark">{correct ? '✓' : a ? '✗' : '→'}</span>
               </li>

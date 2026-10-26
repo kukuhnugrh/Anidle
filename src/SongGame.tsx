@@ -8,52 +8,73 @@ import { PauseIcon, PlayIcon } from './icons';
 import { ShareButton, songShareText } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
+type Clue = SongState['rounds'][number]['clue'];
 
-/** Gives up on a song that has not become playable in this long (full songs are ~3–4 MB). */
-const PRELOAD_TIMEOUT_MS = 30_000;
+/** Gives up on a song that has not downloaded in this long (full songs are ~3–4 MB, AnimeThemes takes ~5 s to start). */
+const SONG_TIMEOUT_MS = 45_000;
 
 const clock = (s: number) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '–:––');
 
+interface Song {
+  url: string;
+  audio: HTMLAudioElement | null;
+  status: LoadStatus;
+}
+
 /**
- * One <audio> per round, loaded up front so a round never waits on the network. A round whose URL
- * changes (replaced after an error) loads again; the others keep their element.
+ * Every round's song, downloaded whole in the background as soon as the puzzle opens. A whole file
+ * seeks instantly (a seek past what a streaming <audio> buffered costs another ~5 s round trip to
+ * AnimeThemes) and, unlike the Range requests <audio> makes, can come from Vercel's CDN cache. A
+ * round whose URL changes (replaced after an error) downloads again; the others keep theirs.
  */
 function useSongs(urls: string[]) {
-  const songs = useRef<HTMLAudioElement[]>([]);
-  const [status, setStatus] = useState<LoadStatus[]>(() => urls.map(() => 'loading'));
+  const [songs, setSongs] = useState<Song[]>(() => urls.map((url) => ({ url, audio: null, status: 'loading' })));
+  const latest = useRef(songs);
+  latest.current = songs;
 
   const load = useCallback((i: number, url: string) => {
-    songs.current[i]?.pause();
-    const audio = new Audio();
-    audio.preload = 'auto';
-    songs.current[i] = audio;
-    setStatus((s) => s.with(i, 'loading'));
-    const settle = (result: LoadStatus) => {
-      clearTimeout(timer);
-      audio.oncanplaythrough = audio.onerror = null;
-      if (songs.current[i] === audio) setStatus((s) => s.with(i, result));
-    };
-    const timer = setTimeout(() => settle('error'), PRELOAD_TIMEOUT_MS);
-    audio.oncanplaythrough = () => settle('ready');
-    audio.onerror = () => settle('error');
-    audio.src = url;
-    audio.load();
+    const update = (song: Song) => setSongs((all) => (all[i]?.url === url ? all.with(i, song) : all));
+    setSongs((all) => all.with(i, { url, audio: null, status: 'loading' }));
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), SONG_TIMEOUT_MS);
+    fetch(url, { signal: abort.signal })
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
+      .then(
+        (blob) => update({ url, audio: new Audio(URL.createObjectURL(blob)), status: 'ready' }),
+        () => update({ url, audio: null, status: 'error' }),
+      )
+      .finally(() => clearTimeout(timer));
   }, []);
-
   // `key` is the content of `urls`, so the effect runs when a URL changes, not on every new array.
+  const started = useRef<string[]>([]);
   const key = urls.join('|');
   useEffect(() => {
     urls.forEach((url, i) => {
-      if (!songs.current[i]?.src.endsWith(url)) load(i, url);
+      if (started.current[i] === url) return;
+      started.current[i] = url;
+      const old = latest.current[i]?.audio;
+      if (old) {
+        old.pause();
+        URL.revokeObjectURL(old.src);
+      }
+      load(i, url);
     });
   }, [key, load]);
-  useEffect(() => () => songs.current.forEach((a) => a.pause()), []);
+  useEffect(
+    () => () => {
+      for (const s of latest.current) {
+        s.audio?.pause();
+        if (s.audio) URL.revokeObjectURL(s.audio.src);
+      }
+    },
+    [],
+  );
 
-  return { songs, status, retry: (i: number) => load(i, urls[i]!) };
+  return { songs, retry: (i: number) => load(i, urls[i]!) };
 }
 
-/** Plays the whole song with a seek bar; switching rounds pauses the previous one. */
-function SongPlayer({ audio }: { audio: HTMLAudioElement | undefined }) {
+/** Play/pause and a seek bar over the whole song (the clue video follows it); switching rounds pauses the previous one. */
+function SongPlayer({ audio, loading }: { audio: HTMLAudioElement | null; loading: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(NaN);
@@ -94,7 +115,7 @@ function SongPlayer({ audio }: { audio: HTMLAudioElement | undefined }) {
           aria-label="Seek"
         />
         <div className="clip-meta small muted">
-          <span>{clock(time)}</span>
+          <span>{loading ? 'Loading song…' : clock(time)}</span>
           <span>{clock(duration)}</span>
         </div>
       </div>
@@ -102,36 +123,86 @@ function SongPlayer({ audio }: { audio: HTMLAudioElement | undefined }) {
   );
 }
 
-/** A clue video that cannot start playing in this long gives way to the blurred cover. */
-const CLUE_VIDEO_TIMEOUT_MS = 15_000;
+/** A clue video that cannot show a frame in this long gives way to the blurred cover. */
+const CLUE_VIDEO_TIMEOUT_MS = 20_000;
+/** The video follows the song; it is pulled back when it drifts further than this (seconds). */
+const MAX_DRIFT_S = 0.4;
 
-/** The opened clue, blurred: the opening's video (cover if the video will not play), or the cover. */
-function Clue({ clue }: { clue: SongState['rounds'][number]['clue'] }) {
-  const [videoFailed, setVideoFailed] = useState(false);
+/**
+ * The opening's video, blurred and muted, following the song: the player controls (and a click on
+ * the video) play, pause and seek both, so the song never runs on its own beside a looping clip.
+ * The corner button shows it fullscreen.
+ */
+function ClueVideo({ url, audio, onFail }: { url: string; audio: HTMLAudioElement | null; onFail: () => void }) {
+  const frame = useRef<HTMLDivElement>(null);
   const video = useRef<HTMLVideoElement>(null);
+  const [shown, setShown] = useState(false);
+
   useEffect(() => {
-    if (clue.kind !== 'video') return;
-    const timer = setTimeout(() => {
-      if ((video.current?.readyState ?? 0) < HTMLMediaElement.HAVE_CURRENT_DATA) setVideoFailed(true);
-    }, CLUE_VIDEO_TIMEOUT_MS);
+    if (shown) return;
+    const timer = setTimeout(onFail, CLUE_VIDEO_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [clue.kind, clue.url]);
+  }, [shown, onFail]);
+
+  useEffect(() => {
+    const v = video.current;
+    if (!audio || !v) return;
+    const follow = () => {
+      if (!v.seeking && Math.abs(v.currentTime - audio.currentTime) > MAX_DRIFT_S) v.currentTime = audio.currentTime;
+      if (audio.paused) v.pause();
+      else if (v.paused) void v.play().catch(() => {});
+    };
+    follow();
+    const events = ['play', 'pause', 'seeked', 'timeupdate'] as const;
+    for (const e of events) audio.addEventListener(e, follow);
+    return () => {
+      for (const e of events) audio.removeEventListener(e, follow);
+    };
+  }, [audio]);
+
+  return (
+    <div ref={frame} className="clue-frame">
+      <video
+        ref={video}
+        className="clue-media"
+        src={url}
+        muted
+        preload="auto"
+        playsInline
+        onClick={() => audio && (audio.paused ? void audio.play() : audio.pause())}
+        onLoadedData={() => setShown(true)}
+        onError={onFail}
+      />
+      {!shown && <span className="clue-status small">Loading the video…</span>}
+      <button
+        className="clue-fullscreen small"
+        onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : frame.current?.requestFullscreen())?.catch(() => {})}
+      >
+        ⛶ Fullscreen
+      </button>
+    </div>
+  );
+}
+
+/** The opened clue: the blurred opening video (blurred cover when it will not play), or the blurred cover. */
+function ClueView({ clue, audio }: { clue: Clue; audio: HTMLAudioElement | null }) {
+  const [videoFailed, setVideoFailed] = useState(false);
+  const onFail = useCallback(() => setVideoFailed(true), []);
   if (!clue.url) return null;
-  if (clue.kind === 'video' && !videoFailed)
-    return <video ref={video} className="clue-media" src={clue.url} muted autoPlay loop playsInline onError={() => setVideoFailed(true)} />;
+  if (clue.kind === 'video' && !videoFailed) return <ClueVideo url={clue.url} audio={audio} onFail={onFail} />;
   const image = clue.kind === 'cover' ? clue.url : clue.fallback;
   return image ? <img className="clue-media cover" src={image} alt="" /> : null;
 }
 
 export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongState; onChange: (p: SongState) => void; onNewUnlimited: () => Promise<void> }) {
   const urls = useMemo(() => puzzle.rounds.map((r) => r.audio), [puzzle.rounds]);
-  const { songs, status, retry } = useSongs(urls);
+  const { songs, retry } = useSongs(urls);
   const [view, setView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const settled = status.filter((s) => s !== 'loading').length;
   const round = puzzle.rounds[view]!;
+  const song = songs[view];
   const isCurrent = view === puzzle.current;
   const clueName = round.clue.kind === 'video' ? 'the blurred opening video' : 'the blurred anime cover';
   const noExclusions = useMemo(() => new Set<number>(), []);
@@ -147,21 +218,6 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
       setSending(false);
     }
   };
-
-  if (settled < status.length && !puzzle.finished)
-    return (
-      <div className="center">
-        <div className="preload">
-          <span className="eyebrow">Preparing {MODE_LABELS[puzzle.mode]}</span>
-          <div className="preload-bar">
-            <span style={{ width: `${(settled / status.length) * 100}%` }} />
-          </div>
-          <span className="muted small">
-            Loading song {settled}/{status.length}
-          </span>
-        </div>
-      </div>
-    );
 
   return (
     <div className="round-game">
@@ -190,7 +246,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
         </div>
       </header>
 
-      {status[view] === 'error' ? (
+      {song?.status === 'error' ? (
         <div className="card load-error">
           <p>This song failed to load.</p>
           <div className="actions">
@@ -204,8 +260,8 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
         </div>
       ) : (
         <section className="card stage-card">
-          <SongPlayer audio={status[view] === 'ready' ? songs.current[view] : undefined} />
-          {round.clue.opened && !round.finished && <Clue key={round.audio} clue={round.clue} />}
+          <SongPlayer audio={song?.audio ?? null} loading={song?.status === 'loading'} />
+          {round.clue.opened && !round.finished && <ClueView key={round.audio} clue={round.clue} audio={song?.audio ?? null} />}
           {!round.finished && isCurrent && (
             <div className="stage-controls">
               <GuessInput exclude={noExclusions} disabled={sending} onPick={(malId) => send(() => api.songGuess(puzzle.id, view, malId))} />

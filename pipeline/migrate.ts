@@ -14,7 +14,12 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   puzzle: { options: 'TEXT' },
   // Character mode accepts nicknames and the kanji name; details_at = when they were fetched.
   anime_character: { nicknames: "TEXT NOT NULL DEFAULT '[]'", name_kanji: 'TEXT', details_at: 'TEXT' },
+  // The franchise's most popular entry (pipeline step `franchise`); NULL until computed = itself.
+  anime: { canonical_id: 'INTEGER' },
 };
+
+/** Indexes on ADDED_COLUMNS, created once the columns exist. */
+const ADDED_INDEXES = ['CREATE INDEX IF NOT EXISTS anime_canonical ON anime (canonical_id)'];
 
 export async function migrate(): Promise<void> {
   const url = requireEnv('TURSO_DATABASE_URL');
@@ -25,6 +30,7 @@ export async function migrate(): Promise<void> {
     const existing = new Set((await db().execute(`PRAGMA table_info(${table})`)).rows.map((r) => String(r.name)));
     for (const [column, type] of Object.entries(columns)) if (!existing.has(column)) await db().execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
+  for (const sql of ADDED_INDEXES) await db().execute(sql);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

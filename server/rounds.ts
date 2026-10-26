@@ -1,6 +1,7 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Pool } from '../shared/catalog.js';
-import { ROUND_COUNT, ROUND_STAGES, roundPoints, type RoundMode } from '../shared/modes.js';
+import { ROUND_COUNT, ROUND_STAGES, roundPoints, SCREENSHOTS_PER_TITLE, type RoundMode, type RoundStage } from '../shared/modes.js';
+import { titleHint } from '../shared/normalize.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
@@ -8,10 +9,13 @@ import { mediaUrl } from './media.js';
 
 // Staged modes (Screenshot): ROUND_COUNT rounds of one title, each attempt unlocks the next stage of
 // ROUND_STAGES[mode]. Stored per player in play.guesses as number[][] (one list per round, 0 = skip).
+// Only what is unlocked leaves the server: later screenshots and the hint stay hidden until then.
 
 export interface RoundPlayState {
-  /** Screenshot: [one frame]. */
+  /** The screenshots unlocked so far (all of them once the round is over). */
   media: string[];
+  /** The masked title ("N_____"), once the hint stage is reached. */
+  hint: { title: string; english: string | null } | null;
   /** Wrong guesses, skips (null) and, when solved, the correct guess last. */
   attempts: Array<{ malId: number; title: string } | null>;
   solved: boolean;
@@ -26,8 +30,8 @@ export interface RoundState {
   mode: RoundMode;
   date: string | null;
   pool: Pool;
-  /** What each attempt unlocks (the zoom factor). */
-  stages: readonly number[];
+  /** What each attempt unlocks. */
+  stages: readonly RoundStage[];
   rounds: RoundPlayState[];
   /** First unfinished round, rounds.length once the puzzle is over. */
   current: number;
@@ -37,13 +41,23 @@ export interface RoundState {
   canReplace: boolean;
 }
 
-async function loadRounds(puzzleId: string): Promise<Array<{ malId: number; media: string[] }>> {
-  const rounds = await all<{ mal_id: number }>('SELECT mal_id FROM puzzle_round WHERE puzzle_id = ? ORDER BY round', [puzzleId]);
+interface RoundRow {
+  malId: number;
+  title: string;
+  titleEn: string | null;
+  media: string[];
+}
+
+async function loadRounds(puzzleId: string): Promise<RoundRow[]> {
+  const rounds = await all<{ mal_id: number; title: string; title_en: string | null }>(
+    'SELECT r.mal_id, a.title, a.title_en FROM puzzle_round r JOIN anime a ON a.mal_id = r.mal_id WHERE r.puzzle_id = ? ORDER BY r.round',
+    [puzzleId],
+  );
   const ids = rounds.map((r) => Number(r.mal_id));
   const rows = await all<{ mal_id: number; r2_key: string }>(`SELECT mal_id, r2_key FROM anime_screenshot WHERE mal_id IN (${ids.map(() => '?').join(',')}) ORDER BY slot`, ids);
   const byTitle = Map.groupBy(rows, (r) => Number(r.mal_id));
-  const loaded = ids.map((malId) => ({ malId, media: (byTitle.get(malId) ?? []).map((s) => mediaUrl(s.r2_key)) }));
-  if (loaded.length !== ROUND_COUNT || loaded.some((r) => !r.media.length)) throw new HttpError(500, 'Puzzle data is incomplete.');
+  const loaded = rounds.map((r) => ({ malId: Number(r.mal_id), title: r.title, titleEn: r.title_en, media: (byTitle.get(Number(r.mal_id)) ?? []).map((s) => mediaUrl(s.r2_key)) }));
+  if (loaded.length !== ROUND_COUNT || loaded.some((r) => r.media.length < SCREENSHOTS_PER_TITLE)) throw new HttpError(500, 'Puzzle data is incomplete.');
   return loaded;
 }
 
@@ -66,8 +80,12 @@ async function evaluate(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, a
     });
     const solved = solvedAt >= 0;
     const finished = solved || tries.length >= stages.length;
+    // The stages reached: the first, plus one per attempt; every stage once the round is over.
+    const reached = finished ? stages : stages.slice(0, tries.length + 1);
+    const shots = reached.filter((s) => s === 'shot').length;
     return {
-      media: r.media,
+      media: r.media.slice(0, shots),
+      hint: reached.includes('hint') ? { title: titleHint(r.title), english: r.titleEn && r.titleEn !== r.title ? titleHint(r.titleEn) : null } : null,
       attempts: tries.map((id) => (id > 0 ? { malId: id, title: anime.get(id)?.title ?? `#${id}` } : null)),
       solved,
       finished,

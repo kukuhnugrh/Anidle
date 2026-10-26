@@ -28,10 +28,18 @@ export const GET = route(async (req) => {
     upstream = videoOf(source.audioUrl);
   } else if (kind !== 'audio') throw new HttpError(400, 'kind must be audio or video.');
 
+  // AnimeThemes takes ~5 s to answer each request, then the body streams for as long as it needs
+  // (a video is tens of MB), so the timeout only covers the wait for the headers.
   const range = req.headers.get('range');
-  const res = await fetch(upstream, { headers: range ? { Range: range } : undefined, signal: AbortSignal.timeout(30_000) });
+  const headersTimeout = new AbortController();
+  const timer = setTimeout(() => headersTimeout.abort(), 30_000);
+  const res = await fetch(upstream, { headers: range ? { Range: range } : undefined, signal: headersTimeout.signal }).finally(() => clearTimeout(timer));
   if (!res.ok) throw new HttpError(502, 'The song host is not answering right now. Try again in a moment.');
-  const headers = new Headers({ 'cache-control': 'private, max-age=3600' });
+  // A daily song is the same for everyone and never replaced: Vercel's CDN may keep it (whole-file
+  // requests only), so only the first player of the day waits on AnimeThemes. The video stays private:
+  // it is only for players who opened the clue.
+  const shared = kind === 'audio' && puzzle.date != null;
+  const headers = new Headers({ 'cache-control': shared ? 'public, max-age=86400, s-maxage=172800' : 'private, max-age=86400' });
   for (const name of PASSED) {
     const value = res.headers.get(name);
     if (value) headers.set(name, value);

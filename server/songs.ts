@@ -1,6 +1,7 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Pool } from '../shared/catalog.js';
 import { MODE_MEDIA, ROUND_COUNT, SONG_CLUE, SONG_POINTS, type SongMode } from '../shared/modes.js';
+import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
@@ -89,7 +90,9 @@ interface Evaluated {
 async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, stored: StoredSong[]): Promise<Evaluated> {
   const sources = await songSources(puzzle.id, mode);
   const anime = await loadAnidle([...sources.map((s) => s.malId), ...stored.flatMap((s) => (s.g ? [s.g] : []))]);
-  const media = (round: number, kind: 'audio' | 'video') => `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}`;
+  // v changes when a round is replaced, so a cached copy of the old song is never played for the new one.
+  const media = (round: number, kind: 'audio' | 'video') =>
+    `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}&v=${opaqueTag(`${puzzle.id}:${round}:${sources[round]!.malId}`)}`;
   const rounds = sources.map((s, i): SongRoundState => {
     const answer = anime.get(s.malId);
     if (!answer) throw new HttpError(500, 'An answer is missing from the database.');

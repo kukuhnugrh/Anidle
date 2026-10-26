@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import ffmpegPath from 'ffmpeg-static';
-import { MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
+import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { CHARACTER_QUIZ_SLOT } from '../shared/characters.js';
-import { CHARACTERS_PER_TITLE, type MediaKind } from '../shared/modes.js';
+import { CHARACTERS_PER_TITLE, SCREENSHOTS_PER_TITLE, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { putObject } from './r2.js';
@@ -117,12 +117,12 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 const isSourceFault = (err: unknown) => err instanceof MediaError || (err instanceof UpstreamError && err.status >= 400 && err.status < 500 && err.status !== 429);
 
 /**
- * Per playable title, most popular first: copies the cover to R2 and records the first OP and first ED
+ * Per playable show (canonical entry), most popular first: copies the cover to R2 and records the first OP and first ED
  * on AnimeThemes (audio URL + song info; the game streams them). Re-runs skip what is already ok;
  * missing/broken sources are retried after RECHECK_DAYS, or always with --refresh.
  */
 export async function stepMedia(refreshAll: boolean, limit: number) {
-  const anime = await all<{ mal_id: number; cover_src: string | null }>('SELECT mal_id, cover_src FROM anime WHERE excluded IS NULL ORDER BY members DESC');
+  const anime = await all<{ mal_id: number; cover_src: string | null }>(`SELECT mal_id, cover_src FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
   const rows = await all<MediaRow>('SELECT mal_id, kind, status, source_url, checked_at FROM anime_media');
   const byKey = new Map(rows.map((r) => [`${r.mal_id}:${r.kind}`, r]));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
@@ -197,7 +197,7 @@ const isPlaceholder = (url: string | null) => !url || url.includes('questionmark
  * Titles with fewer usable portraits are `missing` and stay out of the mode.
  */
 export async function stepCharacters(refreshAll: boolean, limit: number) {
-  const anime = await all<{ mal_id: number }>('SELECT mal_id FROM anime WHERE excluded IS NULL ORDER BY members DESC');
+  const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
   const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'chars'`);
   const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
@@ -296,8 +296,11 @@ export async function stepNicknames(refreshAll: boolean, limit: number) {
   log('nicknames:', counts);
 }
 
-/** Seconds into the opening to try, in order: the middle first, away from the title card at the start. */
-const SHOT_TIMES = [45, 32, 58, 22];
+/**
+ * Seconds into the opening to try, in order: spread over the song so the screenshots show different
+ * scenes, away from the title card at the start.
+ */
+const SHOT_TIMES = [45, 70, 22, 58, 82, 32, 12, 64];
 const SCREENSHOT_WIDTH = 960;
 
 interface Frame {
@@ -306,13 +309,13 @@ interface Frame {
 }
 
 /**
- * One frame of the opening's video: ffmpeg seeks over HTTP to each candidate time and keeps the first
- * frame that is neither near-black/near-white nor flat (signalstats mean and 10–90 % luma spread).
- * The video host answers 5xx under load and a cut-off read fails decoding, so an ffmpeg failure is
- * retried and, if it persists, reported as transient (the title is skipped, not marked broken).
+ * One frame of the opening's video at the first of `times` that is neither near-black/near-white nor
+ * flat (signalstats mean and 10–90 % luma spread); ffmpeg seeks over HTTP. The video host answers 5xx
+ * under load and a cut-off read fails decoding, so an ffmpeg failure is retried and, if it persists,
+ * reported as transient (the title is skipped, not marked broken).
  */
-async function pickFrame(videoUrl: string): Promise<Frame | null> {
-  for (const at of SHOT_TIMES) {
+async function pickFrame(videoUrl: string, times: number[]): Promise<Frame | null> {
+  for (const at of times) {
     let result: FfmpegResult | null = null;
     for (let attempt = 1; !result; attempt++) {
       try {
@@ -330,20 +333,23 @@ async function pickFrame(videoUrl: string): Promise<Frame | null> {
     const stat = (name: string) => Number(result.log.match(new RegExp(`signalstats\\.${name}=([\\d.]+)`))?.[1] ?? NaN);
     const mean = stat('YAVG');
     const spread = stat('YHIGH') - stat('YLOW');
+    // A clip shorter than `at` yields no frame at all.
     if (result.out.length > 8_000 && mean >= 40 && mean <= 220 && spread >= 50) return { out: result.out, at };
   }
   return null;
 }
 
 /**
- * Screenshot mode: one frame per title from its first opening's video (the smallest file AnimeThemes
- * has), WebP 960 wide at v1/shot/<hash>.webp. Seeking a 1080p video over HTTP costs ~25 s and a few MB
- * per frame, so only easy + medium titles (≥ MEDIUM_MIN_MEMBERS, the daily pool) are processed.
+ * Screenshot mode: SCREENSHOTS_PER_TITLE frames per show from its first opening's video (the smallest
+ * file AnimeThemes has), WebP 960 wide at v1/shot/<hash>.webp. Frames already stored are kept, so a
+ * show that had fewer only fetches the rest. Seeking a 1080p video over HTTP costs ~25 s and a few MB
+ * per frame, so only easy + medium shows (≥ MEDIUM_MIN_MEMBERS, the daily pool) are processed.
  */
 export async function stepScreenshots(refreshAll: boolean, limit: number) {
-  const anime = await all<{ mal_id: number }>('SELECT mal_id FROM anime WHERE excluded IS NULL AND members >= ? ORDER BY members DESC', [MEDIUM_MIN_MEMBERS]);
+  const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} AND members >= ? ORDER BY members DESC`, [MEDIUM_MIN_MEMBERS]);
   const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'shots'`);
   const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
+  const stored = Map.groupBy(await all<{ mal_id: number; slot: number; at_seconds: number }>('SELECT mal_id, slot, at_seconds FROM anime_screenshot ORDER BY slot'), (s) => Number(s.mal_id));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const queue = anime
     .map((a) => Number(a.mal_id))
@@ -364,20 +370,32 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
           counts.missing++;
         } else {
           try {
-            const frame = await pickFrame(video);
-            if (!frame) {
-              await save(id, 'shots', { status: 'missing', source: video, error: 'tidak ada frame yang layak' });
-              counts.missing++;
-            } else {
+            // --refresh starts over; otherwise stored frames stay and only the missing slots are fetched.
+            const kept = refreshAll ? [] : (stored.get(id) ?? []).map((s) => ({ slot: Number(s.slot), at: Number(s.at_seconds) }));
+            const used = new Set(kept.map((k) => k.at));
+            const fresh: Array<{ slot: number; key: string; at: number }> = [];
+            for (let slot = 0; slot < SCREENSHOTS_PER_TITLE; slot++) {
+              if (kept.some((k) => k.slot === slot)) continue;
+              const frame = await pickFrame(video, SHOT_TIMES.filter((t) => !used.has(t)));
+              if (!frame) break;
+              used.add(frame.at);
               const key = contentKey('shot', frame.out, 'webp');
               await putObject(key, frame.out, 'image/webp');
-              await db().batch(
-                [
-                  { sql: 'DELETE FROM anime_screenshot WHERE mal_id = ?', args: [id] },
-                  { sql: 'INSERT INTO anime_screenshot (mal_id, slot, r2_key, at_seconds) VALUES (?, 0, ?, ?)', args: [id, key, frame.at] },
-                ],
-                'write',
-              );
+              fresh.push({ slot, key, at: frame.at });
+            }
+            // Frames found are kept even when too few, so a later run only looks for the rest.
+            await db().batch(
+              [
+                ...(refreshAll ? [{ sql: 'DELETE FROM anime_screenshot WHERE mal_id = ?', args: [id] }] : []),
+                ...fresh.map((f) => ({ sql: 'INSERT OR REPLACE INTO anime_screenshot (mal_id, slot, r2_key, at_seconds) VALUES (?, ?, ?, ?)', args: [id, f.slot, f.key, f.at] })),
+              ],
+              'write',
+            );
+            const found = kept.length + fresh.length;
+            if (found < SCREENSHOTS_PER_TITLE) {
+              await save(id, 'shots', { status: 'missing', source: video, error: `hanya ${found} frame yang layak` });
+              counts.missing++;
+            } else {
               await save(id, 'shots', { status: 'ok', source: video });
               counts.ok++;
             }

@@ -1,25 +1,26 @@
 import { isCorrect } from '../shared/anidle.js';
-import type { Pool } from '../shared/catalog.js';
-import { characterAnswers, FIELD_POINTS, FIELD_TRIES, matchesCharacter, type CharacterField } from '../shared/characters.js';
+import { CANONICAL_SQL, type Pool } from '../shared/catalog.js';
+import { CHARACTER_FIELD_POINTS, displayName } from '../shared/characters.js';
 import { ROUND_COUNT } from '../shared/modes.js';
+import type { CharacterEntry } from '../shared/normalize.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
 import { mediaUrl } from './media.js';
 
 // Character mode: ROUND_COUNT rounds of CHARACTERS_PER_ROUND characters from different anime. For each
-// character the player types its name (nicknames count) and picks its anime, FIELD_TRIES tries each.
-// play.guesses holds StoredRound[]: per round, per character, the typed names and the anime ids tried.
-// Giving up fills the remaining tries with '' / 0.
+// character the player picks its name (a character id) and its anime (a mal_id), one pick each.
+// play.guesses holds StoredRound[]: per round, per character, the picked ids; 0 = given up.
 
 interface StoredSlot {
-  n: string[];
-  a: number[];
+  n: number | null;
+  a: number | null;
 }
 type StoredRound = StoredSlot[];
 
 export interface FieldState<T> {
-  tries: T[];
+  /** The pick, or null while open; a given-up field is finished with a null pick. */
+  pick: T | null;
   solved: boolean;
   finished: boolean;
   points: number;
@@ -27,7 +28,7 @@ export interface FieldState<T> {
 
 export interface CharacterSlotState {
   portrait: string;
-  name: FieldState<string>;
+  name: FieldState<{ charId: number; name: string }>;
   anime: FieldState<{ malId: number; title: string }>;
   /** Once both fields are over. */
   answer: { name: string; nicknames: string[]; anime: AnswerInfo } | null;
@@ -44,7 +45,6 @@ export interface CharacterState {
   mode: 'character';
   date: string | null;
   pool: Pool;
-  tries: number;
   rounds: CharacterRoundState[];
   /** First unfinished round, rounds.length once the puzzle is over. */
   current: number;
@@ -56,15 +56,15 @@ interface SlotRow {
   round: number;
   slot: number;
   mal_id: number;
+  char_id: number;
   name: string;
   nicknames: string;
-  name_kanji: string | null;
   r2_key: string;
 }
 
 async function loadSlots(puzzleId: string): Promise<SlotRow[][]> {
   const rows = await all<SlotRow>(
-    `SELECT p.round, p.slot, p.mal_id, c.name, c.nicknames, c.name_kanji, c.r2_key
+    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.r2_key
      FROM puzzle_character p JOIN anime_character c ON c.mal_id = p.mal_id AND c.char_id = p.char_id
      WHERE p.puzzle_id = ? ORDER BY p.round, p.slot`,
     [puzzleId],
@@ -74,12 +74,15 @@ async function loadSlots(puzzleId: string): Promise<SlotRow[][]> {
   return rounds;
 }
 
-/** The try index of the first hit, or -1. */
-const firstHit = <T>(tries: T[], hit: (t: T) => boolean) => tries.findIndex(hit);
+/** Names of picked characters (a character listed under several titles has the same name in each). */
+async function characterNames(ids: number[]): Promise<Map<number, string>> {
+  if (!ids.length) return new Map();
+  const rows = await all<{ char_id: number; name: string }>(`SELECT char_id, MIN(name) AS name FROM anime_character WHERE char_id IN (${ids.map(() => '?').join(',')}) GROUP BY char_id`, ids);
+  return new Map(rows.map((r) => [Number(r.char_id), r.name]));
+}
 
-function field<T>(tries: T[], solvedAt: number, kind: CharacterField): FieldState<T> {
-  const solved = solvedAt >= 0;
-  return { tries, solved, finished: solved || tries.length >= FIELD_TRIES, points: solved ? (FIELD_POINTS[kind][solvedAt] ?? 0) : 0 };
+function field<T>(pick: T | null, given: boolean, solved: boolean): FieldState<T> {
+  return { pick, solved, finished: given, points: solved ? CHARACTER_FIELD_POINTS : 0 };
 }
 
 interface Evaluated {
@@ -90,32 +93,25 @@ interface Evaluated {
 
 async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evaluated> {
   const slots = await loadSlots(puzzle.id);
-  const ids = [...slots.flat().map((s) => Number(s.mal_id)), ...stored.flat().flatMap((s) => s.a.filter((id) => id > 0))];
-  const anime = await loadAnidle(ids);
+  const picks = stored.flat();
+  const anime = await loadAnidle([...slots.flat().map((s) => Number(s.mal_id)), ...picks.flatMap((s) => (s.a ? [s.a] : []))]);
+  const names = await characterNames(picks.flatMap((s) => (s.n ? [s.n] : [])));
   let perfect = 0;
   const rounds = slots.map((roundSlots, r): CharacterRoundState => {
     const states = roundSlots.map((s, i): CharacterSlotState => {
       const answer = anime.get(Number(s.mal_id));
       if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
-      const nicknames = JSON.parse(s.nicknames) as string[];
-      const accepted = characterAnswers({ name: s.name, nicknames, nameKanji: s.name_kanji });
-      const tried = stored[r]?.[i] ?? { n: [], a: [] };
-      const name = field(tried.n, firstHit(tried.n, (t) => matchesCharacter(t, accepted)), 'name');
-      const animeField = field(
-        tried.a.map((id) => ({ malId: id, title: id > 0 ? (anime.get(id)?.title ?? `#${id}`) : '' })),
-        firstHit(tried.a, (id) => {
-          const guess = anime.get(id);
-          return guess !== undefined && isCorrect(answer, guess);
-        }),
-        'anime',
-      );
+      const tried = stored[r]?.[i] ?? { n: null, a: null };
+      const name = field(tried.n ? { charId: tried.n, name: displayName(names.get(tried.n) ?? `#${tried.n}`) } : null, tried.n != null, tried.n === Number(s.char_id));
+      const guessed = tried.a ? anime.get(tried.a) : undefined;
+      const animeField = field(tried.a ? { malId: tried.a, title: guessed?.title ?? `#${tried.a}` } : null, tried.a != null, guessed !== undefined && isCorrect(answer, guessed));
       if (name.solved && animeField.solved) perfect++;
       const done = name.finished && animeField.finished;
       return {
         portrait: mediaUrl(s.r2_key),
         name,
         anime: animeField,
-        answer: done ? { name: s.name, nicknames, anime: answerInfo(answer) } : null,
+        answer: done ? { name: displayName(s.name), nicknames: JSON.parse(s.nicknames) as string[], anime: answerInfo(answer) } : null,
       };
     });
     return { slots: states, finished: states.every((s) => s.answer), points: states.reduce((sum, s) => sum + s.name.points + s.anime.points, 0) };
@@ -128,7 +124,6 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       mode: 'character',
       date: puzzle.date,
       pool: puzzle.pool,
-      tries: FIELD_TRIES,
       rounds,
       current: finished ? rounds.length : current,
       finished,
@@ -147,38 +142,32 @@ export async function characterState(puzzle: PuzzleRow, playerKey: string): Prom
   return (await evaluate(puzzle, await storedOf(puzzle.id, playerKey))).state;
 }
 
-export type CharacterMove = { kind: 'name'; slot: number; text: string } | { kind: 'anime'; slot: number; malId: number } | { kind: 'giveUp' };
+export type CharacterMove = { kind: 'name'; slot: number; charId: number } | { kind: 'anime'; slot: number; malId: number } | { kind: 'giveUp' };
 
-/** One try in the current round: a typed name, a picked anime, or giving up on everything left in it. */
+/** One pick in the current round: a character, an anime, or giving up on every field left in it. */
 export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round: number, move: CharacterMove): Promise<CharacterState> {
   const stored = await storedOf(puzzle.id, playerKey);
   const before = (await evaluate(puzzle, stored)).state;
   if (before.finished) throw new HttpError(409, 'This puzzle is already finished.');
   if (round !== before.current) throw new HttpError(409, 'That round is already over or has not started.');
-  const roundState = before.rounds[round]!;
-  const slots: StoredRound = roundState.slots.map((_, i) => ({ n: [...(stored[round]?.[i]?.n ?? [])], a: [...(stored[round]?.[i]?.a ?? [])] }));
+  const slots: StoredRound = before.rounds[round]!.slots.map((_, i) => ({ n: stored[round]?.[i]?.n ?? null, a: stored[round]?.[i]?.a ?? null }));
 
   if (move.kind === 'giveUp') {
-    slots.forEach((s, i) => {
-      const st = roundState.slots[i]!;
-      if (!st.name.finished) while (s.n.length < FIELD_TRIES) s.n.push('');
-      if (!st.anime.finished) while (s.a.length < FIELD_TRIES) s.a.push(0);
-    });
+    for (const s of slots) {
+      s.n ??= 0;
+      s.a ??= 0;
+    }
   } else {
     const slot = slots[move.slot];
-    const st = roundState.slots[move.slot];
-    if (!slot || !st) throw new HttpError(400, 'Unknown character.');
+    if (!slot) throw new HttpError(400, 'Unknown character.');
     if (move.kind === 'name') {
-      const text = move.text.trim().slice(0, 80);
-      if (!text) throw new HttpError(400, 'Type a name first.');
-      if (st.name.finished) throw new HttpError(409, "That character's name is already settled.");
-      if (slot.n.some((t) => t.toLowerCase() === text.toLowerCase())) throw new HttpError(409, 'You already tried that name.');
-      slot.n.push(text);
+      if (slot.n != null) throw new HttpError(409, "That character's name is already settled.");
+      if (!(await characterNames([move.charId])).size) throw new HttpError(400, 'Unknown character.');
+      slot.n = move.charId;
     } else {
-      if (st.anime.finished) throw new HttpError(409, "That character's anime is already settled.");
-      if (slot.a.includes(move.malId)) throw new HttpError(409, 'You already tried that anime for this character.');
+      if (slot.a != null) throw new HttpError(409, "That character's anime is already settled.");
       await assertPlayable(move.malId);
-      slot.a.push(move.malId);
+      slot.a = move.malId;
     }
   }
 
@@ -187,4 +176,20 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
   const after = await evaluate(puzzle, next);
   await writePlay(puzzle.id, playerKey, { guesses: next, solved: after.perfect, score: after.state.score, finished: after.state.finished });
   return after.state;
+}
+
+/**
+ * Name autocomplete: every character of every show (not only the ones asked), so the list does not
+ * hint at the answers. A character listed under several titles appears once.
+ */
+export async function characterEntries(): Promise<CharacterEntry[]> {
+  const rows = await all<{ char_id: number; name: string; name_kanji: string | null; nicknames: string }>(
+    `SELECT c.char_id, MIN(c.name) AS name, MAX(c.name_kanji) AS name_kanji, MAX(c.nicknames) AS nicknames
+     FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
+     WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY c.char_id ORDER BY MAX(a.members) DESC`,
+  );
+  return rows.map((r) => ({
+    id: Number(r.char_id),
+    names: [...new Set([displayName(r.name), r.name_kanji, ...(JSON.parse(r.nicknames) as string[])].filter((n): n is string => Boolean(n)))],
+  }));
 }

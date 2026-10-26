@@ -42,7 +42,7 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
   if (p.mode === 'character') {
     const right = p.rounds.flatMap((r) => r.slots).filter((s) => s.name.solved && s.anime.solved).length;
     if (p.finished) return { cta: 'See result', text: `${right} characters · ${p.score ?? 0} pts`, won: right > 0 };
-    const started = p.current > 0 || p.rounds[0]!.slots.some((s) => s.name.tries.length || s.anime.tries.length);
+    const started = p.current > 0 || p.rounds[0]!.slots.some((s) => s.name.finished || s.anime.finished);
     return started ? { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` } : { cta: 'Play', text: 'Not played yet' };
   }
   const solved = p.rounds.filter((r) => r.solved).length;

@@ -1,93 +1,37 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { FIELD_POINTS } from '../shared/characters';
+import { CHARACTER_FIELD_POINTS } from '../shared/characters';
+import { MAX_ROUND_POINTS } from '../shared/modes';
 import { api, errorMessage, type CharacterState } from './api';
 import { fmtDate } from './format';
-import { GuessInput } from './GuessInput';
+import { CharacterInput, GuessInput } from './GuessInput';
 import { characterShareText, ShareButton } from './share';
 
 type Slot = CharacterState['rounds'][number]['slots'][number];
+type Field = Slot['name'] | Slot['anime'];
 
-/** MAL lists names family-first ("Elric, Edward"); show them the way people say them. */
-const displayName = (name: string) => name.split(', ').reverse().join(' ');
-
-function TriesLeft({ used, total, solved }: { used: number; total: number; solved: boolean }) {
+/** One pick per field: the picker while open, then ✓/✗ with what was picked. */
+function PickField({ label, field, shown, children }: { label: string; field: Field; shown: string | undefined; children: ReactNode }) {
   return (
-    <span className="tries" aria-label={`${total - used} tries left`}>
-      {Array.from({ length: total }, (_, i) => (
-        <span key={i} className={`try${i < used ? (solved && i === used - 1 ? ' hit' : ' used') : ''}`} />
-      ))}
-    </span>
-  );
-}
-
-function NameField({ slot, tries, disabled, onGuess }: { slot: Slot; tries: number; disabled: boolean; onGuess: (text: string) => Promise<void> }) {
-  const [text, setText] = useState('');
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!text.trim()) return;
-    try {
-      await onGuess(text);
-      setText('');
-    } catch {
-      // The game shows the error; keep the text so it can be fixed.
-    }
-  };
-  const { name } = slot;
-  const misses = name.tries.filter((t, i) => t && !(name.solved && i === name.tries.length - 1));
-  return (
-    <div className={`char-field${name.solved ? ' ok' : name.finished ? ' bad' : ''}`}>
+    <div className={`char-field${field.solved ? ' ok' : field.finished ? ' bad' : ''}`}>
       <div className="char-field-head">
-        <span className="field-label">Name</span>
-        <TriesLeft used={name.tries.length} total={tries} solved={name.solved} />
+        <span className="field-label">{label}</span>
       </div>
-      {name.finished ? (
-        <div className="char-result">{name.solved ? `✓ ${name.tries.at(-1)}` : '✗ Not guessed'}</div>
-      ) : (
-        <form className="char-name-form" onSubmit={submit}>
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Name or nickname" disabled={disabled} maxLength={80} />
-          <button className="small" disabled={disabled || !text.trim()}>
-            Guess
-          </button>
-        </form>
-      )}
-      {misses.length > 0 && (
-        <div className="char-misses">
-          {misses.map((t) => (
-            <span key={t} className="chip miss">
-              {t}
-            </span>
-          ))}
-        </div>
-      )}
+      {field.finished ? <div className="char-result">{field.solved ? `✓ ${shown}` : shown ? `✗ ${shown}` : '✗ Not guessed'}</div> : children}
     </div>
   );
 }
 
-function AnimeField({ slot, tries, disabled, onGuess }: { slot: Slot; tries: number; disabled: boolean; onGuess: (malId: number) => void }) {
-  const { anime } = slot;
-  const exclude = useMemo(() => new Set(anime.tries.map((t) => t.malId)), [anime.tries]);
-  const misses = anime.tries.filter((t, i) => t.malId > 0 && !(anime.solved && i === anime.tries.length - 1));
+/** A portrait shown large over the page; a click anywhere or Escape closes it. */
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
-    <div className={`char-field${anime.solved ? ' ok' : anime.finished ? ' bad' : ''}`}>
-      <div className="char-field-head">
-        <span className="field-label">Anime</span>
-        <TriesLeft used={anime.tries.length} total={tries} solved={anime.solved} />
-      </div>
-      {anime.finished ? (
-        <div className="char-result">{anime.solved ? `✓ ${anime.tries.at(-1)?.title}` : '✗ Not guessed'}</div>
-      ) : (
-        <GuessInput compact exclude={exclude} disabled={disabled} onPick={onGuess} />
-      )}
-      {misses.length > 0 && (
-        <div className="char-misses">
-          {misses.map((t) => (
-            <span key={t.malId} className="chip miss">
-              {t.title}
-            </span>
-          ))}
-        </div>
-      )}
+    <div className="lightbox" role="dialog" aria-modal="true" onClick={onClose}>
+      <img src={src} alt="" />
     </div>
   );
 }
@@ -96,6 +40,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
   const [view, setView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoomed, setZoomed] = useState<string | null>(null);
   const round = puzzle.rounds[view]!;
   const isCurrent = view === puzzle.current;
 
@@ -104,7 +49,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
     for (const r of puzzle.rounds) for (const s of r.slots) new Image().src = s.portrait;
   }, [puzzle.id]);
 
-  /** Errors show in the banner and still reject, so the name field keeps what was typed. */
+  /** Errors show in the banner; the promise still rejects for callers that care (pickers use `quiet`). */
   const send = async (task: () => Promise<CharacterState>) => {
     setSending(true);
     setError(null);
@@ -119,6 +64,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
   };
   const quiet = (p: Promise<void>) => void p.catch(() => {});
   const perfect = puzzle.rounds.flatMap((r) => r.slots).filter((s) => s.name.solved && s.anime.solved).length;
+  const fmtPoints = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
   return (
     <div className="character-game">
@@ -127,8 +73,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>Character</h1>
           <p className="muted small">
-            Four characters from four different anime. Name each one (nicknames count) and pick their anime, {puzzle.tries} tries each. Name{' '}
-            {FIELD_POINTS.name.join('/')} pts, anime {FIELD_POINTS.anime.join('/')} pts.
+            Four characters from four different anime. Pick each one's name and their anime — one pick per field, {CHARACTER_FIELD_POINTS} pts each.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -142,34 +87,41 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
               onClick={() => setView(i)}
             >
               <span>Round {i + 1}</span>
-              <b>{r.finished ? r.points : i === puzzle.current ? '…' : '—'}</b>
+              <b>{r.finished ? fmtPoints(r.points) : i === puzzle.current ? '…' : '—'}</b>
             </button>
           ))}
         </div>
       </header>
 
       {error && <div className="error-box">{error}</div>}
+      {zoomed && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}
 
       <div className="char-grid">
         {round.slots.map((slot, i) => (
           <article key={i} className={`card char-card${slot.answer ? ' done' : ''}`}>
-            <img className="char-portrait" src={slot.portrait} alt="" />
+            <button className="char-portrait-button" onClick={() => setZoomed(slot.portrait)} aria-label="Enlarge portrait" title="Click to enlarge">
+              <img className="char-portrait" src={slot.portrait} alt="" />
+            </button>
             <div className="char-fields">
               {slot.answer && (
                 <div className="char-answer">
-                  <b>{displayName(slot.answer.name)}</b>
+                  <b>{slot.answer.name}</b>
                   <a href={`https://myanimelist.net/anime/${slot.answer.anime.malId}`} target="_blank" rel="noreferrer">
                     {slot.answer.anime.title}
                   </a>
                   <span className="muted small">
-                    {slot.name.points + slot.anime.points} pts · name {slot.name.solved ? '✓' : '✗'} · anime {slot.anime.solved ? '✓' : '✗'}
+                    {fmtPoints(slot.name.points + slot.anime.points)} pts · name {slot.name.solved ? '✓' : '✗'} · anime {slot.anime.solved ? '✓' : '✗'}
                   </span>
                 </div>
               )}
               {!slot.answer && isCurrent && (
                 <>
-                  <NameField slot={slot} tries={puzzle.tries} disabled={sending} onGuess={(text) => send(() => api.characterName(puzzle.id, view, i, text))} />
-                  <AnimeField slot={slot} tries={puzzle.tries} disabled={sending} onGuess={(malId) => quiet(send(() => api.characterAnime(puzzle.id, view, i, malId)))} />
+                  <PickField label="Name" field={slot.name} shown={slot.name.pick?.name}>
+                    <CharacterInput disabled={sending} onPick={(charId) => quiet(send(() => api.characterName(puzzle.id, view, i, charId)))} />
+                  </PickField>
+                  <PickField label="Anime" field={slot.anime} shown={slot.anime.pick?.title}>
+                    <GuessInput compact disabled={sending} onPick={(malId) => quiet(send(() => api.characterAnime(puzzle.id, view, i, malId)))} />
+                  </PickField>
                 </>
               )}
             </div>
@@ -179,7 +131,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
 
       <div className="char-bar">
         <span className="muted">
-          Round {view + 1}: {round.points} / 500 pts
+          Round {view + 1}: {fmtPoints(round.points)} / {MAX_ROUND_POINTS} pts
         </span>
         <div className="actions">
           {isCurrent && !round.finished && (
@@ -203,9 +155,9 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
         <section className="card final">
           <div>
             <span className="eyebrow">Finished</span>
-            <h2>{puzzle.score ?? 0} pts</h2>
+            <h2>{fmtPoints(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {puzzle.rounds.length * 500} pts
+              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {puzzle.rounds.length * MAX_ROUND_POINTS} pts
             </p>
           </div>
           <div className="actions">

@@ -5,6 +5,7 @@ import * as animeFacets from '../routes/anime/facets.js';
 import * as anime from '../routes/anime/index.js';
 import * as authLogin from '../routes/auth/login.js';
 import * as authRegister from '../routes/auth/register.js';
+import * as characters from '../routes/characters.js';
 import * as guess from '../routes/guess.js';
 import * as health from '../routes/health.js';
 import * as history from '../routes/history.js';
@@ -31,6 +32,7 @@ const ROUTES: Record<string, RouteModule> = {
   'anime/facets': animeFacets,
   'auth/login': authLogin,
   'auth/register': authRegister,
+  characters,
   guess,
   health,
   history,
