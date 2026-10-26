@@ -1,3 +1,5 @@
+import { MODE_MAX_POINTS } from './modes.js';
+
 // Anidle: every guess is compared field by field with the answer.
 
 export interface AnidleAnime {
@@ -78,9 +80,10 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
   };
 }
 
-/** MODE_MAX_POINTS (2000) for a first-try solve, −200 per extra guess (200 on the 10th), 0 when not solved. */
+/** MODE_MAX_POINTS (20,000) for a first-try solve, a tenth of it less per extra guess (2,000 on the 10th), 0 when not solved. */
 export function anidleScore(solved: boolean, guessCount: number): number {
-  return solved ? Math.max(200, 2000 - 200 * (guessCount - 1)) : 0;
+  const step = MODE_MAX_POINTS / 10;
+  return solved ? Math.max(step, MODE_MAX_POINTS - step * (guessCount - 1)) : 0;
 }
 
 /** Clues Anidle unlocks as wrong guesses pile up: after 4 a blurred screenshot, after 7 the synopsis, after 9 two characters (one guess left). */

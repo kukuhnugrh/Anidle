@@ -3,7 +3,7 @@ import { ANIDLE_CLUES, summarizeAnidle, type AnidleClueKind, type AnidleFeedback
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type AnidleState } from './api';
 import { GuessInput } from './GuessInput';
-import { fmtDate, pretty } from './format';
+import { fmtDate, fmtNumber, pretty } from './format';
 import { anidleShareText, ShareButton } from './share';
 
 const ARROW: Record<Direction, string> = { equal: '', higher: '↑', lower: '↓', unknown: '' };
@@ -259,7 +259,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
               <span className={`difficulty ${puzzle.answer.difficulty}`}>{puzzle.answer.difficulty}</span>
               {puzzle.answer.members != null && <span>{puzzle.answer.members.toLocaleString('en-US')} members</span>}
             </div>
-            <div className="score">{puzzle.score ?? 0} pts</div>
+            <div className="score">{fmtNumber(puzzle.score ?? 0)} pts</div>
             <div className="actions">
               <ShareButton text={anidleShareText(puzzle)} />
               <a className="button" href={`https://myanimelist.net/anime/${puzzle.answer.malId}`} target="_blank" rel="noreferrer">

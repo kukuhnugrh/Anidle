@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { AnidleFeedback, Direction, ListClue } from '../shared/anidle';
 import { MODE_LABELS } from '../shared/modes';
 import type { AnidleState, CharacterState, RoundState, SongState } from './api';
-import { fmtDate } from './format';
+import { fmtDate, fmtNumber } from './format';
 import { ShareIcon } from './icons';
 
 // Spoiler-free result text, Wordle style: colors only, no titles.
@@ -19,7 +19,7 @@ function anidleRow(g: AnidleFeedback): string {
 }
 
 const heading = (mode: AnidleState['mode'] | RoundState['mode'] | SongState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>
-  `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${score ?? 0} pts`;
+  `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${fmtNumber(score ?? 0)} pts`;
 
 export function anidleShareText(p: AnidleState): string {
   const result = p.solved ? `${p.guesses.length}/${p.maxGuesses}` : `X/${p.maxGuesses}`;

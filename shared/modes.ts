@@ -49,12 +49,12 @@ export const SCREENSHOTS_PER_TITLE = 3;
  */
 export const SCREENSHOT_CLUES = ['shot', 'shot', 'title'] as const;
 
-/** Every mode's puzzle is worth MODE_MAX_POINTS, so a day's five daily puzzles make DAILY_MAX_POINTS (10,000). */
-export const MODE_MAX_POINTS = 2000;
+/** Every mode's puzzle is worth MODE_MAX_POINTS, so a day's five daily puzzles make DAILY_MAX_POINTS (100,000). */
+export const MODE_MAX_POINTS = 20_000;
 export const DAILY_MAX_POINTS = MODE_MAX_POINTS * MODES.length;
 
-/** Round modes: round 1 (easy) 600, rounds 2–3 (medium) 700 each, together MODE_MAX_POINTS. */
-export const ROUND_MAX_POINTS: readonly number[] = [600, 700, 700];
+/** Round modes: round 1 (easy) 30 % of the mode, rounds 2–3 (medium) 35 % each: 6,000 / 7,000 / 7,000. */
+export const ROUND_MAX_POINTS: readonly number[] = [(MODE_MAX_POINTS * 3) / 10, (MODE_MAX_POINTS * 7) / 20, (MODE_MAX_POINTS * 7) / 20];
 
 /** Song modes: one guess; right = the round's points, half of them after opening the clue (the blurred music video); a miss scores 0. */
 export const SONG_CLUE_SHARE = 0.5;

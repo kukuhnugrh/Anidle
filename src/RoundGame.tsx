@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS, MODE_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
+import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
-import { fmtDate } from './format';
+import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
 import { LockIcon, UnlockIcon } from './icons';
 import { RoundTitle } from './RoundTitle';
@@ -100,8 +100,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">
-            Guess the anime from a screenshot of its opening. One guess per round (600 / 700 / 700 pts); every clue you unlock (two more screenshots, then the title's
-            initials) takes a quarter off.
+            Guess the anime from a screenshot of its opening. One guess per round ({ROUND_MAX_POINTS.map(fmtNumber).join(' / ')} pts); every clue you unlock (two more
+            screenshots, then the title's initials) takes a quarter off.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -115,7 +115,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               onClick={() => setRoundView(i)}
             >
               <span>Round {i + 1}</span>
-              <b>{r.finished ? `${r.points}` : i === puzzle.current ? '…' : '—'}</b>
+              <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
             </button>
           ))}
         </div>
@@ -162,7 +162,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
                     key={i}
                     className="clue-tab locked"
                     disabled={!next || sending}
-                    title={next ? `−${perClue} pts` : 'Unlock the previous clue first'}
+                    title={next ? `−${fmtNumber(perClue)} pts` : 'Unlock the previous clue first'}
                     onClick={() => send(() => api.roundClue<RoundState>(puzzle.id, roundView))}
                   >
                     <LockIcon />
@@ -176,7 +176,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             <div className="stage-controls">
               <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />
               <div className="stage-actions">
-                <span className="muted small">One guess · right now = {worth} pts</span>
+                <span className="muted small">One guess · right now = {fmtNumber(worth)} pts</span>
                 <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<RoundState>(puzzle.id, roundView))}>
                   Give up
                 </button>
@@ -206,7 +206,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               {round.answer.year ?? ''}
               <span className={`difficulty ${round.answer.difficulty}`}>{round.answer.difficulty}</span>
             </div>
-            <div className="score">{round.points} pts</div>
+            <div className="score">{fmtNumber(round.points)} pts</div>
             <div className="actions">
               <a className="button" href={`https://myanimelist.net/anime/${round.answer.malId}`} target="_blank" rel="noreferrer">
                 Open on MAL ↗
@@ -225,9 +225,9 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <section className="card final">
           <div>
             <span className="eyebrow">Finished</span>
-            <h2>{puzzle.score ?? 0} pts</h2>
+            <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {MODE_MAX_POINTS} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {fmtNumber(MODE_MAX_POINTS)} pts
             </p>
           </div>
           <div className="actions">

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS, MODE_MAX_POINTS, SONG_CLUE_SHARE } from '../shared/modes';
+import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SONG_CLUE_SHARE } from '../shared/modes';
 import { api, errorMessage, type SongState } from './api';
-import { fmtDate } from './format';
+import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
 import { PauseIcon, PlayIcon } from './icons';
 import { RoundTitle } from './RoundTitle';
@@ -263,8 +263,8 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">
-            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: 600 / 700 / 700 pts per round if right, half that if you opened the
-            clue (its blurred music video), 0 if wrong.
+            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {ROUND_MAX_POINTS.map(fmtNumber).join(' / ')} pts per round if right,
+            half that if you opened the clue (its blurred music video), 0 if wrong.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -278,7 +278,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
               onClick={() => setView(i)}
             >
               <span>Round {i + 1}</span>
-              <b>{r.finished ? `${r.points}` : i === puzzle.current ? '…' : '—'}</b>
+              <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
             </button>
           ))}
         </div>
@@ -310,11 +310,11 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             <div className="stage-controls">
               <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId))} />
               <div className="stage-actions">
-                <span className="muted small">One guess · right now = {round.clue.opened ? round.max * SONG_CLUE_SHARE : round.max} pts</span>
+                <span className="muted small">One guess · right now = {fmtNumber(round.clue.opened ? round.max * SONG_CLUE_SHARE : round.max)} pts</span>
                 <div className="actions">
                   {!round.clue.opened && (
                     <button disabled={sending} onClick={() => send(() => api.roundClue<SongState>(puzzle.id, view))} title="Shows the blurred music video; its sound takes over from the song">
-                      Show clue (−{round.max * (1 - SONG_CLUE_SHARE)} pts)
+                      Show clue (−{fmtNumber(round.max * (1 - SONG_CLUE_SHARE))} pts)
                     </button>
                   )}
                   <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<SongState>(puzzle.id, view))}>
@@ -344,7 +344,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
               {round.answer.year ?? ''}
               <span className={`difficulty ${round.answer.difficulty}`}>{round.answer.difficulty}</span>
             </div>
-            <div className="score">{round.points} pts</div>
+            <div className="score">{fmtNumber(round.points)} pts</div>
             <div className="actions">
               <a className="button" href={`https://myanimelist.net/anime/${round.answer.malId}`} target="_blank" rel="noreferrer">
                 Open on MAL ↗
@@ -363,9 +363,9 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
         <section className="card final">
           <div>
             <span className="eyebrow">Finished</span>
-            <h2>{puzzle.score ?? 0} pts</h2>
+            <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} right · max {MODE_MAX_POINTS} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} right · max {fmtNumber(MODE_MAX_POINTS)} pts
             </p>
           </div>
           <div className="actions">

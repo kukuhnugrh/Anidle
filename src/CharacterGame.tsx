@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_MAX_POINTS } from '../shared/modes';
 import { api, errorMessage, type CharacterPick, type CharacterState } from './api';
-import { fmtDate } from './format';
+import { fmtDate, fmtNumber } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
 import { RoundTitle } from './RoundTitle';
 import { characterShareText, ShareButton } from './share';
@@ -70,7 +70,6 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
   };
   const quiet = (p: Promise<void>) => void p.catch(() => {});
   const perfect = puzzle.rounds.flatMap((r) => r.slots).filter((s) => s.name.solved && s.anime.solved).length;
-  const fmtPoints = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
   return (
     <div className="character-game">
@@ -80,7 +79,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           <h1>Character</h1>
           <p className="muted small">
             Four characters from four different anime. Pick each one's name and their anime, then press Guess (fields you leave empty stay open) — one pick per field, each right
-            one worth {fmtPoints(round.fieldPoints)} pts this round.
+            one worth {fmtNumber(round.fieldPoints)} pts this round.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -94,7 +93,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
               onClick={() => setView(i)}
             >
               <span>Round {i + 1}</span>
-              <b>{r.finished ? fmtPoints(r.points) : i === puzzle.current ? '…' : '—'}</b>
+              <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
             </button>
           ))}
         </div>
@@ -119,7 +118,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
                     {slot.answer.anime.title}
                   </a>
                   <span className="muted small">
-                    {fmtPoints(slot.name.points + slot.anime.points)} pts · name {slot.name.solved ? '✓' : '✗'} · anime {slot.anime.solved ? '✓' : '✗'}
+                    {fmtNumber(slot.name.points + slot.anime.points)} pts · name {slot.name.solved ? '✓' : '✗'} · anime {slot.anime.solved ? '✓' : '✗'}
                   </span>
                 </div>
               )}
@@ -140,7 +139,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
 
       <div className="char-bar">
         <span className="muted">
-          Round {view + 1}: {fmtPoints(round.points)} / {round.max} pts
+          Round {view + 1}: {fmtNumber(round.points)} / {fmtNumber(round.max)} pts
         </span>
         <div className="actions">
           {isCurrent && !round.finished && (
@@ -169,9 +168,9 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
         <section className="card final">
           <div>
             <span className="eyebrow">Finished</span>
-            <h2>{fmtPoints(puzzle.score ?? 0)} pts</h2>
+            <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {MODE_MAX_POINTS} pts
+              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {fmtNumber(MODE_MAX_POINTS)} pts
             </p>
           </div>
           <div className="actions">

@@ -36,18 +36,18 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
   if (p === 'unavailable') return { cta: 'Open', text: 'Not available yet' };
   if (!p) return { cta: 'Play', text: '' };
   if (p.mode === 'anidle') {
-    if (p.finished) return p.solved ? { cta: 'See result', text: `Solved in ${p.guesses.length} · ${p.score ?? 0} pts`, won: true } : { cta: 'See answer', text: 'Not solved' };
+    if (p.finished) return p.solved ? { cta: 'See result', text: `Solved in ${p.guesses.length} · ${fmtNumber(p.score ?? 0)} pts`, won: true } : { cta: 'See answer', text: 'Not solved' };
     if (p.guesses.length) return { cta: 'Continue', text: `${p.maxGuesses - p.guesses.length} guesses left` };
     return { cta: 'Play', text: 'Not played yet' };
   }
   if (p.mode === 'character') {
     const right = p.rounds.flatMap((r) => r.slots).filter((s) => s.name.solved && s.anime.solved).length;
-    if (p.finished) return { cta: 'See result', text: `${right} characters · ${p.score ?? 0} pts`, won: right > 0 };
+    if (p.finished) return { cta: 'See result', text: `${right} characters · ${fmtNumber(p.score ?? 0)} pts`, won: right > 0 };
     const started = p.current > 0 || p.rounds[0]!.slots.some((s) => s.name.finished || s.anime.finished);
     return started ? { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` } : { cta: 'Play', text: 'Not played yet' };
   }
   const solved = p.rounds.filter((r) => r.solved).length;
-  if (p.finished) return { cta: 'See result', text: `${solved}/${p.rounds.length} rounds · ${p.score ?? 0} pts`, won: solved > 0 };
+  if (p.finished) return { cta: 'See result', text: `${solved}/${p.rounds.length} rounds · ${fmtNumber(p.score ?? 0)} pts`, won: solved > 0 };
   const first = p.rounds[0]!;
   const started = p.current > 0 || ('clues' in first ? first.clues > 0 : first.clue.opened);
   if (started) return { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` };

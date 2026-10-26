@@ -57,10 +57,10 @@ describe('compareAnidle', () => {
 });
 
 describe('anidleScore', () => {
-  it('drops 200 per extra guess from 2000 to 200 on the 10th, and is 0 when unsolved', () => {
-    expect(anidleScore(true, 1)).toBe(2000);
-    expect(anidleScore(true, 4)).toBe(1400);
-    expect(anidleScore(true, 10)).toBe(200);
+  it('drops 2,000 per extra guess from 20,000 to 2,000 on the 10th, and is 0 when unsolved', () => {
+    expect(anidleScore(true, 1)).toBe(20_000);
+    expect(anidleScore(true, 4)).toBe(14_000);
+    expect(anidleScore(true, 10)).toBe(2_000);
     expect(anidleScore(false, 10)).toBe(0);
   });
 });
