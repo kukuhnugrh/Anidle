@@ -273,7 +273,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .legend { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 .guess-input { position: relative; }
-.guess-input input { width: 100%; font-size: 17px; padding: 15px 18px; border-radius: var(--radius); background: var(--surface); }
+.guess-row { display: flex; gap: 8px; }
+.guess-input input { flex: 1; min-width: 0; font-size: 17px; padding: 15px 18px; border-radius: var(--radius); background: var(--surface); }
+.guess-button { flex: none; padding: 0 22px; font-weight: 750; }
+.guess-input.compact .guess-button { padding: 0 12px; font-size: 13px; }
 .suggestions {
   position: absolute; left: 0; right: 0; top: calc(100% + 6px); list-style: none; margin: 0; padding: 6px; z-index: 10;
   background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 20px 50px -10px rgb(0 0 0 / .7);

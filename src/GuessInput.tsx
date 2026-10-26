@@ -37,6 +37,8 @@ function Autocomplete<T extends SearchEntry>({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
+  // A suggestion chosen from the list: it fills the field and waits for the Guess button (or Enter).
+  const [selected, setSelected] = useState<T | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -44,44 +46,60 @@ function Autocomplete<T extends SearchEntry>({
   }, [load]);
 
   const index = useMemo(() => (entries ? indexNames(entries) : []), [entries]);
-  const results = useMemo(() => searchNames(index, query, 8, exclude), [index, query, exclude]);
+  const results = useMemo(() => (selected ? [] : searchNames(index, query, 8, exclude)), [index, query, exclude, selected]);
 
-  const pick = (entry: T | undefined) => {
+  const choose = (entry: T | undefined) => {
     if (!entry) return;
-    setQuery('');
+    setSelected(entry);
+    setQuery(entry.names[0]!);
     setActive(0);
-    onPick(entry.id);
     input.current?.focus();
+  };
+  const submit = () => {
+    if (!selected) return;
+    onPick(selected.id);
+    setSelected(null);
+    setQuery('');
   };
 
   if (loadError) return <div className="error-box">Could not load the list: {loadError}</div>;
 
   return (
     <div className={`guess-input${compact ? ' compact' : ''}`}>
-      <input
-        ref={input}
-        autoFocus={!compact}
-        value={query}
-        disabled={disabled || !entries}
-        placeholder={entries ? placeholder(entries.length) : 'Loading…'}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setActive(0);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowDown') setActive((i) => Math.min(i + 1, results.length - 1));
-          else if (e.key === 'ArrowUp') setActive((i) => Math.max(i - 1, 0));
-          else if (e.key === 'Enter') pick(results[active]);
-          else if (e.key === 'Escape') setQuery('');
-          else return;
-          e.preventDefault();
-        }}
-      />
-      {query && (
+      <div className="guess-row">
+        <input
+          ref={input}
+          autoFocus={!compact}
+          value={query}
+          disabled={disabled || !entries}
+          placeholder={entries ? placeholder(entries.length) : 'Loading…'}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSelected(null);
+            setActive(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') setActive((i) => Math.min(i + 1, results.length - 1));
+            else if (e.key === 'ArrowUp') setActive((i) => Math.max(i - 1, 0));
+            else if (e.key === 'Enter') {
+              if (selected) submit();
+              else choose(results[active]);
+            } else if (e.key === 'Escape') {
+              setQuery('');
+              setSelected(null);
+            } else return;
+            e.preventDefault();
+          }}
+        />
+        <button className="primary guess-button" disabled={disabled || !selected} onClick={submit}>
+          Guess
+        </button>
+      </div>
+      {query && !selected && (
         <ul className="suggestions">
           {results.map((entry, i) => (
             <li key={entry.id}>
-              <button className={i === active ? 'active' : ''} onMouseEnter={() => setActive(i)} onClick={() => pick(entry)}>
+              <button className={i === active ? 'active' : ''} onMouseEnter={() => setActive(i)} onClick={() => choose(entry)}>
                 <span>{entry.names[0]}</span>
                 <span className="muted small">{detail(entry)}</span>
               </button>
