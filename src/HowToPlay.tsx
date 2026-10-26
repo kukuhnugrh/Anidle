@@ -37,13 +37,16 @@ const HOW_TO: Record<Mode, { rules: ReactNode[]; scoring: ReactNode }> = {
       </>,
       <>"What you know so far" sums up everything your guesses have ruled in or out.</>,
       <>
-        Missing helps: after {clueAfter('cover')} guesses its blurred poster unlocks, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
+        Clues open as your tries add up: after {clueAfter('cover')} tries its blurred poster, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
         {clueAfter('characters')} two of its characters.
+      </>,
+      <>
+        Stuck? <b>Skip</b> jumps straight to the next clue, using up the tries in between.
       </>,
     ],
     scoring: (
       <>
-        {fmtNumber(MODE_MAX_POINTS)} pts on the first try, {fmtNumber(MODE_MAX_POINTS / 10)} less for every extra guess, 0 if you run out.
+        {fmtNumber(MODE_MAX_POINTS)} pts on the first try, {fmtNumber(MODE_MAX_POINTS / ANIDLE_MAX_GUESSES)} less for every extra try (skipped ones count), 0 if you run out.
       </>
     ),
   },

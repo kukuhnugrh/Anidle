@@ -491,7 +491,8 @@ export interface AnidleState {
   date: string | null;
   pool: Pool;
   maxGuesses: number;
-  guesses: AnidleFeedback[];
+  /** Every try in order; null = a try used by Skip. */
+  guesses: Array<AnidleFeedback | null>;
   solved: boolean;
   finished: boolean;
   score: number | null;
@@ -520,13 +521,17 @@ async function anidleClues(malId: number, kinds: ReadonlySet<AnidleClueKind>, co
   return clues;
 }
 
+/** play.guesses of an Anidle play: the guessed mal_id per try, SKIPPED for a try used by Skip. */
+const SKIPPED = 0;
+
 export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise<AnidleState> {
   const play = await readPlay(puzzle.id, playerKey);
   const guessIds = play ? (JSON.parse(play.guesses) as number[]) : [];
-  const anime = await loadAnidle([Number(puzzle.answer_id), ...guessIds]);
+  const anime = await loadAnidle([Number(puzzle.answer_id), ...guessIds.filter((id) => id !== SKIPPED)]);
   const answer = anime.get(Number(puzzle.answer_id));
   if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
   const guesses = guessIds.flatMap((id) => {
+    if (id === SKIPPED) return [null];
     const guess = anime.get(id);
     return guess ? [compareAnidle(answer, guess)] : [];
   });
@@ -551,13 +556,24 @@ export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise
 export async function anidleGuess(puzzle: PuzzleRow, playerKey: string, malId: number): Promise<AnidleState> {
   const before = await anidleState(puzzle, playerKey);
   if (before.finished) throw new HttpError(409, 'This puzzle is already finished.');
-  if (before.guesses.some((g) => g.malId === malId)) throw new HttpError(409, 'You already guessed that title.');
+  if (before.guesses.some((g) => g?.malId === malId)) throw new HttpError(409, 'You already guessed that title.');
   await assertPlayable(malId);
 
   const anime = await loadAnidle([Number(puzzle.answer_id), malId]);
   const feedback = compareAnidle(anime.get(Number(puzzle.answer_id))!, anime.get(malId)!);
-  const guesses = [...before.guesses.map((g) => g.malId), malId];
+  const guesses = [...before.guesses.map((g) => g?.malId ?? SKIPPED), malId];
   const finished = feedback.correct || guesses.length >= ANIDLE_MAX_GUESSES;
   await writePlay(puzzle.id, playerKey, { guesses, solved: feedback.correct ? 1 : 0, score: finished ? anidleScore(feedback.correct, guesses.length) : null, finished });
+  return anidleState(puzzle, playerKey);
+}
+
+/** Skip: uses up every try until the next clue (without guessing a title), so that clue opens right away. */
+export async function anidleSkip(puzzle: PuzzleRow, playerKey: string): Promise<AnidleState> {
+  const before = await anidleState(puzzle, playerKey);
+  if (before.finished) throw new HttpError(409, 'This puzzle is already finished.');
+  const next = ANIDLE_CLUES.find((c) => c.after > before.guesses.length);
+  if (!next) throw new HttpError(409, 'Every clue is already open.');
+  const guesses = [...before.guesses.map((g) => g?.malId ?? SKIPPED), ...Array.from({ length: next.after - before.guesses.length }, () => SKIPPED)];
+  await writePlay(puzzle.id, playerKey, { guesses, solved: 0, score: null, finished: false });
   return anidleState(puzzle, playerKey);
 }

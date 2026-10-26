@@ -1,27 +1,28 @@
 import { CHARACTERS_PER_ROUND, isRoundMode, isSongMode } from '../shared/modes.js';
 import { viewer } from '../server/accounts.js';
 import { characterGuess, type CharacterPick } from '../server/characters.js';
-import { anidleGuess, getPuzzle } from '../server/game.js';
+import { anidleGuess, anidleSkip, getPuzzle } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
 import { roundMove } from '../server/rounds.js';
 import { songMove, type SongMove } from '../server/songs.js';
 
 /**
- * Anidle: { puzzleId, malId }.
+ * Anidle: { puzzleId, malId } | { puzzleId, skip: true } (uses the tries up to the next clue).
  * Opening/Ending: { puzzleId, round, malId } | { puzzleId, round, clue: true } | { puzzleId, round, giveUp: true }.
  * Screenshot: { puzzleId, round, malId } | { puzzleId, round, clue: true } (next clue) | { puzzleId, round, giveUp: true }.
  * Character: { puzzleId, round, picks: [{ slot, field: 'name' | 'anime', id }] }: the round's one Guess; fields without a pick count as wrong.
  */
 export const POST = route(async (req) => {
   const me = await viewer(req);
-  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; picks?: unknown; giveUp?: unknown; clue?: unknown }>(req);
+  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; picks?: unknown; giveUp?: unknown; clue?: unknown; skip?: unknown }>(req);
   if (typeof body.puzzleId !== 'string') throw new HttpError(400, 'puzzleId is required.');
   const puzzle = await getPuzzle(body.puzzleId);
   const malId = Number(body.malId);
   const round = Number(body.round);
 
   if (puzzle.mode === 'anidle') {
-    if (!Number.isInteger(malId)) throw new HttpError(400, 'malId is required.');
+    if (body.skip === true) return json(await anidleSkip(puzzle, me.key), {}, me.cookies);
+    if (!Number.isInteger(malId)) throw new HttpError(400, 'malId or skip is required.');
     return json(await anidleGuess(puzzle, me.key, malId), {}, me.cookies);
   }
   if (!Number.isInteger(round)) throw new HttpError(400, 'round is required.');

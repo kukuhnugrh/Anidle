@@ -99,6 +99,8 @@ export const api = {
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
   guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
+  /** Anidle: use the tries up to the next clue without guessing. */
+  anidleSkip: (puzzleId: string) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, skip: true } }),
   /** Song and Screenshot rounds: one guess, open the (next) clue, or give up; answers with the state of the same kind. */
   roundGuess: <T extends SongState | RoundState>(puzzleId: string, round: number, malId: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, malId } }),
   roundClue: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, clue: true } }),

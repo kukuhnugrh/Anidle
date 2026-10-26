@@ -360,6 +360,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 .pip { width: 18px; height: 10px; border-radius: 5px; background: var(--panel); border: var(--detail); }
 .pip.used { background: var(--accent); }
 .pip.hit { background: var(--ok-fill); }
+.pip.skipped { background: repeating-linear-gradient(135deg, var(--dp-color-rule-muted) 0 2px, var(--panel) 2px 4px); }
 .legend { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 .guess-input { position: relative; }
@@ -382,6 +383,9 @@ input:focus-visible, select:focus-visible { outline: none; }
 .guesses { display: grid; gap: 12px; }
 .guess { background: var(--panel); border: var(--outline); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow-sm); animation: rise .25s ease-out; }
 .guess.correct { background: var(--ok-bg); box-shadow: 5px 5px 0 var(--ok-fill), 5px 5px 0 2px var(--line); }
+.guess.skipped { padding: 8px 14px; font-weight: 650; color: var(--muted); background: var(--ground); border-style: dashed; border-color: var(--dp-color-rule-muted); box-shadow: none; }
+.anidle-play { display: grid; gap: 10px; }
+.anidle-skip { display: flex; justify-content: flex-end; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 .guess-title { font-family: var(--dp-typography-display); font-size: 17px; font-weight: 750; margin-bottom: 10px; }
 .cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }

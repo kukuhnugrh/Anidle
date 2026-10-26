@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { AnidleFeedback, Direction, ListClue } from '../shared/anidle';
+import { groupSkips, type AnidleFeedback, type Direction, type ListClue } from '../shared/anidle';
 import { MODE_LABELS } from '../shared/modes';
 import type { AnidleState, CharacterState, RoundState, SongState } from './api';
 import { fmtDate, fmtNumber } from './format';
@@ -21,9 +21,11 @@ function anidleRow(g: AnidleFeedback): string {
 const heading = (mode: AnidleState['mode'] | RoundState['mode'] | SongState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>
   `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${fmtNumber(score ?? 0)} pts`;
 
+/** One row per guess; a run of skipped tries is one "⏭️ ×n" row. */
 export function anidleShareText(p: AnidleState): string {
   const result = p.solved ? `${p.guesses.length}/${p.maxGuesses}` : `X/${p.maxGuesses}`;
-  return [`${heading(p.mode, p.date, p.score)} (${result})`, ...p.guesses.map(anidleRow), SITE].join('\n');
+  const rows = groupSkips(p.guesses).map((row) => ('skipped' in row ? `⏭️ ×${row.skipped}` : anidleRow(row)));
+  return [`${heading(p.mode, p.date, p.score)} (${result})`, ...rows, SITE].join('\n');
 }
 
 /** Per round: 🟨 per clue unlocked, then 🟩 right, 🟥 wrong or ⬜ gave up. */

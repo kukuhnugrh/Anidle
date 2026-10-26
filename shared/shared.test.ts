@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anidleScore, compareAnidle, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
+import { anidleScore, compareAnidle, groupSkips, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
 import { characterDifficultyOf, isRomaji } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
@@ -58,11 +58,19 @@ describe('compareAnidle', () => {
 });
 
 describe('anidleScore', () => {
-  it('drops 2,000 per extra guess from 20,000 to 2,000 on the 10th, and is 0 when unsolved', () => {
+  it('drops one sixteenth per extra try from 20,000 to 1,250 on the 16th, and is 0 when unsolved', () => {
     expect(anidleScore(true, 1)).toBe(20_000);
-    expect(anidleScore(true, 4)).toBe(14_000);
-    expect(anidleScore(true, 10)).toBe(2_000);
-    expect(anidleScore(false, 10)).toBe(0);
+    expect(anidleScore(true, 4)).toBe(16_250);
+    expect(anidleScore(true, 16)).toBe(1_250);
+    expect(anidleScore(false, 16)).toBe(0);
+  });
+});
+
+describe('groupSkips', () => {
+  it('folds each run of skipped tries into one entry, never across a real guess', () => {
+    const g = compareAnidle(anime({ malId: 1 }), anime({ malId: 2 }));
+    expect(groupSkips([null, null, g, null])).toEqual([{ skipped: 2 }, g, { skipped: 1 }]);
+    expect(groupSkips([g, g])).toEqual([g, g]);
   });
 });
 

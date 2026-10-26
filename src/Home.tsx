@@ -37,7 +37,7 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
   if (!p) return { cta: 'Play', text: '' };
   if (p.mode === 'anidle') {
     if (p.finished) return p.solved ? { cta: 'See result', text: `Solved in ${p.guesses.length} · ${fmtNumber(p.score ?? 0)} pts`, won: true } : { cta: 'See answer', text: 'Not solved' };
-    if (p.guesses.length) return { cta: 'Continue', text: `${p.maxGuesses - p.guesses.length} guesses left` };
+    if (p.guesses.length) return { cta: 'Continue', text: `${p.maxGuesses - p.guesses.length} tries left` };
     return { cta: 'Play', text: 'Not played yet' };
   }
   if (p.mode === 'character') {

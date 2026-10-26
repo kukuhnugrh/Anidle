@@ -1,3 +1,4 @@
+import { ANIDLE_MAX_GUESSES } from './catalog.js';
 import { MODE_MAX_POINTS } from './modes.js';
 
 // Anidle: every guess is compared field by field with the answer.
@@ -80,17 +81,32 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
   };
 }
 
-/** MODE_MAX_POINTS (20,000) for a first-try solve, a tenth of it less per extra guess (2,000 on the 10th), 0 when not solved. */
+/** MODE_MAX_POINTS (20,000) for a first-try solve, one ANIDLE_MAX_GUESSES-th less per extra try (1,250 on the 16th), 0 when not solved. Skips count as tries. */
 export function anidleScore(solved: boolean, guessCount: number): number {
-  const step = MODE_MAX_POINTS / 10;
+  const step = MODE_MAX_POINTS / ANIDLE_MAX_GUESSES;
   return solved ? Math.max(step, MODE_MAX_POINTS - step * (guessCount - 1)) : 0;
 }
 
-/** Clues Anidle unlocks as wrong guesses pile up: after 4 the blurred poster, after 7 the synopsis, after 9 two characters (one guess left). */
+/** Tries in order with each run of skipped ones (null) folded into one { skipped: n } entry. */
+export function groupSkips(tries: ReadonlyArray<AnidleFeedback | null>): Array<AnidleFeedback | { skipped: number }> {
+  const out: Array<AnidleFeedback | { skipped: number }> = [];
+  for (const t of tries) {
+    const last = out.at(-1);
+    if (t) out.push(t);
+    else if (last && 'skipped' in last) last.skipped++;
+    else out.push({ skipped: 1 });
+  }
+  return out;
+}
+
+/**
+ * Clues Anidle unlocks as tries pile up (wrong guesses or Skip): after 10 the blurred poster, after 13 the
+ * synopsis, after 15 two characters (one try left). Skip jumps straight to the next one.
+ */
 export const ANIDLE_CLUES = [
-  { kind: 'cover', after: 4 },
-  { kind: 'synopsis', after: 7 },
-  { kind: 'characters', after: 9 },
+  { kind: 'cover', after: 10 },
+  { kind: 'synopsis', after: 13 },
+  { kind: 'characters', after: 15 },
 ] as const;
 export type AnidleClueKind = (typeof ANIDLE_CLUES)[number]['kind'];
 

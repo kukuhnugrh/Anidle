@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ANIDLE_CLUES, summarizeAnidle, type AnidleClueKind, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
+import { ANIDLE_CLUES, groupSkips, summarizeAnidle, type AnidleClueKind, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type AnidleState } from './api';
+import { ConfirmButton } from './ConfirmButton';
 import { GuessInput } from './GuessInput';
 import { HowToPlay } from './HowToPlay';
 import { fmtDate, fmtNumber, pretty } from './format';
@@ -185,7 +186,7 @@ function CluePanel({ puzzle }: { puzzle: AnidleState }) {
             <span className="cell-label">{CLUE_LABELS[kind]}</span>
             {!open && (
               <span className="muted small">
-                Unlocks after {after} guesses ({after - used} more)
+                Unlocks after {after} tries ({after - used} more)
               </span>
             )}
             {kind === 'cover' && clues.cover && (
@@ -215,14 +216,17 @@ function CluePanel({ puzzle }: { puzzle: AnidleState }) {
 export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleState; onChange: (p: AnidleState) => void; onNewUnlimited: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const guessed = useMemo(() => new Set(puzzle.guesses.map((g) => g.malId)), [puzzle.guesses]);
+  const titled = useMemo(() => puzzle.guesses.filter((g): g is AnidleFeedback => g !== null), [puzzle.guesses]);
+  const guessed = useMemo(() => new Set(titled.map((g) => g.malId)), [titled]);
   const left = puzzle.maxGuesses - puzzle.guesses.length;
+  // Skip jumps to the next locked clue, using up the tries in between.
+  const nextClue = ANIDLE_CLUES.find((c) => c.after > puzzle.guesses.length);
 
-  const guess = async (malId: number) => {
+  const send = async (task: () => Promise<AnidleState>) => {
     setSending(true);
     setError(null);
     try {
-      onChange(await api.guess(puzzle.id, malId));
+      onChange(await task());
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -239,13 +243,14 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
             <h1>Anidle</h1>
             <HowToPlay mode="anidle" />
           </div>
-          <div className="progress" title={puzzle.finished ? 'Finished' : `${left} guesses left`}>
+          <div className="progress" title={puzzle.finished ? 'Finished' : `${left} tries left`}>
             <span className="pips" aria-hidden="true">
-              {Array.from({ length: puzzle.maxGuesses }, (_, i) => (
-                <span key={i} className={`pip${i < puzzle.guesses.length ? (puzzle.guesses[i]!.correct ? ' hit' : ' used') : ''}`} />
-              ))}
+              {Array.from({ length: puzzle.maxGuesses }, (_, i) => {
+                const g = puzzle.guesses[i];
+                return <span key={i} className={`pip${i >= puzzle.guesses.length ? '' : g === null ? ' skipped' : g?.correct ? ' hit' : ' used'}`} />;
+              })}
             </span>
-            <span className="muted small">{puzzle.finished ? 'finished' : `${left} of ${puzzle.maxGuesses} guesses left`}</span>
+            <span className="muted small">{puzzle.finished ? 'finished' : `${left} of ${puzzle.maxGuesses} tries left`}</span>
           </div>
         </div>
         <div className="legend small">
@@ -260,7 +265,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
         <div className={`result ${puzzle.solved ? 'win' : 'lose'}`}>
           {puzzle.answer.cover && <img src={puzzle.answer.cover} alt="" />}
           <div>
-            <div className="muted small">{puzzle.solved ? `Solved in ${puzzle.guesses.length} guesses` : 'Out of guesses. The answer:'}</div>
+            <div className="muted small">{puzzle.solved ? `Solved in ${puzzle.guesses.length} ${puzzle.guesses.length === 1 ? 'try' : 'tries'}` : 'Out of tries. The answer:'}</div>
             <h3>{puzzle.answer.title}</h3>
             <div className="muted answer-meta">
               {puzzle.answer.year ?? ''}
@@ -283,16 +288,40 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
           </div>
         </div>
       ) : (
-        <GuessInput exclude={guessed} disabled={sending} onPick={guess} />
+        <div className="anidle-play">
+          <GuessInput exclude={guessed} disabled={sending} onPick={(malId) => void send(() => api.guess(puzzle.id, malId))} />
+          {nextClue && (
+            <div className="anidle-skip">
+              <ConfirmButton
+                className="ghost"
+                disabled={sending}
+                title={`Skip to the ${CLUE_LABELS[nextClue.kind].toLowerCase()}?`}
+                message={`This uses ${nextClue.after - puzzle.guesses.length} of your ${left} tries left without guessing, and opens the ${CLUE_LABELS[nextClue.kind].toLowerCase()}.`}
+                confirmLabel="Skip"
+                onConfirm={() => void send(() => api.anidleSkip(puzzle.id))}
+              >
+                Skip to {CLUE_LABELS[nextClue.kind].toLowerCase()} (−{nextClue.after - puzzle.guesses.length} {nextClue.after - puzzle.guesses.length === 1 ? 'try' : 'tries'})
+              </ConfirmButton>
+            </div>
+          )}
+        </div>
       )}
       {error && <div className="error-box">{error}</div>}
       <CluePanel puzzle={puzzle} />
-      {puzzle.guesses.length > 0 && !puzzle.solved && <SummaryPanel guesses={puzzle.guesses} />}
+      {titled.length > 0 && !puzzle.solved && <SummaryPanel guesses={titled} />}
 
       <div className="guesses">
-        {[...puzzle.guesses].reverse().map((g) => (
-          <GuessRow key={g.malId} g={g} />
-        ))}
+        {groupSkips(puzzle.guesses)
+          .reverse()
+          .map((row, i) =>
+            'skipped' in row ? (
+              <div key={`skip-${i}`} className="guess skipped">
+                ⏭ Skipped {row.skipped} {row.skipped === 1 ? 'try' : 'tries'}
+              </div>
+            ) : (
+              <GuessRow key={row.malId} g={row} />
+            ),
+          )}
         {!puzzle.guesses.length && <p className="empty muted">Type an anime title, pick it from the list, then check the clues.</p>}
       </div>
     </div>
