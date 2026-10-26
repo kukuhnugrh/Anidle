@@ -155,13 +155,18 @@ describe('normalize & search', () => {
   ]);
 
   it('matches any name, every word, and ranks prefix matches first', () => {
-    expect(searchNames(index, 'frieren').map((e) => e.id)).toEqual([1, 2]);
-    expect(searchNames(index, 'titan attack').map((e) => e.id)).toEqual([3]);
-    expect(searchNames(index, 'beyond journey').map((e) => e.id)).toEqual([1]);
+    expect(searchNames(index, 'frieren').map((h) => h.entry.id)).toEqual([1, 2]);
+    expect(searchNames(index, 'titan attack').map((h) => h.entry.id)).toEqual([3]);
+    expect(searchNames(index, 'beyond journey').map((h) => h.entry.id)).toEqual([1]);
+  });
+
+  it('reports the name that matched, so another name can stand for the entry', () => {
+    expect(searchNames(index, 'attack on')[0]!.name).toBe('Attack on Titan');
+    expect(searchNames(index, 'sousou no frieren')[0]!.name).toBe('Sousou no Frieren');
   });
 
   it('skips already guessed titles', () => {
-    expect(searchNames(index, 'frieren', 8, new Set([1])).map((e) => e.id)).toEqual([2]);
+    expect(searchNames(index, 'frieren', 8, new Set([1])).map((h) => h.entry.id)).toEqual([2]);
   });
 });
 

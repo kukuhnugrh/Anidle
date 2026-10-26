@@ -133,6 +133,15 @@ CREATE TABLE IF NOT EXISTS anime_character (
   PRIMARY KEY (mal_id, slot)
 );
 
+-- Every show a character appears in (characters with ≥ CHARACTER_MIN_FAVORITES, pipeline step
+-- `characters`, not only the ones kept as portraits): Character mode accepts any of them as the anime.
+CREATE TABLE IF NOT EXISTS character_show (
+  char_id  INTEGER NOT NULL,
+  mal_id   INTEGER NOT NULL,
+  PRIMARY KEY (char_id, mal_id)
+);
+CREATE INDEX IF NOT EXISTS character_show_show ON character_show (mal_id);
+
 -- Screenshot mode: frames from the first opening's video (pipeline step `screenshots`). A title is
 -- usable when its anime_media row of kind 'shots' is ok.
 CREATE TABLE IF NOT EXISTS anime_screenshot (

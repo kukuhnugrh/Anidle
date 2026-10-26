@@ -240,7 +240,13 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
           .sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0));
         const perDifficulty = Map.groupBy(known, (c) => characterDifficultyOf(c.favorites ?? 0));
         const picked = [...perDifficulty.values()].flatMap((list) => list.slice(0, CHARACTERS_PER_DIFFICULTY)).sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0));
+        // Every known character of the show, kept or not: Character mode accepts any show a character is in.
+        const appearances = [
+          { sql: 'DELETE FROM character_show WHERE mal_id = ?', args: [id] },
+          ...known.map((c) => ({ sql: 'INSERT OR IGNORE INTO character_show (char_id, mal_id) VALUES (?, ?)', args: [c.malId, id] })),
+        ];
         if (picked.length < 2) {
+          await db().batch(appearances, 'write');
           await save(id, 'chars', { status: 'missing', error: `${picked.length} karakter bergambar dengan ≥ ${CHARACTER_MIN_FAVORITES} favorit` });
           counts.missing++;
         } else {
@@ -254,6 +260,7 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
             );
             await db().batch(
               [
+                ...appearances,
                 { sql: 'DELETE FROM anime_character WHERE mal_id = ?', args: [id] },
                 ...picked.map((c, slot) => {
                   const d = details.get(c.malId);

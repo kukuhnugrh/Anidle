@@ -104,6 +104,14 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
   const picks = stored.flat();
   const anime = await loadAnidle([...slots.flat().map((s) => Number(s.mal_id)), ...picks.flatMap((s) => (s.a ? [s.a] : []))]);
   const names = await characterNames(picks.flatMap((s) => (s.n ? [s.n] : [])));
+  // Shows (canonical entries, as the autocomplete offers them) each asked character appears in: any of them is right.
+  const charIds = slots.flat().map((s) => Number(s.char_id));
+  const appearances = await all<{ char_id: number; show: number }>(
+    `SELECT cs.char_id, COALESCE(a.canonical_id, a.mal_id) AS show FROM character_show cs JOIN anime a ON a.mal_id = cs.mal_id
+     WHERE cs.char_id IN (${charIds.map(() => '?').join(',')})`,
+    charIds,
+  );
+  const showsOf = Map.groupBy(appearances, (r) => Number(r.char_id));
   let perfect = 0;
   const rounds = slots.map((roundSlots, r): CharacterRoundState => {
     const difficulties: Difficulty[] = [];
@@ -120,7 +128,8 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       const nameRight = picked !== undefined && displayName(picked).toLowerCase() === displayName(s.name).toLowerCase();
       const name = field(tried.n ? { charId: tried.n, name: displayName(picked ?? `#${tried.n}`) } : null, tried.n != null, nameRight, worth);
       const guessed = tried.a ? anime.get(tried.a) : undefined;
-      const animeField = field(tried.a ? { malId: tried.a, title: guessed?.title ?? `#${tried.a}` } : null, tried.a != null, guessed !== undefined && isCorrect(answer, guessed), worth);
+      const animeRight = guessed !== undefined && (isCorrect(answer, guessed) || (showsOf.get(Number(s.char_id)) ?? []).some((row) => Number(row.show) === guessed.malId));
+      const animeField = field(tried.a ? { malId: tried.a, title: guessed?.title ?? `#${tried.a}` } : null, tried.a != null, animeRight, worth);
       if (name.solved && animeField.solved) perfect++;
       const done = name.finished && animeField.finished;
       return {

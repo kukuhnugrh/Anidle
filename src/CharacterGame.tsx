@@ -10,14 +10,32 @@ import { characterShareText, ShareButton } from './share';
 type Slot = CharacterState['rounds'][number]['slots'][number];
 type Field = Slot['name'] | Slot['anime'];
 
-/** One pick per field: the picker while open, then ✓/✗ with what was picked. */
-function PickField({ label, field, shown, children }: { label: string; field: Field; shown: string | undefined; children: ReactNode }) {
+/** An open field: its label and picker (a round's fields are all answered by its one Guess). */
+function PickField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className={`char-field${field.solved ? ' ok' : field.finished ? ' bad' : ''}`}>
+    <div className="char-field">
+      <span className="field-label">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** A field after the Guess: the right answer, green or red, and what was picked when it differs. */
+function ResultRow({ label, field, answer, picked, samePick }: { label: string; field: Field; answer: ReactNode; picked: string | undefined; samePick: boolean }) {
+  return (
+    <div className={`char-field ${field.solved ? 'ok' : 'bad'}`}>
       <div className="char-field-head">
         <span className="field-label">{label}</span>
+        <span className="char-mark">{field.solved ? `✓ +${fmtNumber(field.points)}` : '✗ 0'}</span>
       </div>
-      {field.finished ? <div className="char-result">{field.solved ? `✓ ${shown}` : shown ? `✗ ${shown}` : '✗ Not guessed'}</div> : children}
+      <div className="char-result">{answer}</div>
+      {!picked && <span className="char-pick muted small">Not answered</span>}
+      {picked && !samePick && (
+        <span className="char-pick small">
+          Your pick: <span className={field.solved ? '' : 'wrong'}>{picked}</span>
+          {field.solved && ' (also right)'}
+        </span>
+      )}
     </div>
   );
 }
@@ -111,28 +129,33 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
 
       <div className="char-grid">
         {round.slots.map((slot, i) => (
-          <article key={i} className={`card char-card${slot.answer ? ' done' : ''}`}>
+          <article key={i} className={`card char-card${slot.answer ? (slot.name.solved && slot.anime.solved ? ' all-ok' : slot.name.solved || slot.anime.solved ? ' half-ok' : ' none-ok') : ''}`}>
             <button className="char-portrait-button" onClick={() => setZoomed(slot.portrait)} aria-label="Enlarge portrait" title="Click to enlarge">
               <img className="char-portrait" src={slot.portrait} alt="" />
             </button>
             <div className="char-fields">
               {slot.answer && (
-                <div className="char-answer">
-                  <b>{slot.answer.name}</b>
-                  <a href={`https://myanimelist.net/anime/${slot.answer.anime.malId}`} target="_blank" rel="noreferrer">
-                    {slot.answer.anime.title}
-                  </a>
-                  <span className="muted small">
-                    {fmtNumber(slot.name.points + slot.anime.points)} pts · name {slot.name.solved ? '✓' : '✗'} · anime {slot.anime.solved ? '✓' : '✗'}
-                  </span>
-                </div>
+                <>
+                  <ResultRow label="Name" field={slot.name} answer={slot.answer.name} picked={slot.name.pick?.name} samePick={slot.name.solved} />
+                  <ResultRow
+                    label="Anime"
+                    field={slot.anime}
+                    answer={
+                      <a href={`https://myanimelist.net/anime/${slot.answer.anime.malId}`} target="_blank" rel="noreferrer">
+                        {slot.answer.anime.title}
+                      </a>
+                    }
+                    picked={slot.anime.pick?.title}
+                    samePick={slot.anime.pick?.malId === slot.answer.anime.malId}
+                  />
+                </>
               )}
               {!slot.answer && isCurrent && (
                 <>
-                  <PickField label="Name" field={slot.name} shown={slot.name.pick?.name}>
+                  <PickField label="Name">
                     <CharacterInput disabled={sending} onChoose={choose(i, 'name')} />
                   </PickField>
-                  <PickField label="Anime" field={slot.anime} shown={slot.anime.pick?.title}>
+                  <PickField label="Anime">
                     <GuessInput compact disabled={sending} onChoose={choose(i, 'anime')} />
                   </PickField>
                 </>

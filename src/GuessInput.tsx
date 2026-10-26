@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { indexNames, searchNames, type CharacterEntry, type SearchEntry, type TitleEntry } from '../shared/normalize';
+import { indexNames, searchNames, type CharacterEntry, type SearchEntry, type SearchHit, type TitleEntry } from '../shared/normalize';
 import { api, errorMessage } from './api';
 
 /** One download per page load, shared by every puzzle; a failed one is tried again next time. */
@@ -36,7 +36,7 @@ function Autocomplete<T extends SearchEntry>({
   onPick,
   onChoose,
   compact = false,
-}: PickerProps & { load: () => Promise<T[]>; detail: (entry: T) => string; placeholder: (count: number) => string; noneText: string }) {
+}: PickerProps & { load: () => Promise<T[]>; detail: (hit: SearchHit<T>) => string; placeholder: (count: number) => string; noneText: string }) {
   const [entries, setEntries] = useState<T[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -56,10 +56,11 @@ function Autocomplete<T extends SearchEntry>({
     setSelected(entry);
     onChoose?.(entry?.id ?? null);
   };
-  const choose = (entry: T | undefined) => {
-    if (!entry) return;
-    select(entry);
-    setQuery(entry.names[0]!);
+  const choose = (hit: SearchHit<T> | undefined) => {
+    if (!hit) return;
+    select(hit.entry);
+    // The name that was searched for stays in the field (e.g. a season's title for its show).
+    setQuery(hit.name);
     setActive(0);
     input.current?.focus();
   };
@@ -107,11 +108,11 @@ function Autocomplete<T extends SearchEntry>({
       </div>
       {query && !selected && (
         <ul className="suggestions">
-          {results.map((entry, i) => (
-            <li key={entry.id}>
-              <button className={i === active ? 'active' : ''} onMouseEnter={() => setActive(i)} onClick={() => choose(entry)}>
-                <span>{entry.names[0]}</span>
-                <span className="muted small">{detail(entry)}</span>
+          {results.map((hit, i) => (
+            <li key={hit.entry.id}>
+              <button className={i === active ? 'active' : ''} onMouseEnter={() => setActive(i)} onClick={() => choose(hit)}>
+                <span>{hit.name}</span>
+                <span className="muted small">{detail(hit)}</span>
               </button>
             </li>
           ))}
@@ -122,8 +123,9 @@ function Autocomplete<T extends SearchEntry>({
   );
 }
 
-const titleDetail = (t: TitleEntry) => [t.names[1], t.type?.toUpperCase(), t.year].filter(Boolean).join(' · ');
-const characterDetail = (c: CharacterEntry) => c.names[1] ?? '';
+// A hit through another name (a season, a nickname) names the entry it stands for.
+const titleDetail = ({ entry: t, name }: SearchHit<TitleEntry>) => (name === t.names[0] ? [t.names[1], t.type?.toUpperCase(), t.year].filter(Boolean).join(' · ') : `→ ${t.names[0]}`);
+const characterDetail = ({ entry: c, name }: SearchHit<CharacterEntry>) => (name === c.names[0] ? (c.names[1] ?? '') : `→ ${c.names[0]}`);
 
 /** Picks an anime (one entry per show) by any of its names. */
 export function GuessInput({ compact, ...props }: PickerProps) {

@@ -350,7 +350,9 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .character-game { display: grid; gap: 16px; }
 .char-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .char-card { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 14px; padding: 14px; align-items: start; }
-.char-card.done { border-color: var(--accent-line); }
+.char-card.all-ok { border-color: var(--ok-line); }
+.char-card.half-ok { border-color: var(--partial-line); }
+.char-card.none-ok { border-color: var(--bad-line); }
 .char-portrait { width: 130px; aspect-ratio: 225 / 350; object-fit: cover; border-radius: 10px; box-shadow: 0 14px 30px -16px rgb(0 0 0 / .9); }
 .char-portrait-button { padding: 0; border: 0; background: none; border-radius: 10px; cursor: zoom-in; align-self: start; }
 .char-portrait-button .char-portrait { display: block; }
@@ -361,9 +363,12 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .char-field.ok { border-color: var(--ok-line); background: var(--ok-bg); }
 .char-field.bad { border-color: var(--bad-line); background: var(--bad-bg); }
 .char-field-head { display: flex; justify-content: space-between; align-items: center; }
-.char-result { font-weight: 650; }
-.char-answer { display: grid; gap: 4px; }
-.char-answer b { font-size: 17px; }
+.char-mark { font-size: 13px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.char-field.ok .char-mark { color: var(--ok); }
+.char-field.bad .char-mark { color: var(--bad); }
+.char-result { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.char-pick { color: var(--muted); overflow-wrap: anywhere; }
+.char-pick .wrong { color: var(--bad); text-decoration: line-through; }
 .char-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .guess-input.compact input { font-size: 14px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg); }
 .shot { position: relative; width: 100%; max-width: 820px; margin: 0 auto; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px; background: var(--bg); border: 1px solid var(--border-strong); }

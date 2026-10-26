@@ -219,6 +219,7 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde, clue = video OP/ED blur tanpa suara yang mengikuti lagu (klip 240p di R2 untuk show easy + medium, selebihnya video terkecil AnimeThemes lewat proxy; cover blur kalau video gagal).
 - Masuk dengan MAL: callback memakai `accountId` di cookie OAuth (`null` = tamu → masuk). Akun baru dari MAL punya `password_hash` kosong (tidak pernah cocok), jadi login password ditolak dan unlink MAL diblokir supaya akunnya tidak terkunci.
 - Blur clue dikurangi (terlalu susah): video/poster OP/ED 16 → 4 px, screenshot Anidle 9 → 3 px.
+- Character: kolom anime menerima show mana pun tempat karakter muncul (tabel `character_show`, semua karakter ≥ 100 favorit per show), bukan hanya show yang ditanya, karena karakter populer muncul di banyak seri (Rin Toosaka: Fate/Zero, Fate/Extra, Prisma☆Illya, …).
 
 ## 14. Risiko
 

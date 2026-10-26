@@ -38,32 +38,38 @@ export type CharacterEntry = SearchEntry;
 
 interface Indexed<T extends SearchEntry> {
   entry: T;
-  folded: string[];
+  names: Array<{ name: string; folded: string }>;
 }
 
 export function indexNames<T extends SearchEntry>(entries: T[]): Array<Indexed<T>> {
-  return entries.map((entry) => ({ entry, folded: entry.names.map(normalizeTitle).filter(Boolean) }));
+  return entries.map((entry) => ({ entry, names: entry.names.map((name) => ({ name, folded: normalizeTitle(name) })).filter((n) => n.folded) }));
+}
+
+export interface SearchHit<T extends SearchEntry> {
+  entry: T;
+  /** The name that matched best: another season's title or a nickname can stand for the entry. */
+  name: string;
 }
 
 /**
  * Autocomplete: every query word must appear in one of the names. Ranked by
  * exact match > prefix of a name > word prefix > substring, then shorter name.
  */
-export function searchNames<T extends SearchEntry>(index: Array<Indexed<T>>, query: string, limit = 8, exclude: ReadonlySet<number> = new Set()): T[] {
+export function searchNames<T extends SearchEntry>(index: Array<Indexed<T>>, query: string, limit = 8, exclude: ReadonlySet<number> = new Set()): Array<SearchHit<T>> {
   const q = normalizeTitle(query);
   if (!q) return [];
   const words = q.split(' ');
-  const scored: Array<{ entry: T; rank: number; length: number }> = [];
-  for (const { entry, folded } of index) {
+  const scored: Array<SearchHit<T> & { rank: number; length: number }> = [];
+  for (const { entry, names } of index) {
     if (exclude.has(entry.id)) continue;
-    let best: { rank: number; length: number } | null = null;
-    for (const name of folded) {
-      if (!words.every((w) => name.includes(w))) continue;
-      const rank = name === q ? 0 : name.startsWith(q) ? 1 : ` ${name}`.includes(` ${words[0]}`) ? 2 : 3;
-      if (!best || rank < best.rank || (rank === best.rank && name.length < best.length)) best = { rank, length: name.length };
+    let best: { name: string; rank: number; length: number } | null = null;
+    for (const { name, folded } of names) {
+      if (!words.every((w) => folded.includes(w))) continue;
+      const rank = folded === q ? 0 : folded.startsWith(q) ? 1 : ` ${folded}`.includes(` ${words[0]}`) ? 2 : 3;
+      if (!best || rank < best.rank || (rank === best.rank && folded.length < best.length)) best = { name, rank, length: folded.length };
     }
     if (best) scored.push({ entry, ...best });
   }
   scored.sort((a, b) => a.rank - b.rank || a.length - b.length);
-  return scored.slice(0, limit).map((s) => s.entry);
+  return scored.slice(0, limit).map(({ entry, name }) => ({ entry, name }));
 }
