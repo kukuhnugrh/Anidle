@@ -5,6 +5,7 @@ import { api, errorMessage, type SongState } from './api';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
+import { HowToPlay } from './HowToPlay';
 import { PauseIcon, PlayIcon } from './icons';
 import { RoundTitle } from './RoundTitle';
 import { ShareButton, songShareText } from './share';
@@ -245,7 +246,10 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
       <header className="page-head game-head">
         <div>
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
-          <h1>{MODE_LABELS[puzzle.mode]}</h1>
+          <div className="title-row">
+            <h1>{MODE_LABELS[puzzle.mode]}</h1>
+            <HowToPlay mode={puzzle.mode} />
+          </div>
           <p className="muted small">
             Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {ROUND_MAX_POINTS.map(fmtNumber).join(' / ')} pts per round if right,
             half that if you opened the clue (its blurred music video), 0 if wrong.

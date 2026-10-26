@@ -3,6 +3,7 @@ import { ANIDLE_CLUES, summarizeAnidle, type AnidleClueKind, type AnidleFeedback
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type AnidleState } from './api';
 import { GuessInput } from './GuessInput';
+import { HowToPlay } from './HowToPlay';
 import { fmtDate, fmtNumber, pretty } from './format';
 import { anidleShareText, ShareButton } from './share';
 
@@ -234,7 +235,10 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
       <header className="page-head game-head">
         <div>
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
-          <h1>Anidle</h1>
+          <div className="title-row">
+            <h1>Anidle</h1>
+            <HowToPlay mode="anidle" />
+          </div>
           <div className="progress" title={puzzle.finished ? 'Finished' : `${left} guesses left`}>
             <span className="pips" aria-hidden="true">
               {Array.from({ length: puzzle.maxGuesses }, (_, i) => (

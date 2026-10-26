@@ -5,6 +5,7 @@ import { api, errorMessage, type RoundState } from './api';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
+import { HowToPlay } from './HowToPlay';
 import { LockIcon, UnlockIcon } from './icons';
 import { RoundTitle } from './RoundTitle';
 import { roundShareText, ShareButton } from './share';
@@ -99,7 +100,10 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
       <header className="page-head game-head">
         <div>
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
-          <h1>{MODE_LABELS[puzzle.mode]}</h1>
+          <div className="title-row">
+            <h1>{MODE_LABELS[puzzle.mode]}</h1>
+            <HowToPlay mode={puzzle.mode} />
+          </div>
           <p className="muted small">
             Guess the anime from a screenshot of its opening. One guess per round ({ROUND_MAX_POINTS.map(fmtNumber).join(' / ')} pts); every clue you unlock (two more
             screenshots, then the title's initials) takes a quarter off.

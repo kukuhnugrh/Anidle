@@ -158,6 +158,29 @@ input:focus-visible, select:focus-visible { outline: none; }
 .confirm-box p { margin: 0; }
 .confirm-box .actions { justify-content: flex-end; margin-top: 10px; }
 
+/* How to play: the "?" beside a mode's title and its dialog */
+.title-row { display: flex; align-items: center; gap: 12px; }
+.title-row h1 { margin: 0; }
+.help-button {
+  width: 36px; height: 36px; padding: 0; flex: none; border-radius: 50%; border-width: var(--dp-border-outline-width);
+  font-family: var(--dp-typography-display); font-size: 19px; font-weight: 800; line-height: 1; background: var(--dp-color-accent-warm);
+}
+.confirm.help { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
+.help .confirm-box { gap: 14px; }
+.help-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.help-head h2 { margin: 0; font-size: 24px; }
+.help-rules { list-style: none; counter-reset: rule; margin: 0; padding: 0; display: grid; gap: 12px; }
+.help-rules li { counter-increment: rule; display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
+.help-rules li::before {
+  content: counter(rule); width: 30px; height: 30px; display: grid; place-items: center; border: var(--detail); border-radius: 50%;
+  font-family: var(--dp-typography-display); font-weight: 800; font-size: 14px; background: var(--dp-color-accent-fresh);
+}
+.help-rules li:nth-child(4n + 2)::before { background: var(--dp-color-accent-warm); border-radius: 8px; }
+.help-rules li:nth-child(4n + 3)::before { background: var(--dp-color-accent-secondary); border-radius: 15px 15px 5px 5px; }
+.help-rules li:nth-child(4n)::before { background: var(--dp-color-selection); }
+.help-rules .tag { font-size: 11.5px; }
+.help-scoring { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--dp-color-selection); border: var(--detail); }
+
 /* ------------------------------------------------------------------ shell */
 .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
 .content { min-width: 0; display: flex; flex-direction: column; }

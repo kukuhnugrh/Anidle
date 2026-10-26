@@ -5,6 +5,7 @@ import { api, errorMessage, type CharacterPick, type CharacterState } from './ap
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
+import { HowToPlay } from './HowToPlay';
 import { RoundTitle } from './RoundTitle';
 import { characterShareText, ShareButton } from './share';
 
@@ -108,7 +109,10 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
       <header className="page-head game-head">
         <div>
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
-          <h1>Character</h1>
+          <div className="title-row">
+            <h1>Character</h1>
+            <HowToPlay mode="character" />
+          </div>
           <p className="muted small">
             Four characters from four different anime, easy, medium, then hard by how well known the character is. Pick each one's name and their anime, then press Guess:
             one Guess per round, an empty field counts as wrong. Each right field is worth {fmtNumber(round.fieldPoints)} pts this round.
