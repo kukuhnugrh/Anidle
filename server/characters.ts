@@ -115,7 +115,10 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       // The character's own popularity, not its anime's, sets the difficulty.
       difficulties.push(characterDifficultyOf(Number(s.favorites ?? 0)));
       const tried = stored[r]?.[i] ?? { n: null, a: null };
-      const name = field(tried.n ? { charId: tried.n, name: displayName(names.get(tried.n) ?? `#${tried.n}`) } : null, tried.n != null, tried.n === Number(s.char_id), worth);
+      const picked = tried.n ? names.get(tried.n) : undefined;
+      // Graded by name, not char_id: the autocomplete offers same-named characters as one entry.
+      const nameRight = picked !== undefined && displayName(picked).toLowerCase() === displayName(s.name).toLowerCase();
+      const name = field(tried.n ? { charId: tried.n, name: displayName(picked ?? `#${tried.n}`) } : null, tried.n != null, nameRight, worth);
       const guessed = tried.a ? anime.get(tried.a) : undefined;
       const animeField = field(tried.a ? { malId: tried.a, title: guessed?.title ?? `#${tried.a}` } : null, tried.a != null, guessed !== undefined && isCorrect(answer, guessed), worth);
       if (name.solved && animeField.solved) perfect++;
@@ -201,7 +204,8 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
 
 /**
  * Name autocomplete: every character of every show (not only the ones asked), so the list does not
- * hint at the answers. A character listed under several titles appears once.
+ * hint at the answers. A character listed under several titles appears once, and so do different
+ * characters sharing a name (several "Rin"): they cannot be told apart without giving the anime away.
  */
 export async function characterEntries(): Promise<CharacterEntry[]> {
   const rows = await all<{ char_id: number; name: string; name_kanji: string | null; nicknames: string }>(
@@ -209,8 +213,13 @@ export async function characterEntries(): Promise<CharacterEntry[]> {
      FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
      WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY c.char_id ORDER BY MAX(a.members) DESC`,
   );
-  return rows.map((r) => ({
-    id: Number(r.char_id),
-    names: [...new Set([displayName(r.name), r.name_kanji, ...(JSON.parse(r.nicknames) as string[])].filter((n): n is string => Boolean(n)))],
-  }));
+  // Keyed by the shown name; the id is the best known character's (rows come most popular show first).
+  const byName = new Map<string, CharacterEntry>();
+  for (const r of rows) {
+    const shown = displayName(r.name);
+    const entry = byName.get(shown.toLowerCase()) ?? { id: Number(r.char_id), names: [shown] };
+    for (const n of [r.name_kanji, ...(JSON.parse(r.nicknames) as string[])]) if (n && !entry.names.includes(n)) entry.names.push(n);
+    byName.set(shown.toLowerCase(), entry);
+  }
+  return [...byName.values()];
 }
