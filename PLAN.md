@@ -131,7 +131,7 @@ Puzzle harian **disimpan** saat pertama diminta (dipilih dari seed `tanggal+mode
 - Benar kalau `mal_id` sama, **atau** satu `franchise_id` (default, lihat §12).
 - Server menyimpan setiap tebakan di `play`. Reload halaman melanjutkan progres, tidak mengulang.
 
-**Harian vs unlimited**: harian = satu puzzle per mode per tanggal (UTC), pool `semua`, masuk leaderboard. Unlimited = puzzle acak, pool bisa dipilih, tidak masuk leaderboard.
+**Harian vs unlimited**: harian = satu puzzle per mode per tanggal (UTC+7), pool `semua`, masuk leaderboard. Unlimited = puzzle acak, pool bisa dipilih, tidak masuk leaderboard.
 
 ## 9. API (Vercel Functions)
 
@@ -188,7 +188,7 @@ db/                  schema.sql + migrations
 | Season 2/3 | Digabung jadi satu show per franchise (entri paling populer, member-nya menentukan difficulty); menebak entri mana pun dari franchise benar | Entri MAL terpisah di pool |
 | Difficulty | easy ≥ 500 rb, medium 200–500 rb, hard < 200 rb member; harian = easy + medium | Ambang lain |
 | Konten | Tanpa Hentai/Erotica | Ikutkan dengan toggle |
-| Zona waktu puzzle harian | UTC (awalnya WIB, diganti Okt 2026) | WIB (UTC+7) |
+| Zona waktu puzzle harian | UTC+7 (di UI ditulis "UTC+7", bukan "WIB") | UTC |
 | Mode pertama | Anidle (tanpa media), lalu Opening/Ending | Opening dulu |
 
 ## 13. Milestone

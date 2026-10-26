@@ -15,7 +15,7 @@ import {
   type Pool,
 } from '../shared/catalog.js';
 import { CHARACTER_MIN_FAVORITES, CHARACTER_ROUND_DIFFICULTIES, characterDifficultyOf, displayName } from '../shared/characters.js';
-import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayUtc, type MediaKind, type Mode } from '../shared/modes.js';
+import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayUtc7, type MediaKind, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
@@ -370,7 +370,7 @@ async function answerInserts(puzzleId: string, mode: Mode, answers: number[][], 
 
 /** A daily puzzle's date from a request: today when absent, else a day between FIRST_DAILY_DATE and today. */
 export function parseDailyDate(value: string | null): string {
-  const today = todayUtc();
+  const today = todayUtc7();
   if (!value) return today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > today || value < FIRST_DAILY_DATE) throw new HttpError(400, `Daily puzzles exist from ${FIRST_DAILY_DATE} to today.`);
   return value;

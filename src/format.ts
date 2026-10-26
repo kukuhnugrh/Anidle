@@ -9,7 +9,7 @@ export const pretty = (value: string | null) => (value == null ? '?' : MEDIA_LAB
 
 export const fmtNumber = (n: number) => n.toLocaleString('en-US');
 
-/** Puzzle date "2026-10-25" → "25 October 2026" (the date is already a UTC calendar day). */
+/** Puzzle date "2026-10-25" → "25 October 2026" (a calendar day, formatted as is, whatever the browser's time zone). */
 export const fmtDate = (isoDate: string) =>
   new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 

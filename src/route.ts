@@ -1,4 +1,4 @@
-import { FIRST_DAILY_DATE, MODES, todayUtc, type Mode } from '../shared/modes';
+import { FIRST_DAILY_DATE, MODES, todayUtc7, type Mode } from '../shared/modes';
 
 export type Route =
   | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' }
@@ -20,7 +20,7 @@ const PATHS: Record<string, Exclude<View, 'play' | 'daily'>> = {
 
 /** An archive day from `?date=`: before today and not before FIRST_DAILY_DATE, else null (= today). */
 export function archiveDate(value: string | null): string | null {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= FIRST_DAILY_DATE && value < todayUtc() ? value : null;
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= FIRST_DAILY_DATE && value < todayUtc7() ? value : null;
 }
 
 /** Daily puzzle of a mode: `#/daily` is Anidle (the first mode, kept for old links), `#/daily/opening`…, `?date=` an earlier day. */

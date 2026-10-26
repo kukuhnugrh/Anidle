@@ -1,4 +1,4 @@
-# Gets each day's Opening/Ending ready right after the 00:00 UTC rollover: creates the day's puzzles,
+# Gets each day's Opening/Ending ready right after the 00:00 UTC+7 rollover: creates the day's puzzles,
 # copies their songs to R2 and makes any missing clue clip (pipeline step `daily`), so players stream
 # from Cloudflare instead of waiting on AnimeThemes. Uses the same secrets as pipeline.yml. GitHub may
 # start scheduled runs some minutes late; until then songs stream through /api/media as before.
@@ -6,8 +6,8 @@ name: daily
 
 on:
   schedule:
-    # 00:05 UTC, just after the daily rollover.
-    - cron: '5 0 * * *'
+    # 17:05 UTC = 00:05 UTC+7, just after the daily rollover.
+    - cron: '5 17 * * *'
   workflow_dispatch:
 
 concurrency:

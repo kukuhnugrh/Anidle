@@ -1,9 +1,12 @@
 // Game modes and the rules of the multi-round modes (PLAN.md §8).
 import type { Difficulty } from './catalog.js';
 
-/** Today's date in UTC, YYYY-MM-DD: the date of the daily puzzles (they roll over at 00:00 UTC). */
-export function todayUtc(now = Date.now()): string {
-  return new Date(now).toISOString().slice(0, 10);
+/** Daily puzzles roll over at 00:00 UTC+7. */
+export const DAILY_UTC_OFFSET_MS = 7 * 3_600_000;
+
+/** Today's date in UTC+7, YYYY-MM-DD: the date of the daily puzzles. */
+export function todayUtc7(now = Date.now()): string {
+  return new Date(now + DAILY_UTC_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 /** The first daily puzzles; the archive (playing an earlier day) goes back to here. */

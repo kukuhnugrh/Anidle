@@ -1,17 +1,17 @@
 import './env.js';
 import { all, db } from '../server/db.js';
 import { requireEnv } from '../server/env.js';
-import { MODES, todayUtc, type Mode } from '../shared/modes.js';
+import { MODES, todayUtc7, type Mode } from '../shared/modes.js';
 import { deleteObject } from './r2.js';
 
 /**
  * Throws away a date's daily puzzles (with everyone's plays on them) and has them drawn again on the
  * next request, with a new seed (daily_reroll). Usage:
  *   npm run daily:reroll -- [--date=YYYY-MM-DD] [--mode=anidle,opening] [--turso]
- * Defaults: today (UTC), every mode.
+ * Defaults: today (UTC+7), every mode.
  */
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
-const date = arg('date') ?? todayUtc();
+const date = arg('date') ?? todayUtc7();
 const requested = arg('mode')?.split(',') ?? [...MODES];
 const modes = requested.filter((m): m is Mode => MODES.some((known) => known === m));
 if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || modes.length !== requested.length || !modes.length) {

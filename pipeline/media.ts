@@ -6,7 +6,7 @@ import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { CHARACTER_MIN_FAVORITES, CHARACTERS_PER_DIFFICULTY, characterDifficultyOf, isRomaji } from '../shared/characters.js';
-import { MODE_MEDIA, SCREENSHOTS_PER_TITLE, shiftDate, todayUtc, type MediaKind } from '../shared/modes.js';
+import { MODE_MEDIA, SCREENSHOTS_PER_TITLE, shiftDate, todayUtc7, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { dailyPuzzle } from '../server/game.js';
 import { songSources } from '../server/songs.js';
@@ -538,14 +538,14 @@ const SONG_COPY_DAYS = 7;
 const songHost = new Limiter('animethemes-files', [{ ms: 1000, max: 2 }]);
 
 /**
- * Gets today's Opening and Ending ready before players arrive (run right after the 00:00 UTC rollover):
+ * Gets today's Opening and Ending ready before players arrive (run right after the 00:00 UTC+7 rollover):
  * creates the day's puzzles if nobody has yet, copies each round's full song to R2 (puzzle_round.audio_key,
  * v1/song/<hash>.ogg, so the file name gives nothing away) and makes any missing clue clip. Players then
  * stream from Cloudflare instead of waiting ~5 s per song on AnimeThemes. Copies older than
  * SONG_COPY_DAYS are removed (R2's free 10 GB); a round without a copy streams through /api/media.
  */
 export async function stepDaily() {
-  const date = todayUtc();
+  const date = todayUtc7();
   const counts = { songs: 0, clips: 0, kept: 0, failed: 0, removed: 0 };
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-daily-'));
   for (const mode of ['opening', 'ending'] as const) {

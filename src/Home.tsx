@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { DAILY_MAX_POINTS, MODES, MODE_LABELS, todayUtc, type Mode } from '../shared/modes';
+import { DAILY_MAX_POINTS, DAILY_UTC_OFFSET_MS, MODES, MODE_LABELS, todayUtc7, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtDate, fmtNumber } from './format';
@@ -8,9 +8,9 @@ import { archiveDate, dailyHref } from './route';
 
 const DAY_MS = 86_400_000;
 
-/** The daily puzzle rolls over at 00:00 UTC. */
+/** The daily puzzle rolls over at 00:00 UTC+7. */
 function Countdown() {
-  const left = () => DAY_MS - (Date.now() % DAY_MS);
+  const left = () => DAY_MS - ((Date.now() + DAILY_UTC_OFFSET_MS) % DAY_MS);
   const [ms, setMs] = useState(left);
   useEffect(() => {
     const timer = setInterval(() => setMs(left()), 1000);
@@ -71,7 +71,7 @@ export function Home({ account }: { account: Account | null }) {
       cancelled = true;
     };
   }, [date]);
-  const shown = date ?? todayUtc();
+  const shown = date ?? todayUtc7();
   const dayScore = MODES.reduce((sum, m) => {
     const p = daily[m];
     return sum + (p && p !== 'unavailable' && p.finished ? (p.score ?? 0) : 0);
@@ -109,13 +109,13 @@ export function Home({ account }: { account: Account | null }) {
           <div className="hero-clock">
             <span className="eyebrow">New puzzle in</span>
             <Countdown />
-            <span className="muted small">every day at 00:00 UTC</span>
+            <span className="muted small">every day at 00:00 UTC+7</span>
           </div>
         </div>
       </section>
 
       <div className="day-bar">
-        <DatePicker date={shown} onChange={(d) => setDate(d === todayUtc() ? null : d)} />
+        <DatePicker date={shown} onChange={(d) => setDate(d === todayUtc7() ? null : d)} />
         <span className="muted">
           {date ? fmtDate(date) : 'Today'}: <b>{fmtNumber(dayScore)}</b> / {fmtNumber(DAILY_MAX_POINTS)} pts
         </span>
