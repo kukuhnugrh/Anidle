@@ -137,7 +137,8 @@ export async function viewer(req: Request): Promise<Viewer> {
   const anonId = getCookie(req, ANON_COOKIE);
   const anonKey = anonId && /^[0-9a-f]{24}$/.test(anonId) ? `a:${anonId}` : null;
   const session = verify<Session>(getCookie(req, SESSION_COOKIE));
-  const account = session && session.exp > Date.now() ? await accountById(session.a) : null;
+  // An older cookie format ({ u: username }) still carries a valid signature: only an account id counts.
+  const account = session && typeof session.a === 'number' && session.exp > Date.now() ? await accountById(session.a) : null;
   if (account) return { key: accountKey(account.id), account, anonKey, cookies: [] };
   if (anonKey) return { key: anonKey, account: null, anonKey, cookies: [] };
   const fresh = randomBytes(12).toString('hex');

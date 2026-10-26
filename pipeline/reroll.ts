@@ -2,6 +2,7 @@ import './env.js';
 import { all, db } from '../server/db.js';
 import { requireEnv } from '../server/env.js';
 import { MODES, todayWib, type Mode } from '../shared/modes.js';
+import { deleteObject } from './r2.js';
 
 /**
  * Throws away a date's daily puzzles (with everyone's plays on them) and has them drawn again on the
@@ -23,6 +24,13 @@ const plays = await all<{ n: number }>(
   `SELECT COUNT(*) AS n FROM play WHERE puzzle_id IN (SELECT id FROM puzzle WHERE date = ? AND mode IN (${modes.map(() => '?').join(',')}))`,
   [date, ...modes],
 );
+// R2 copies of the songs (step `daily`) go too, unless another round still uses the same file.
+const songKeys = puzzles.length
+  ? await all<{ audio_key: string }>(
+      `SELECT DISTINCT audio_key FROM puzzle_round WHERE audio_key IS NOT NULL AND puzzle_id IN (${puzzles.map(() => '?').join(',')})`,
+      puzzles.map((p) => p.id),
+    )
+  : [];
 await db().batch(
   [
     ...puzzles.flatMap(({ id }) => [
@@ -35,4 +43,7 @@ await db().batch(
   ],
   'write',
 );
-console.log(`${requireEnv('TURSO_DATABASE_URL').replace(/\?.*/, '')}: ${date} di-reroll (${puzzles.map((p) => p.mode).join(', ') || 'belum ada puzzle'}; ${Number(plays[0]?.n ?? 0)} play dihapus)`);
+for (const { audio_key } of songKeys) if (!(await all('SELECT 1 FROM puzzle_round WHERE audio_key = ? LIMIT 1', [audio_key])).length) await deleteObject(audio_key);
+console.log(
+  `${requireEnv('TURSO_DATABASE_URL').replace(/\?.*/, '')}: ${date} di-reroll (${puzzles.map((p) => p.mode).join(', ') || 'belum ada puzzle'}; ${Number(plays[0]?.n ?? 0)} play, ${songKeys.length} salinan lagu dihapus)`,
+);

@@ -20,6 +20,8 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // OP/ED clue video: video_url = the theme's smallest video on AnimeThemes ('' = none); clip_key = the
   // small muted 240p clip on R2 (step `clips`; '' = could not be made, the clue streams video_url instead).
   anime_media: { video_url: 'TEXT', clip_key: 'TEXT' },
+  // A daily Opening/Ending round's full song copied to R2 by step `daily` (NULL = stream from AnimeThemes).
+  puzzle_round: { audio_key: 'TEXT' },
 };
 
 /** Indexes on ADDED_COLUMNS, created once the columns exist. */

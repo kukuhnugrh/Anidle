@@ -1,0 +1,41 @@
+# Gets each day's Opening/Ending ready right after the 00:00 WIB rollover: creates the day's puzzles,
+# copies their songs to R2 and makes any missing clue clip (pipeline step `daily`), so players stream
+# from Cloudflare instead of waiting on AnimeThemes. Uses the same secrets as pipeline.yml. GitHub may
+# start scheduled runs some minutes late; until then songs stream through /api/media as before.
+name: daily
+
+on:
+  schedule:
+    # 17:05 UTC = 00:05 WIB.
+    - cron: '5 17 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+      TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+      POOL_USERS: ${{ secrets.POOL_USERS }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      MEDIA_BASE_URL: https://media.velvetaco.dev
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run pipeline -- daily

@@ -6,10 +6,12 @@ import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { CHARACTER_MIN_FAVORITES, CHARACTERS_PER_DIFFICULTY, characterDifficultyOf, isRomaji } from '../shared/characters.js';
-import { SCREENSHOTS_PER_TITLE, type MediaKind } from '../shared/modes.js';
+import { MODE_MEDIA, SCREENSHOTS_PER_TITLE, shiftDate, todayWib, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
+import { dailyPuzzle } from '../server/game.js';
+import { songSources } from '../server/songs.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
-import { putObject } from './r2.js';
+import { deleteObject, putObject } from './r2.js';
 import { firstThemes, type ThemeSource } from './sources/animeThemes.js';
 import { animeCharacters, characterDetail } from './sources/jikanEdge.js';
 
@@ -456,6 +458,40 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
 const CLIP_HEIGHT = 240;
 
 /**
+ * One theme's clue clip: encoded from `videoUrl`, uploaded, and recorded as its clip_key ('' when the
+ * encoder's result is unusable, so it is streamed instead). Throws when the host is in trouble, so the
+ * theme is tried again on a later run. `file` is a scratch path (mp4 needs a seekable output).
+ */
+export async function makeClip(malId: number, kind: MediaKind, videoUrl: string, file: string): Promise<'ok' | 'failed'> {
+  // The video host answers 5xx in bursts when busy: wait and try again (30 s, 60 s, 90 s) before giving up.
+  let result: FfmpegResult | null = null;
+  for (let attempt = 1; !result; attempt++) {
+    try {
+      result = await ffmpeg([
+        '-rw_timeout', '60000000', '-i', videoUrl, '-an',
+        '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
+        // +faststart puts the index first, so the browser can start right away.
+        '-movflags', '+faststart', '-y', file,
+      ]);
+    } catch (err) {
+      if (!(err instanceof MediaError) || attempt >= 4) throw err;
+      await sleep(30_000 * attempt);
+    }
+  }
+  const out = new Uint8Array(await readFile(file));
+  // ffmpeg exits non-zero for a 5xx from the host as well (thrown above); only a clean but bad result marks the theme.
+  if (out.length < 50_000 || result.seconds < 20) {
+    await run("UPDATE anime_media SET clip_key = '' WHERE mal_id = ? AND kind = ?", [malId, kind]);
+    log(`clips: ${malId} ${kind} klip terlalu pendek (${out.length} B, ${result.seconds} dtk)`);
+    return 'failed';
+  }
+  const key = contentKey('clip', out, 'mp4');
+  await putObject(key, out, 'video/mp4');
+  await run('UPDATE anime_media SET clip_key = ? WHERE mal_id = ? AND kind = ?', [key, malId, kind]);
+  return 'ok';
+}
+
+/**
  * The OP/ED clue as a small clip: the theme's video re-encoded to 240p H.264 without sound (the song
  * keeps playing and the clip follows it), ~1.5 MB instead of 30–60 MB, at v1/clip/<hash>.mp4. It is
  * shown blurred, so the low resolution does not show. R2's free 10 GB sets the scope: easy + medium
@@ -483,37 +519,11 @@ export async function stepClips(refreshAll: boolean, limit: number) {
   const workers = Array.from({ length: 2 }, async (_, w) => {
     const file = path.join(dir, `clip-${w}.mp4`);
     for (let row = queue.pop(); row; row = queue.pop()) {
-      const id = Number(row.mal_id);
       try {
-        // mp4 needs a seekable output for +faststart (the index first, so the browser can start right away).
-        // The video host answers 5xx in bursts when busy: wait and try again (30 s, 60 s, 90 s) before skipping.
-        let result: FfmpegResult | null = null;
-        for (let attempt = 1; !result; attempt++) {
-          try {
-            result = await ffmpeg([
-              '-rw_timeout', '60000000', '-i', row.video_url, '-an',
-              '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
-              '-movflags', '+faststart', '-y', file,
-            ]);
-          } catch (err) {
-            if (!(err instanceof MediaError) || attempt >= 4) throw err;
-            await sleep(30_000 * attempt);
-          }
-        }
-        const { seconds } = result;
-        const out = new Uint8Array(await readFile(file));
-        if (out.length < 50_000 || seconds < 20) throw new MediaError(`klip terlalu pendek (${out.length} B, ${seconds} dtk)`);
-        const key = contentKey('clip', out, 'mp4');
-        await putObject(key, out, 'video/mp4');
-        await run('UPDATE anime_media SET clip_key = ? WHERE mal_id = ? AND kind = ?', [key, id, row.kind]);
-        counts.ok++;
+        counts[await makeClip(Number(row.mal_id), row.kind, row.video_url, file)]++;
       } catch (err) {
-        // ffmpeg exits non-zero for a 5xx from the host as well; only a clean but bad result marks the theme.
-        if (err instanceof MediaError && err.message.startsWith('klip')) {
-          await run("UPDATE anime_media SET clip_key = '' WHERE mal_id = ? AND kind = ?", [id, row.kind]);
-          counts.failed++;
-        } else counts.skipped++;
-        log(`clips: ${id} ${row.kind} ${errorText(err)}`);
+        counts.skipped++;
+        log(`clips: ${row.mal_id} ${row.kind} ${errorText(err)}`);
       }
       if (++done % 25 === 0) log(`clips: ${done}/${total}`, counts);
     }
@@ -521,4 +531,55 @@ export async function stepClips(refreshAll: boolean, limit: number) {
   await Promise.all(workers);
   await rm(dir, { recursive: true, force: true });
   log('clips:', counts);
+}
+
+/** Daily song copies on R2 are kept this long; older days' rounds stream from AnimeThemes again. */
+const SONG_COPY_DAYS = 7;
+const songHost = new Limiter('animethemes-files', [{ ms: 1000, max: 2 }]);
+
+/**
+ * Gets today's Opening and Ending ready before players arrive (run right after the 00:00 WIB rollover):
+ * creates the day's puzzles if nobody has yet, copies each round's full song to R2 (puzzle_round.audio_key,
+ * v1/song/<hash>.ogg, so the file name gives nothing away) and makes any missing clue clip. Players then
+ * stream from Cloudflare instead of waiting ~5 s per song on AnimeThemes. Copies older than
+ * SONG_COPY_DAYS are removed (R2's free 10 GB); a round without a copy streams through /api/media.
+ */
+export async function stepDaily() {
+  const date = todayWib();
+  const counts = { songs: 0, clips: 0, kept: 0, failed: 0, removed: 0 };
+  const dir = await mkdtemp(path.join(tmpdir(), 'anidle-daily-'));
+  for (const mode of ['opening', 'ending'] as const) {
+    const puzzle = await dailyPuzzle(mode, date);
+    const sources = await songSources(puzzle.id, mode);
+    for (const [round, source] of sources.entries()) {
+      try {
+        if (source.audioKey) counts.kept++;
+        else {
+          const song = await download(songHost, source.audioUrl);
+          if (song.length < 200_000) throw new MediaError(`lagu terlalu kecil (${song.length} B)`);
+          const key = contentKey('song', song, 'ogg');
+          await putObject(key, song, 'audio/ogg');
+          await run('UPDATE puzzle_round SET audio_key = ? WHERE puzzle_id = ? AND round = ?', [key, puzzle.id, round]);
+          counts.songs++;
+        }
+        if (!source.clipKey && source.videoUrl && (await makeClip(source.malId, MODE_MEDIA[mode]!, source.videoUrl, path.join(dir, 'clip.mp4'))) === 'ok') counts.clips++;
+      } catch (err) {
+        counts.failed++;
+        log(`daily: ${date} ${mode} ronde ${round + 1} (${source.malId}) ${errorText(err)}`);
+      }
+    }
+  }
+  await rm(dir, { recursive: true, force: true });
+
+  const old = await all<{ puzzle_id: string; round: number; audio_key: string }>(
+    `SELECT r.puzzle_id, r.round, r.audio_key FROM puzzle_round r JOIN puzzle p ON p.id = r.puzzle_id WHERE r.audio_key IS NOT NULL AND p.date < ?`,
+    [shiftDate(date, -SONG_COPY_DAYS)],
+  );
+  for (const row of old) {
+    await run('UPDATE puzzle_round SET audio_key = NULL WHERE puzzle_id = ? AND round = ?', [row.puzzle_id, row.round]);
+    // The same song can back a newer round (same content, same key): only delete an object nothing uses.
+    if (!(await all('SELECT 1 FROM puzzle_round WHERE audio_key = ? LIMIT 1', [row.audio_key])).length) await deleteObject(row.audio_key);
+    counts.removed++;
+  }
+  log(`daily: ${date}`, counts);
 }

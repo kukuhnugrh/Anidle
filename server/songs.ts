@@ -25,7 +25,7 @@ export interface SongInfo {
 }
 
 export interface SongRoundState {
-  /** Same-origin stream of the full song. */
+  /** The full song: its R2 copy when the daily step made one, else a same-origin stream from AnimeThemes. */
   audio: string;
   clue: {
     opened: boolean;
@@ -65,6 +65,8 @@ export interface SongState {
 export interface SongSource {
   malId: number;
   audioUrl: string;
+  /** The daily step's copy of the full song on R2 (puzzle_round.audio_key), when there is one. */
+  audioKey: string | null;
   /** The theme's smallest video on AnimeThemes (older rows: derived from the audio URL). */
   videoUrl: string;
   /** The 240p clue clip on R2 (pipeline step `clips`), when there is one. */
@@ -74,8 +76,8 @@ export interface SongSource {
 
 /** The round titles of a song puzzle with their AnimeThemes source, in round order. */
 export async function songSources(puzzleId: string, mode: SongMode): Promise<SongSource[]> {
-  const rows = await all<{ mal_id: number; source_url: string | null; video_url: string | null; clip_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
-    `SELECT r.mal_id, m.source_url, m.video_url, m.clip_key, m.label, m.song_title, m.artist
+  const rows = await all<{ mal_id: number; audio_key: string | null; source_url: string | null; video_url: string | null; clip_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
+    `SELECT r.mal_id, r.audio_key, m.source_url, m.video_url, m.clip_key, m.label, m.song_title, m.artist
      FROM puzzle_round r LEFT JOIN anime_media m ON m.mal_id = r.mal_id AND m.kind = ?
      WHERE r.puzzle_id = ? ORDER BY r.round`,
     [MODE_MEDIA[mode]!, puzzleId],
@@ -84,6 +86,7 @@ export async function songSources(puzzleId: string, mode: SongMode): Promise<Son
   return rows.map((r) => ({
     malId: Number(r.mal_id),
     audioUrl: r.source_url!,
+    audioKey: r.audio_key,
     // AnimeThemes extracts each audio file from a video of the same name: a.…/X.ogg ↔ v.…/X.webm.
     videoUrl: r.video_url || r.source_url!.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm'),
     clipKey: r.clip_key || null,
@@ -116,7 +119,7 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
     const finished = played.g !== null;
     const info = answerInfo(answer);
     return {
-      audio: media(i, 'audio'),
+      audio: s.audioKey ? mediaUrl(s.audioKey) : media(i, 'audio'),
       difficulty: info.difficulty,
       clue: {
         opened: played.c,
