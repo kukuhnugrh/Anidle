@@ -105,12 +105,6 @@ export const PauseIcon = () => (
   </Icon>
 );
 
-export const SkipIcon = () => (
-  <Icon>
-    <path d="M5.5 6l8 6-8 6zM17.5 6v12" />
-  </Icon>
-);
-
 export const UsersIcon = () => (
   <Icon>
     <circle cx="9" cy="8.5" r="3.5" />
@@ -152,5 +146,19 @@ export const ShieldIcon = () => (
   <Icon>
     <path d="M12 3.5 19 6v5.5c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6z" />
     <path d="M9 12l2 2 4-4" />
+  </Icon>
+);
+
+export const LockIcon = () => (
+  <Icon>
+    <rect x="5" y="10.5" width="14" height="10" rx="2" />
+    <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+  </Icon>
+);
+
+export const UnlockIcon = () => (
+  <Icon>
+    <rect x="5" y="10.5" width="14" height="10" rx="2" />
+    <path d="M8 10.5V7.5a4 4 0 0 1 7.7-1.5" />
   </Icon>
 );

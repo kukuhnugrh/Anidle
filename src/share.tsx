@@ -37,9 +37,9 @@ export function anidleShareText(p: AnidleState): string {
   return [`${heading(p.mode, p.date, p.score)} (${result})`, ...p.guesses.map(anidleRow), SITE].join('\n');
 }
 
-/** Per round: ⬜ skip, 🟥 wrong, 🟩 the correct guess. */
+/** Per round: 🟨 per clue unlocked, then 🟩 right, 🟥 wrong or ⬜ gave up. */
 export function roundShareText(p: RoundState): string {
-  const rows = p.rounds.map((r, i) => `R${i + 1} ${r.attempts.map((a, j) => (!a ? '⬜' : r.solved && j === r.attempts.length - 1 ? '🟩' : '🟥')).join('')}`);
+  const rows = p.rounds.map((r, i) => `R${i + 1} ${'🟨'.repeat(r.clues)}${r.solved ? '🟩' : r.gaveUp ? '⬜' : '🟥'}`);
   return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
 }
 

@@ -1,26 +1,25 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MAX_ROUND_POINTS, MODE_LABELS, roundPoints, type RoundStage } from '../shared/modes';
+import { MODE_LABELS, SCREENSHOT_CLUES } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
-import { SkipIcon } from './icons';
+import { LockIcon, UnlockIcon } from './icons';
 import { roundShareText, ShareButton } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 type Round = RoundState['rounds'][number];
 
-/** Gives up on a round whose frame has not decoded in this long (a screenshot is ~60 KB). */
+/** Gives up on a round whose first screenshot has not decoded in this long (a screenshot is ~60 KB). */
 const PRELOAD_TIMEOUT_MS = 20_000;
 
-const SKIP_LABELS: Record<RoundStage, string> = { shot: 'Skip (another screenshot)', hint: 'Skip (title hint)' };
-
-/** Attempt labels: what was on screen for each attempt ("Shot 2", "Hint"). */
-const stageLabels = (stages: readonly RoundStage[]) => stages.map((s, i) => (s === 'hint' ? 'Hint' : `Shot ${i + 1}`));
+/** Tab labels: the screenshot shown first, then one per clue (SCREENSHOT_CLUES order). */
+const VIEW_LABELS = ['Original screenshot', 'First clue', 'Second clue', 'Title clue'];
+const UNLOCK_LABELS = ['', 'Unlock first clue', 'Unlock second clue', 'Unlock title clue'];
 
 /**
- * Decodes every round's frame up front so a round never waits on the network. A round whose URL
- * changes (replaced after an error) loads again; the others keep what they have.
+ * Decodes every round's first screenshot up front so a round never waits on the network. A round
+ * whose URL changes (replaced after an error) loads again; the others keep what they have.
  */
 function useFrames(urls: string[]) {
   const loaded = useRef<string[]>([]);
@@ -53,53 +52,38 @@ function useFrames(urls: string[]) {
   return { status, retry: (i: number) => load(i, urls[i]!) };
 }
 
-/** The unlocked screenshots: the newest one large, the earlier ones as thumbnails to look back at. */
-function Shots({ media }: { media: string[] }) {
-  const [picked, setPicked] = useState(media.length - 1);
-  useEffect(() => setPicked(media.length - 1), [media.length]);
-  const shown = media[Math.min(picked, media.length - 1)]!;
-  return (
-    <div className="shots">
-      <div className="shot">
-        <img src={shown} alt="" />
+/** What a view shows: a screenshot, or the masked title in the same frame. */
+function ClueFrame({ round, view }: { round: Round; view: number }) {
+  if (SCREENSHOT_CLUES[view - 1] === 'title' && round.hint)
+    return (
+      <div className="shot title-hint">
+        <span className="field-label">Title clue</span>
+        <code>{round.hint.title}</code>
+        {round.hint.english && <code className="muted">{round.hint.english}</code>}
       </div>
-      {media.length > 1 && (
-        <div className="shot-thumbs">
-          {media.map((url, i) => (
-            <button key={url} className={`shot-thumb${url === shown ? ' active' : ''}`} onClick={() => setPicked(i)} aria-label={`Screenshot ${i + 1}`}>
-              <img src={url} alt="" />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Hint({ hint }: { hint: NonNullable<Round['hint']> }) {
+    );
+  const shot = round.media[Math.min(view, round.media.length - 1)]!;
   return (
-    <div className="title-hint">
-      <span className="field-label">Title hint</span>
-      <code>{hint.title}</code>
-      {hint.english && <code className="muted">{hint.english}</code>}
+    <div className="shot">
+      <img src={shot} alt="" />
     </div>
   );
 }
 
 export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundState; onChange: (p: RoundState) => void; onNewUnlimited: () => Promise<void> }) {
-  const urls = useMemo(() => puzzle.rounds.map((r) => r.media[0]!), [puzzle.rounds]);
-  const { status, retry } = useFrames(urls);
-  const [view, setView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
+  const { status, retry } = useFrames(puzzle.rounds.map((r) => r.media[0]!));
+  const [roundView, setRoundView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
+  const round = puzzle.rounds[roundView]!;
+  // The frame on screen: 0 = original screenshot, n = clue n. Follows the newest clue when one opens.
+  const [clueView, setClueView] = useState(round.clues);
+  useEffect(() => setClueView(round.clues), [roundView, round.clues]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const settled = status.filter((s) => s !== 'loading').length;
-  const round = puzzle.rounds[view]!;
-  const isCurrent = view === puzzle.current;
-  const stages = puzzle.stages;
-  const labels = stageLabels(stages);
-  const next = stages[round.attempts.length + 1];
-  const exclude = useMemo(() => new Set(round.attempts.flatMap((a) => (a ? [a.malId] : []))), [round.attempts]);
+  const isCurrent = roundView === puzzle.current;
+  const playing = isCurrent && !round.finished;
+  const opened = round.finished ? SCREENSHOT_CLUES.length : round.clues;
+  const worth = puzzle.points.max - puzzle.points.perClue * round.clues;
 
   const send = async (task: () => Promise<RoundState>) => {
     setSending(true);
@@ -113,21 +97,6 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
     }
   };
 
-  if (settled < status.length && !puzzle.finished)
-    return (
-      <div className="center">
-        <div className="preload">
-          <span className="eyebrow">Preparing {MODE_LABELS[puzzle.mode]}</span>
-          <div className="preload-bar">
-            <span style={{ width: `${(settled / status.length) * 100}%` }} />
-          </div>
-          <span className="muted small">
-            Loading round {settled}/{status.length}
-          </span>
-        </div>
-      </div>
-    );
-
   return (
     <div className="round-game">
       <header className="page-head game-head">
@@ -135,7 +104,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">
-            Guess the anime from a screenshot of its opening. Each wrong guess or skip shows another screenshot, then a title hint.
+            Guess the anime from a screenshot of its opening. One guess per round: {puzzle.points.max} pts, minus {puzzle.points.perClue} for every clue you unlock (two more
+            screenshots, then the title's initials).
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -143,10 +113,10 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             <button
               key={i}
               role="tab"
-              aria-selected={i === view}
-              className={`round-tab${i === view ? ' active' : ''}${r.finished ? (r.solved ? ' won' : ' lost') : ''}`}
+              aria-selected={i === roundView}
+              className={`round-tab${i === roundView ? ' active' : ''}${r.finished ? (r.solved ? ' won' : ' lost') : ''}`}
               disabled={i > puzzle.current}
-              onClick={() => setView(i)}
+              onClick={() => setRoundView(i)}
             >
               <span>Round {i + 1}</span>
               <b>{r.finished ? `${r.points}` : i === puzzle.current ? '…' : '—'}</b>
@@ -155,32 +125,61 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         </div>
       </header>
 
-      {status[view] === 'error' ? (
+      <div className="round-title">
+        <h2>Round {roundView + 1}</h2>
+        <span className={`difficulty ${round.difficulty}`}>{round.difficulty}</span>
+      </div>
+
+      {status[roundView] === 'error' ? (
         <div className="card load-error">
           <p>This round's image failed to load.</p>
           <div className="actions">
-            <button onClick={() => retry(view)}>Try again</button>
-            {puzzle.canReplace && !round.attempts.length && !round.finished && (
-              <button className="primary" disabled={sending} onClick={() => send(() => api.replaceRound<RoundState>(puzzle.id, view))}>
+            <button onClick={() => retry(roundView)}>Try again</button>
+            {puzzle.canReplace && !round.clues && !round.finished && (
+              <button className="primary" disabled={sending} onClick={() => send(() => api.replaceRound<RoundState>(puzzle.id, roundView))}>
                 Replace with another title
               </button>
             )}
           </div>
         </div>
+      ) : status[roundView] === 'loading' ? (
+        <section className="card stage-card">
+          <div className="shot loading-shot muted small">Loading screenshot…</div>
+        </section>
       ) : (
         <section className="card stage-card">
-          <Shots key={view} media={round.media} />
-          {round.hint && <Hint hint={round.hint} />}
-          {!round.finished && isCurrent && (
+          <ClueFrame round={round} view={Math.min(clueView, opened)} />
+          <div className="clue-tabs">
+            {VIEW_LABELS.map((label, i) => {
+              if (i <= opened)
+                return (
+                  <button key={i} className={`clue-tab${i === clueView ? ' active' : ''}`} onClick={() => setClueView(i)}>
+                    <UnlockIcon />
+                    {label}
+                  </button>
+                );
+              const next = playing && i === opened + 1;
+              return (
+                <button
+                  key={i}
+                  className="clue-tab locked"
+                  disabled={!next || sending}
+                  title={next ? `−${puzzle.points.perClue} pts` : 'Unlock the previous clue first'}
+                  onClick={() => send(() => api.roundClue<RoundState>(puzzle.id, roundView))}
+                >
+                  <LockIcon />
+                  {UNLOCK_LABELS[i]}
+                </button>
+              );
+            })}
+          </div>
+          {playing && (
             <div className="stage-controls">
-              <GuessInput exclude={exclude} disabled={sending} onPick={(malId) => send(() => api.roundGuess(puzzle.id, view, malId))} />
+              <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />
               <div className="stage-actions">
-                <span className="muted small">
-                  Attempt {round.attempts.length + 1}/{stages.length} · correct now = {roundPoints(round.attempts.length, stages.length)} pts
-                </span>
-                <button className="ghost" disabled={sending} onClick={() => send(() => api.roundGuess(puzzle.id, view, null))}>
-                  <SkipIcon />
-                  {next === undefined ? 'Give up' : SKIP_LABELS[next]}
+                <span className="muted small">One guess · right now = {worth} pts</span>
+                <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<RoundState>(puzzle.id, roundView))}>
+                  Give up
                 </button>
               </div>
             </div>
@@ -194,7 +193,15 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <section className={`result ${round.solved ? 'win' : 'lose'}`}>
           {round.answer.cover && <img src={round.answer.cover} alt="" />}
           <div>
-            <div className="muted small">{round.solved ? `Solved on attempt ${round.attempts.length}` : 'The answer:'}</div>
+            <div className="muted small">
+              {round.solved
+                ? round.clues
+                  ? `Right, with ${round.clues} clue${round.clues > 1 ? 's' : ''}`
+                  : 'Right, no clue needed!'
+                : round.gaveUp
+                  ? 'You gave up. The answer:'
+                  : `Not ${round.guess?.title}. The answer:`}
+            </div>
             <h3>{round.answer.title}</h3>
             <div className="muted answer-meta">
               {round.answer.year ?? ''}
@@ -205,8 +212,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               <a className="button" href={`https://myanimelist.net/anime/${round.answer.malId}`} target="_blank" rel="noreferrer">
                 Open on MAL ↗
               </a>
-              {view < puzzle.current && puzzle.current < puzzle.rounds.length && (
-                <button className="primary" onClick={() => setView(puzzle.current)}>
+              {roundView < puzzle.current && puzzle.current < puzzle.rounds.length && (
+                <button className="primary" onClick={() => setRoundView(puzzle.current)}>
                   Round {puzzle.current + 1}
                 </button>
               )}
@@ -215,28 +222,13 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         </section>
       )}
 
-      {round.attempts.length > 0 && (
-        <ol className="attempts">
-          {round.attempts.map((a, i) => {
-            const correct = round.solved && i === round.attempts.length - 1;
-            return (
-              <li key={i} className={correct ? 'ok' : a ? 'bad' : 'skip'}>
-                <span className="attempt-stage">{labels[i]}</span>
-                <span>{a ? a.title : 'Skipped'}</span>
-                <span className="attempt-mark">{correct ? '✓' : a ? '✗' : '→'}</span>
-              </li>
-            );
-          })}
-        </ol>
-      )}
-
       {puzzle.finished && (
         <section className="card final">
           <div>
             <span className="eyebrow">Finished</span>
             <h2>{puzzle.score ?? 0} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {MAX_ROUND_POINTS * puzzle.rounds.length} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {puzzle.points.max * puzzle.rounds.length} pts
             </p>
           </div>
           <div className="actions">

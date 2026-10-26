@@ -15,7 +15,7 @@ export const POST = route(async (req) => {
   const round = Number(body.round);
   const state = await puzzleState(puzzle, me.key);
   const r = 'rounds' in state ? state.rounds[round] : undefined;
-  const touched = !r || r.finished || ('attempts' in r ? r.attempts.length > 0 : 'clue' in r && r.clue.opened);
+  const touched = !r || r.finished || ('clues' in r ? r.clues > 0 : 'clue' in r && r.clue.opened);
   if (touched) throw new HttpError(409, 'Only a round you have not played yet can be replaced.');
   await swapRoundTitle(puzzle, me.account, round);
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);

@@ -1,16 +1,9 @@
 import { PERFECT_SOLVED, todayWib, type Mode } from '../shared/modes.js';
 import { all } from './db.js';
 
-/**
- * Tries in play.guesses: Anidle number[], round modes number[][] (0 = skip), Character
- * { n: string[]; a: number[] }[][] (names and anime tried per character).
- */
+/** Anidle guesses (play.guesses is number[] there). The round modes report rounds solved instead, so this is unused for them. */
 function attemptCount(guesses: string): number {
-  const parsed = JSON.parse(guesses) as Array<number | Array<number | { n: string[]; a: number[] }>>;
-  return parsed.reduce<number>(
-    (sum, g) => sum + (Array.isArray(g) ? g.reduce<number>((s, x) => s + (typeof x === 'number' ? 1 : x.n.length + x.a.length), 0) : 1),
-    0,
-  );
+  return (JSON.parse(guesses) as unknown[]).length;
 }
 
 export interface LeaderboardEntry {

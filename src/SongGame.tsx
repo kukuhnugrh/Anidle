@@ -205,7 +205,6 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
   const song = songs[view];
   const isCurrent = view === puzzle.current;
   const clueName = round.clue.kind === 'video' ? 'the blurred opening video' : 'the blurred anime cover';
-  const noExclusions = useMemo(() => new Set<number>(), []);
 
   const send = async (task: () => Promise<SongState>) => {
     setSending(true);
@@ -264,16 +263,16 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           {round.clue.opened && !round.finished && <ClueView key={round.audio} clue={round.clue} audio={song?.audio ?? null} />}
           {!round.finished && isCurrent && (
             <div className="stage-controls">
-              <GuessInput exclude={noExclusions} disabled={sending} onPick={(malId) => send(() => api.songGuess(puzzle.id, view, malId))} />
+              <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId))} />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {round.clue.opened ? puzzle.points.withClue : puzzle.points.plain} pts</span>
                 <div className="actions">
                   {!round.clue.opened && (
-                    <button disabled={sending} onClick={() => send(() => api.songClue(puzzle.id, view))} title={`Shows ${clueName}`}>
+                    <button disabled={sending} onClick={() => send(() => api.roundClue<SongState>(puzzle.id, view))} title={`Shows ${clueName}`}>
                       Show clue (−{puzzle.points.plain - puzzle.points.withClue} pts)
                     </button>
                   )}
-                  <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.songGiveUp(puzzle.id, view))}>
+                  <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<SongState>(puzzle.id, view))}>
                     Give up
                   </button>
                 </div>

@@ -351,14 +351,17 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .guess-input.compact input { font-size: 14px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg); }
 .shot { position: relative; width: 100%; max-width: 820px; margin: 0 auto; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px; background: var(--bg); border: 1px solid var(--border-strong); }
 .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.shots { display: grid; gap: 8px; }
-.shot-thumbs { display: flex; justify-content: center; gap: 8px; }
-.shot-thumb { padding: 0; width: 96px; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 8px; border: 2px solid var(--border-strong); background: var(--bg); opacity: .65; }
-.shot-thumb.active { border-color: var(--accent); opacity: 1; }
-.shot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.title-hint { display: grid; justify-items: center; gap: 4px; text-align: center; }
-.title-hint code { font-size: 20px; font-weight: 700; letter-spacing: .12em; word-break: break-word; }
-.title-hint code.muted { font-size: 15px; }
+.shot.title-hint, .shot.loading-shot { display: grid; place-content: center; justify-items: center; gap: 10px; padding: 20px; text-align: center; }
+.title-hint code { font-size: clamp(20px, 3.4vw, 34px); font-weight: 700; letter-spacing: .14em; word-break: break-word; }
+.title-hint code.muted { font-size: clamp(15px, 2.2vw, 22px); }
+.round-title { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.round-title h2 { margin: 0; font-size: 24px; }
+.clue-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.clue-tab { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: var(--surface); }
+.clue-tab .icon { width: 15px; height: 15px; }
+.clue-tab.active { border-color: var(--accent-2); box-shadow: inset 0 0 0 1px var(--accent-2); }
+.clue-tab.locked:not(:disabled) { border-color: var(--accent-line); color: var(--fg, inherit); }
+.clue-tab.locked:disabled { opacity: .45; }
 .round-tabs { display: flex; gap: 6px; }
 .round-tab { display: grid; gap: 0; min-width: 84px; padding: 6px 12px; background: var(--surface); text-align: center; }
 .round-tab span { font-size: 11px; font-weight: 600; color: var(--muted); }
@@ -387,15 +390,6 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .stage-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
 .load-error p { margin-bottom: 12px; }
 
-.attempts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.attempts li { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 9px 14px; border-radius: var(--radius-sm); border: 1px solid; animation: rise .25s ease-out; }
-.attempts li.ok { background: var(--ok-bg); border-color: var(--ok-line); }
-.attempts li.bad { background: var(--bad-bg); border-color: var(--bad-line); }
-.attempts li.skip { background: var(--surface); border-color: var(--border-strong); color: var(--muted); }
-.attempt-stage { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
-.attempt-mark { font-weight: 800; }
-.attempts li.ok .attempt-mark { color: var(--ok); }
-.attempts li.bad .attempt-mark { color: var(--bad); }
 .song { color: #ddd6fe; font-weight: 550; margin-bottom: 6px; }
 .final { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .final h2 { font-size: 28px; margin: 2px 0; }

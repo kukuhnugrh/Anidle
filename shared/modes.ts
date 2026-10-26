@@ -13,7 +13,7 @@ export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot'] 
 export type Mode = (typeof MODES)[number];
 /** Song modes: one title per round, the full song plays, one guess, an optional blurred clue. */
 export type SongMode = 'opening' | 'ending';
-/** Staged modes: one title per round, each wrong guess or skip unlocks the next clue. */
+/** Clue modes: one title per round, one guess, clues opened on demand (Screenshot). */
 export type RoundMode = 'screenshot';
 
 export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Character', screenshot: 'Screenshot' };
@@ -38,13 +38,13 @@ export const ROUND_COUNT = 3;
 export const SCREENSHOTS_PER_TITLE = 3;
 
 /**
- * What each attempt shows per staged mode. Screenshot: one more frame of the opening per attempt, then
- * the title masked to its initials (N_____ and, when it has one, the English title too).
+ * Screenshot clues, opened on demand in this order: the 2nd and 3rd screenshot, then the title masked
+ * to its initials (N_____, plus the English title when it has one).
  */
-export type RoundStage = 'shot' | 'hint';
-export const ROUND_STAGES: Record<RoundMode, readonly RoundStage[]> = {
-  screenshot: [...Array.from({ length: SCREENSHOTS_PER_TITLE }, (): RoundStage => 'shot'), 'hint'],
-};
+export const SCREENSHOT_CLUES = ['shot', 'shot', 'title'] as const;
+
+/** Screenshot: one guess per round; right = 500 minus 125 per clue opened, wrong or given up = 0. */
+export const SCREENSHOT_POINTS = { max: 500, perClue: 125 } as const;
 
 /** Song modes: a right guess scores 500, or 250 after opening the clue (blurred OP video / blurred cover); a miss scores 0. */
 export const SONG_POINTS = { plain: 500, withClue: 250 } as const;
@@ -78,8 +78,3 @@ export const PERFECT_SOLVED: Record<Mode, number> = {
 export const CHARACTERS_PER_TITLE = 4;
 
 export const MAX_ROUND_POINTS = 500;
-
-/** Points for a round solved on attempt `solvedAt` (0-based) out of `stages`; unsolved = 0. 4 stages: 500/375/250/125. */
-export function roundPoints(solvedAt: number | null, stages: number): number {
-  return solvedAt == null || solvedAt >= stages ? 0 : Math.round((MAX_ROUND_POINTS * (stages - solvedAt)) / stages);
-}

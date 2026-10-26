@@ -47,7 +47,8 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
   }
   const solved = p.rounds.filter((r) => r.solved).length;
   if (p.finished) return { cta: 'See result', text: `${solved}/${p.rounds.length} rounds · ${p.score ?? 0} pts`, won: solved > 0 };
-  const started = p.current > 0 || ('attempts' in p.rounds[0]! ? p.rounds[0].attempts.length > 0 : p.rounds[0]!.clue.opened);
+  const first = p.rounds[0]!;
+  const started = p.current > 0 || ('clues' in first ? first.clues > 0 : first.clue.opened);
   if (started) return { cta: 'Continue', text: `Round ${p.current + 1} of ${p.rounds.length}` };
   return { cta: 'Play', text: 'Not played yet' };
 }

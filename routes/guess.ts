@@ -3,18 +3,18 @@ import { viewer } from '../server/accounts.js';
 import { characterGuess, type CharacterMove } from '../server/characters.js';
 import { anidleGuess, getPuzzle } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
-import { roundGuess } from '../server/rounds.js';
+import { roundMove } from '../server/rounds.js';
 import { songMove, type SongMove } from '../server/songs.js';
 
 /**
  * Anidle: { puzzleId, malId }.
  * Opening/Ending: { puzzleId, round, malId } | { puzzleId, round, clue: true } | { puzzleId, round, giveUp: true }.
- * Screenshot: { puzzleId, round, malId } or { puzzleId, round, skip: true }.
+ * Screenshot: { puzzleId, round, malId } | { puzzleId, round, clue: true } (next clue) | { puzzleId, round, giveUp: true }.
  * Character: { puzzleId, round, slot, charId } | { puzzleId, round, slot, malId } | { puzzleId, round, giveUp: true }.
  */
 export const POST = route(async (req) => {
   const me = await viewer(req);
-  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; skip?: unknown; slot?: unknown; charId?: unknown; giveUp?: unknown; clue?: unknown }>(req);
+  const body = await readJson<{ puzzleId?: unknown; malId?: unknown; round?: unknown; slot?: unknown; charId?: unknown; giveUp?: unknown; clue?: unknown }>(req);
   if (typeof body.puzzleId !== 'string') throw new HttpError(400, 'puzzleId is required.');
   const puzzle = await getPuzzle(body.puzzleId);
   const malId = Number(body.malId);
@@ -26,19 +26,14 @@ export const POST = route(async (req) => {
   }
   if (!Number.isInteger(round)) throw new HttpError(400, 'round is required.');
 
-  if (isSongMode(puzzle.mode)) {
+  if (isSongMode(puzzle.mode) || isRoundMode(puzzle.mode)) {
     let move: SongMove;
     if (body.clue === true) move = { kind: 'clue' };
     else if (body.giveUp === true) move = { kind: 'giveUp' };
     else if (Number.isInteger(malId)) move = { kind: 'guess', malId };
     else throw new HttpError(400, 'Send a malId, clue, or giveUp.');
-    return json(await songMove(puzzle, puzzle.mode, me.key, round, move), {}, me.cookies);
-  }
-
-  if (isRoundMode(puzzle.mode)) {
-    const skip = body.skip === true;
-    if (!skip && !Number.isInteger(malId)) throw new HttpError(400, 'malId is required.');
-    return json(await roundGuess(puzzle, puzzle.mode, me.key, round, skip ? null : malId), {}, me.cookies);
+    const state = isSongMode(puzzle.mode) ? await songMove(puzzle, puzzle.mode, me.key, round, move) : await roundMove(puzzle, puzzle.mode, me.key, round, move);
+    return json(state, {}, me.cookies);
   }
 
   const slot = Number(body.slot);

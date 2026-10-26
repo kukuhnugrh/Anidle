@@ -96,12 +96,10 @@ export const api = {
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
   guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
-  /** Screenshot: `malId` null = skip to the next stage. */
-  roundGuess: (puzzleId: string, round: number, malId: number | null) =>
-    call<RoundState>('/api/guess', { method: 'POST', body: malId == null ? { puzzleId, round, skip: true } : { puzzleId, round, malId } }),
-  songGuess: (puzzleId: string, round: number, malId: number) => call<SongState>('/api/guess', { method: 'POST', body: { puzzleId, round, malId } }),
-  songClue: (puzzleId: string, round: number) => call<SongState>('/api/guess', { method: 'POST', body: { puzzleId, round, clue: true } }),
-  songGiveUp: (puzzleId: string, round: number) => call<SongState>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
+  /** Song and Screenshot rounds: one guess, open the (next) clue, or give up; answers with the state of the same kind. */
+  roundGuess: <T extends SongState | RoundState>(puzzleId: string, round: number, malId: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, malId } }),
+  roundClue: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, clue: true } }),
+  roundGiveUp: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   /** Song and Screenshot puzzles; answers with the same kind of state it was asked for. */
   replaceRound: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   characterName: (puzzleId: string, round: number, slot: number, charId: number) =>

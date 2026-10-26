@@ -209,7 +209,7 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Klip: 30 dtk mulai dari bunyi pertama (`silenceremove`), hanya 1,6 MB awal file AnimeThemes yang diunduh.
 - Fallback ronde: klip yang gagal dimuat bisa dicoba lagi; di puzzle unlimited milik sendiri, ronde yang belum ditebak bisa diganti judul lain. Puzzle harian tidak bisa diganti (berlaku untuk semua orang).
 - State OAuth (state + PKCE verifier) disimpan di cookie bertanda tangan, karena serverless tidak punya memori antar request.
-- Screenshot: 3 frame per show (bukan 5), tanpa zoom: mulai dari screenshot 1, clue = screenshot 2, screenshot 3, lalu petunjuk judul `N_____` (500/375/250/125). Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi hanya show easy + medium yang diproses.
+- Screenshot: 3 frame per show (bukan 5), tanpa zoom, mengikuti gaya AniGuessr: screenshot asli, lalu clue dibuka lewat tombol (screenshot 2, screenshot 3, judul `N_____`), satu tebakan, 500 − 125 per clue. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi hanya show easy + medium yang diproses.
 - Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
 - Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu pilihan per kolom, 62,5 poin per kolom benar.
