@@ -1,8 +1,9 @@
-import { MODES, type Mode } from '../shared/modes';
+import { FIRST_DAILY_DATE, MODES, todayWib, type Mode } from '../shared/modes';
 
 export type Route =
   | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' }
-  | { view: 'daily'; mode: Mode }
+  /** `date` = an earlier day from the archive; null = today. */
+  | { view: 'daily'; mode: Mode; date: string | null }
   | { view: 'play'; id: string };
 export type View = Route['view'];
 
@@ -17,17 +18,23 @@ const PATHS: Record<string, Exclude<View, 'play' | 'daily'>> = {
   admin: 'admin',
 };
 
-/** Daily puzzle of a mode: `#/daily` is Anidle (the first mode, kept for old links), `#/daily/opening`… */
-export const dailyHref = (mode: Mode) => (mode === 'anidle' ? '#/daily' : `#/daily/${mode}`);
+/** An archive day from `?date=`: before today and not before FIRST_DAILY_DATE, else null (= today). */
+export function archiveDate(value: string | null): string | null {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= FIRST_DAILY_DATE && value < todayWib() ? value : null;
+}
+
+/** Daily puzzle of a mode: `#/daily` is Anidle (the first mode, kept for old links), `#/daily/opening`…, `?date=` an earlier day. */
+export const dailyHref = (mode: Mode, date: string | null = null) => `${mode === 'anidle' ? '#/daily' : `#/daily/${mode}`}${date ? `?date=${date}` : ''}`;
 
 /** `#/database?genre=1` → database, `#/play/<id>` → that puzzle, anything unknown → home. */
 export function readRoute(): Route {
-  const path = location.hash.replace(/^#\/?/, '').split('?')[0] ?? '';
+  const [path = '', query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   if (path.startsWith('play/')) return { view: 'play', id: path.slice('play/'.length) };
-  if (path === 'daily') return { view: 'daily', mode: 'anidle' };
+  const date = archiveDate(new URLSearchParams(query).get('date'));
+  if (path === 'daily') return { view: 'daily', mode: 'anidle', date };
   if (path.startsWith('daily/')) {
     const mode = MODES.find((m) => m === path.slice('daily/'.length));
-    if (mode) return { view: 'daily', mode };
+    if (mode) return { view: 'daily', mode, date };
   }
   return { view: PATHS[path] ?? 'home' };
 }

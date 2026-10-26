@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Difficulty, Pool } from '../shared/catalog.js';
-import { ROUND_COUNT, SCREENSHOT_CLUES, SCREENSHOT_POINTS, SCREENSHOTS_PER_TITLE, type RoundMode } from '../shared/modes.js';
+import { ROUND_COUNT, ROUND_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES, SCREENSHOTS_PER_TITLE, type RoundMode } from '../shared/modes.js';
 import { titleHint } from '../shared/normalize.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
@@ -9,7 +9,7 @@ import { mediaUrl } from './media.js';
 
 // Screenshot: ROUND_COUNT rounds of one title. The first screenshot shows; the player may open
 // SCREENSHOT_CLUES one by one (2nd screenshot, 3rd screenshot, masked title), each costing
-// SCREENSHOT_POINTS.perClue, and makes one guess. Only what is opened leaves the server.
+// SCREENSHOT_CLUE_COST of the round's points, and makes one guess. Only what is opened leaves the server.
 // play.guesses holds StoredRound[]: g = guessed mal_id (0 = gave up, null = not yet), c = clues opened.
 
 interface StoredRound {
@@ -31,6 +31,8 @@ export interface RoundPlayState {
   solved: boolean;
   finished: boolean;
   points: number;
+  /** What a right guess is worth with no clue (ROUND_MAX_POINTS). */
+  max: number;
   /** Only once the round is over. */
   answer: AnswerInfo | null;
 }
@@ -40,7 +42,6 @@ export interface RoundState {
   mode: RoundMode;
   date: string | null;
   pool: Pool;
-  points: typeof SCREENSHOT_POINTS;
   rounds: RoundPlayState[];
   /** First unfinished round, rounds.length once the puzzle is over. */
   current: number;
@@ -101,7 +102,8 @@ async function evaluate(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, s
       gaveUp: played.g === 0,
       solved,
       finished,
-      points: solved ? SCREENSHOT_POINTS.max - SCREENSHOT_POINTS.perClue * played.c : 0,
+      points: solved ? ROUND_MAX_POINTS[i]! * (1 - SCREENSHOT_CLUE_COST * played.c) : 0,
+      max: ROUND_MAX_POINTS[i]!,
       answer: finished ? info : null,
     };
   });
@@ -113,7 +115,6 @@ async function evaluate(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, s
       mode,
       date: puzzle.date,
       pool: puzzle.pool,
-      points: SCREENSHOT_POINTS,
       rounds: states,
       current: finished ? states.length : current,
       finished,

@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react';
 import { MODE_LABELS, MODES, todayWib, type Mode } from '../shared/modes';
 import { api, errorMessage, type Account, type Leaderboard } from './api';
-import { fmtDate, fmtNumber, resultText } from './format';
+import { DatePicker } from './DatePicker';
+import { fmtNumber, resultText } from './format';
 
-const DAY_MS = 86_400_000;
 type Tab = Mode | 'total';
 
 function readDate(): string {
   const date = new URLSearchParams(location.hash.split('?')[1] ?? '').get('date');
   return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayWib();
 }
-
-const shiftDate = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 
 interface Row {
   username: string;
@@ -54,19 +52,11 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
       <header className="page-head">
         <span className="eyebrow">Community</span>
         <h1>Leaderboard</h1>
-        <p className="muted">Daily puzzle scores by date. Only players with an account are shown.</p>
+        <p className="muted">Daily puzzle scores by date, played on the day itself. Only players with an account are shown.</p>
       </header>
 
       <div className="board-bar">
-        <div className="date-nav">
-          <button className="ghost small" onClick={() => setDate((d) => shiftDate(d, -1))} aria-label="Previous day">
-            ←
-          </button>
-          <b>{fmtDate(date)}</b>
-          <button className="ghost small" disabled={date >= today} onClick={() => setDate((d) => shiftDate(d, 1))} aria-label="Next day">
-            →
-          </button>
-        </div>
+        <DatePicker date={date} onChange={setDate} />
         <div className="tabs-inline" role="tablist">
           {(['total', ...MODES] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { anidleScore, compareAnidle, summarizeAnidle, type AnidleAnime } from './anidle';
+import { anidleScore, compareAnidle, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
 import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
 import { roundDifficulties } from './modes';
@@ -57,11 +57,25 @@ describe('compareAnidle', () => {
 });
 
 describe('anidleScore', () => {
-  it('drops 100 per extra guess with a floor of 100, and is 0 when unsolved', () => {
-    expect(anidleScore(true, 1)).toBe(1000);
-    expect(anidleScore(true, 4)).toBe(700);
-    expect(anidleScore(true, 10)).toBe(100);
+  it('drops 200 per extra guess from 2000 to 200 on the 10th, and is 0 when unsolved', () => {
+    expect(anidleScore(true, 1)).toBe(2000);
+    expect(anidleScore(true, 4)).toBe(1400);
+    expect(anidleScore(true, 10)).toBe(200);
     expect(anidleScore(false, 10)).toBe(0);
+  });
+});
+
+describe('maskSynopsis', () => {
+  const names = ['Shingeki no Kyojin', 'Attack on Titan'];
+
+  it('masks the titles, their distinctive words with plurals, and drops the source credit', () => {
+    const s = maskSynopsis('Centuries ago, the Titans appeared. Attack on Titan follows Eren. Shingeki no Kyojin! [Written by MAL Rewrite]', names);
+    expect(s).toBe('Centuries ago, the ▇▇▇ appeared. ▇▇▇ follows Eren. ▇▇▇!');
+  });
+
+  it('keeps common title words on their own and drops the source credit', () => {
+    expect(maskSynopsis('A final battle in a fantasy world. (Source: Crunchyroll)', ['Final Fantasy'])).toBe('A final battle in a ▇▇▇ world.');
+    expect(maskSynopsis('Kyojin-like giants roam.', names)).toBe('▇▇▇-like giants roam.');
   });
 });
 

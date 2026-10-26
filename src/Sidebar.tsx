@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import { MODE_LABELS } from '../shared/modes';
-import type { Account } from './api';
+import type { Account, TodayScore } from './api';
+import { fmtNumber } from './format';
 import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 
@@ -56,7 +57,23 @@ export function Avatar({ account }: { account: Account }) {
   );
 }
 
-export function Sidebar({ route, account, admin, open, onClose, onLogout }: { route: Route; account: Account | null; admin: boolean; open: boolean; onClose: () => void; onLogout: () => void }) {
+export function Sidebar({
+  route,
+  account,
+  today,
+  admin,
+  open,
+  onClose,
+  onLogout,
+}: {
+  route: Route;
+  account: Account | null;
+  today: TodayScore | null;
+  admin: boolean;
+  open: boolean;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
   const current = navId(route);
   const sections = admin ? [...NAV, ADMIN_SECTION] : NAV;
   return (
@@ -81,6 +98,15 @@ export function Sidebar({ route, account, admin, open, onClose, onLogout }: { ro
             </div>
           ))}
         </nav>
+        {today && (
+          <a className="today-score" href="#/" title="Points from today's five daily puzzles">
+            <span className="muted small">Today's score</span>
+            <span>
+              <b>{fmtNumber(today.score)}</b>
+              <span className="muted small"> / {fmtNumber(today.max)}</span>
+            </span>
+          </a>
+        )}
         <div className="sidebar-foot">
           {account ? (
             <div className="account-row">

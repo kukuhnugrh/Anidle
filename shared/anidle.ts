@@ -78,9 +78,38 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
   };
 }
 
-/** 1000 for a first-try solve, -100 per extra guess, 0 when not solved. */
+/** MODE_MAX_POINTS (2000) for a first-try solve, −200 per extra guess (200 on the 10th), 0 when not solved. */
 export function anidleScore(solved: boolean, guessCount: number): number {
-  return solved ? Math.max(100, 1000 - 100 * (guessCount - 1)) : 0;
+  return solved ? Math.max(200, 2000 - 200 * (guessCount - 1)) : 0;
+}
+
+/** Clues Anidle unlocks as wrong guesses pile up: after 4 a blurred screenshot, after 7 the synopsis, after 9 two characters (one guess left). */
+export const ANIDLE_CLUES = [
+  { kind: 'screenshot', after: 4 },
+  { kind: 'synopsis', after: 7 },
+  { kind: 'characters', after: 9 },
+] as const;
+export type AnidleClueKind = (typeof ANIDLE_CLUES)[number]['kind'];
+
+const MASK = '▇▇▇';
+/** Title words (4+ letters) common enough to appear in any synopsis without giving the title away: never masked on their own. */
+const COMMON_WORDS: Record<string, true> = { with: true, from: true, that: true, this: true, your: true, into: true, over: true, season: true, part: true, movie: true, final: true, kara: true };
+
+/**
+ * A MAL synopsis made safe as a clue: the title's names (and their distinctive words, 4+ letters) are
+ * masked, and MAL's source credit ("[Written by MAL Rewrite]", "(Source: …)") is dropped.
+ */
+export function maskSynopsis(text: string, names: readonly string[]): string {
+  let out = text
+    .replace(/\[Written by MAL Rewrite\]/gi, '')
+    .replace(/\(Source:[^)]*\)/gi, '')
+    .trim();
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const phrases = [...new Set(names.map((n) => n.trim()).filter((n) => n.length >= 3))].sort((a, b) => b.length - a.length);
+  const words = [...new Set(names.flatMap((n) => n.split(/[^\p{L}\p{N}']+/u)).filter((w) => w.length >= 4 && !COMMON_WORDS[w.toLowerCase()]))];
+  // "Titans", "Titan's": the plural or possessive of a title word gives it away just as well.
+  for (const p of [...phrases, ...words]) out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}])${escape(p)}(?:'?s)?(?![\\p{L}\\p{N}])`, 'giu'), MASK);
+  return out.replace(new RegExp(`${MASK}(?:[\\s:-]*${MASK})+`, 'g'), MASK);
 }
 
 // ------------------------------------------------------------------ summary of what the guesses revealed

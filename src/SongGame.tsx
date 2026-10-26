@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS } from '../shared/modes';
+import { MODE_LABELS, MODE_MAX_POINTS, SONG_CLUE_SHARE } from '../shared/modes';
 import { api, errorMessage, type SongState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
@@ -263,8 +263,8 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">
-            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {puzzle.points.plain} pts if right, {puzzle.points.withClue} pts if you
-            opened the clue (its blurred music video), 0 if wrong.
+            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: 600 / 700 / 700 pts per round if right, half that if you opened the
+            clue (its blurred music video), 0 if wrong.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -310,11 +310,11 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             <div className="stage-controls">
               <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId))} />
               <div className="stage-actions">
-                <span className="muted small">One guess · right now = {round.clue.opened ? puzzle.points.withClue : puzzle.points.plain} pts</span>
+                <span className="muted small">One guess · right now = {round.clue.opened ? round.max * SONG_CLUE_SHARE : round.max} pts</span>
                 <div className="actions">
                   {!round.clue.opened && (
                     <button disabled={sending} onClick={() => send(() => api.roundClue<SongState>(puzzle.id, view))} title="Shows the blurred music video; its sound takes over from the song">
-                      Show clue (−{puzzle.points.plain - puzzle.points.withClue} pts)
+                      Show clue (−{round.max * (1 - SONG_CLUE_SHARE)} pts)
                     </button>
                   )}
                   <button className="ghost danger" disabled={sending} onClick={() => confirm('Give up this round? It scores 0.') && send(() => api.roundGiveUp<SongState>(puzzle.id, view))}>
@@ -365,7 +365,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             <span className="eyebrow">Finished</span>
             <h2>{puzzle.score ?? 0} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} right · max {puzzle.points.plain * puzzle.rounds.length} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} right · max {MODE_MAX_POINTS} pts
             </p>
           </div>
           <div className="actions">

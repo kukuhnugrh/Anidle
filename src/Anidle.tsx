@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { summarizeAnidle, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
+import { ANIDLE_CLUES, summarizeAnidle, type AnidleClueKind, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type AnidleState } from './api';
 import { GuessInput } from './GuessInput';
@@ -169,6 +169,44 @@ function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
   );
 }
 
+const CLUE_LABELS: Record<AnidleClueKind, string> = { screenshot: 'Blurred screenshot', synopsis: 'Synopsis', characters: 'Two of its characters' };
+
+/** The clues unlocked so far, and when the next ones open (ANIDLE_CLUES). */
+function CluePanel({ puzzle }: { puzzle: AnidleState }) {
+  const used = puzzle.guesses.length;
+  const { clues } = puzzle;
+  return (
+    <section className="anidle-clues">
+      {ANIDLE_CLUES.map(({ kind, after }) => {
+        const open = kind in clues;
+        return (
+          <div key={kind} className={`anidle-clue ${kind}${open ? '' : ' locked'}`}>
+            <span className="cell-label">{kind === 'screenshot' && clues.screenshot?.cover ? 'Blurred cover' : CLUE_LABELS[kind]}</span>
+            {!open && (
+              <span className="muted small">
+                Unlocks after {after} guesses ({after - used} more)
+              </span>
+            )}
+            {kind === 'screenshot' && clues.screenshot && <img className="anidle-shot" src={clues.screenshot.url} alt="" />}
+            {kind === 'screenshot' && open && !clues.screenshot && <span className="muted small">No image for this one.</span>}
+            {kind === 'synopsis' && open && <p className="anidle-synopsis">{clues.synopsis ?? 'MAL has no synopsis for this one.'}</p>}
+            {kind === 'characters' && clues.characters && (
+              <div className="anidle-chars">
+                {clues.characters.map((c) => (
+                  <figure key={c.portrait}>
+                    <img src={c.portrait} alt="" />
+                    <figcaption>{c.name}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
 export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleState; onChange: (p: AnidleState) => void; onNewUnlimited: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -240,6 +278,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
         <GuessInput exclude={guessed} disabled={sending} onPick={guess} />
       )}
       {error && <div className="error-box">{error}</div>}
+      <CluePanel puzzle={puzzle} />
       {puzzle.guesses.length > 0 && !puzzle.solved && <SummaryPanel guesses={puzzle.guesses} />}
 
       <div className="guesses">

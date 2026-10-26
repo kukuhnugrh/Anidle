@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { anidleScore, compareAnidle, type AnidleAnime, type AnidleFeedback } from '../shared/anidle.js';
+import { ANIDLE_CLUES, anidleScore, compareAnidle, maskSynopsis, type AnidleAnime, type AnidleClueKind, type AnidleFeedback } from '../shared/anidle.js';
 import {
   ANIDLE_MAX_GUESSES,
   CANONICAL_SQL,
@@ -14,15 +14,15 @@ import {
   type GenreType,
   type Pool,
 } from '../shared/catalog.js';
-import { CHARACTER_QUIZ_SLOT } from '../shared/characters.js';
-import { CHARACTERS_PER_ROUND, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
+import { CHARACTER_QUIZ_SLOT, displayName } from '../shared/characters.js';
+import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
 import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
 import { HttpError } from './http.js';
-import { COVER_KEY_SQL, coverOf } from './media.js';
+import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
 
 export function parseMode(value: unknown): Mode {
   if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
@@ -338,19 +338,29 @@ async function answerInserts(puzzleId: string, mode: Mode, answers: number[][]) 
   );
 }
 
-export async function dailyPuzzle(mode: Mode): Promise<PuzzleRow> {
-  const date = todayWib();
+/** A daily puzzle's date from a request: today when absent, else a day between FIRST_DAILY_DATE and today. */
+export function parseDailyDate(value: string | null): string {
+  const today = todayWib();
+  if (!value) return today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > today || value < FIRST_DAILY_DATE) throw new HttpError(400, `Daily puzzles exist from ${FIRST_DAILY_DATE} to today.`);
+  return value;
+}
+
+/** The daily puzzle of `mode` on `date` (today or an earlier day of the archive), created on first request. */
+export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> {
   const existing = await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]);
   if (existing) return existing;
 
-  const since = todayWib(Date.now() - RECENT_DAYS_WITHOUT_REPEAT * 86_400_000);
+  // No answer repeats within RECENT_DAYS_WITHOUT_REPEAT on either side (an archive day may be created after later ones).
+  const since = shiftDate(date, -RECENT_DAYS_WITHOUT_REPEAT);
+  const until = shiftDate(date, RECENT_DAYS_WITHOUT_REPEAT);
   const recent = new Set(
     (
       await all<{ mal_id: number }>(
-        `SELECT answer_id AS mal_id FROM puzzle WHERE mode = ? AND date >= ?
-         UNION SELECT r.mal_id FROM puzzle_round r JOIN puzzle p ON p.id = r.puzzle_id WHERE p.mode = ? AND p.date >= ?
-         UNION SELECT c.mal_id FROM puzzle_character c JOIN puzzle p ON p.id = c.puzzle_id WHERE p.mode = ? AND p.date >= ?`,
-        [mode, since, mode, since, mode, since],
+        `SELECT answer_id AS mal_id FROM puzzle WHERE mode = ? AND date BETWEEN ? AND ?
+         UNION SELECT r.mal_id FROM puzzle_round r JOIN puzzle p ON p.id = r.puzzle_id WHERE p.mode = ? AND p.date BETWEEN ? AND ?
+         UNION SELECT c.mal_id FROM puzzle_character c JOIN puzzle p ON p.id = c.puzzle_id WHERE p.mode = ? AND p.date BETWEEN ? AND ?`,
+        [mode, since, until, mode, since, until, mode, since, until],
       )
     ).map((r) => Number(r.mal_id)),
   );
@@ -438,6 +448,16 @@ export async function assertPlayable(malId: number) {
 
 // ------------------------------------------------------------------ Anidle
 
+/** Keyed by AnidleClueKind, so a clue is present exactly when it is unlocked. */
+export interface AnidleClues {
+  /** Blurred in the UI: a screenshot of the opening, or the cover when the show has no screenshot. */
+  screenshot: { url: string; cover: boolean } | null;
+  /** MAL synopsis with the title masked (null when MAL has none). */
+  synopsis: string | null;
+  /** The two best-known characters. */
+  characters: Array<{ name: string; portrait: string }> | null;
+}
+
 export interface AnidleState {
   id: string;
   mode: 'anidle';
@@ -448,8 +468,32 @@ export interface AnidleState {
   solved: boolean;
   finished: boolean;
   score: number | null;
+  /** Clues unlocked so far (ANIDLE_CLUES); a locked one is absent, so nothing leaks early. */
+  clues: Partial<AnidleClues>;
   /** Only once finished: the answer is never sent before that. */
   answer: AnswerInfo | null;
+}
+
+/** The clues of `kinds` for one show; only those are read. */
+async function anidleClues(malId: number, kinds: ReadonlySet<AnidleClueKind>, cover: string | null): Promise<Partial<AnidleClues>> {
+  const clues: Partial<AnidleClues> = {};
+  if (kinds.has('screenshot')) {
+    const shot = await one<{ r2_key: string }>('SELECT r2_key FROM anime_screenshot WHERE mal_id = ? ORDER BY slot LIMIT 1', [malId]);
+    clues.screenshot = shot ? { url: mediaUrl(shot.r2_key), cover: false } : cover ? { url: cover, cover: true } : null;
+  }
+  if (kinds.has('synopsis')) {
+    const row = await one<{ synopsis: string | null; title: string; title_en: string | null; title_ja: string | null; synonyms: string }>(
+      'SELECT synopsis, title, title_en, title_ja, synonyms FROM anime WHERE mal_id = ?',
+      [malId],
+    );
+    const names = row ? [row.title, row.title_en, row.title_ja, ...(JSON.parse(row.synonyms) as string[])].filter((n): n is string => Boolean(n)) : [];
+    clues.synopsis = row?.synopsis ? maskSynopsis(row.synopsis, names) : null;
+  }
+  if (kinds.has('characters')) {
+    const rows = await all<{ name: string; r2_key: string }>('SELECT name, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot DESC LIMIT 2', [malId]);
+    clues.characters = rows.map((c) => ({ name: displayName(c.name), portrait: mediaUrl(c.r2_key) }));
+  }
+  return clues;
 }
 
 export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise<AnidleState> {
@@ -464,6 +508,7 @@ export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise
   });
   const solved = Boolean(play?.solved);
   const finished = solved || guesses.length >= ANIDLE_MAX_GUESSES;
+  const unlocked = new Set(ANIDLE_CLUES.filter((c) => finished || guesses.length >= c.after).map((c) => c.kind));
   return {
     id: puzzle.id,
     mode: 'anidle',
@@ -474,6 +519,7 @@ export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise
     solved,
     finished,
     score: play?.score ?? null,
+    clues: await anidleClues(answer.malId, unlocked, answer.cover),
     answer: finished ? answerInfo(answer) : null,
   };
 }

@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Difficulty, Pool } from '../shared/catalog.js';
-import { MODE_MEDIA, ROUND_COUNT, SONG_POINTS, type SongMode } from '../shared/modes.js';
+import { MODE_MEDIA, ROUND_COUNT, ROUND_MAX_POINTS, SONG_CLUE_SHARE, type SongMode } from '../shared/modes.js';
 import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
@@ -40,6 +40,8 @@ export interface SongRoundState {
   solved: boolean;
   finished: boolean;
   points: number;
+  /** What a right guess is worth without the clue (ROUND_MAX_POINTS; half of it with the clue). */
+  max: number;
   answer: (AnswerInfo & { song: SongInfo }) | null;
 }
 
@@ -48,7 +50,6 @@ export interface SongState {
   mode: SongMode;
   date: string | null;
   pool: Pool;
-  points: typeof SONG_POINTS;
   rounds: SongRoundState[];
   current: number;
   finished: boolean;
@@ -114,7 +115,8 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
       gaveUp: played.g === 0,
       solved,
       finished,
-      points: solved ? (played.c ? SONG_POINTS.withClue : SONG_POINTS.plain) : 0,
+      points: solved ? ROUND_MAX_POINTS[i]! * (played.c ? SONG_CLUE_SHARE : 1) : 0,
+      max: ROUND_MAX_POINTS[i]!,
       answer: finished ? { ...info, song: s.song } : null,
     };
   });
@@ -126,7 +128,6 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
       mode,
       date: puzzle.date,
       pool: puzzle.pool,
-      points: SONG_POINTS,
       rounds,
       current: finished ? rounds.length : current,
       finished,

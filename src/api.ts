@@ -4,14 +4,14 @@ import type { AnidleState } from '../server/game';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
 import type { SongState } from '../server/songs';
-import type { History, Leaderboard } from '../server/stats';
+import type { History, Leaderboard, TodayScore } from '../server/stats';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
 import type { CharacterEntry, TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, PuzzleState, RoundState, SongState };
+export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, PuzzleState, RoundState, SongState, TodayScore };
 
 export interface MalLink {
   username: string;
@@ -84,7 +84,7 @@ async function call<T>(path: string, init?: { method?: string; body?: unknown })
 }
 
 export const api = {
-  me: () => call<{ account: Account | null; admin: boolean }>('/api/me'),
+  me: () => call<{ account: Account | null; admin: boolean; today: TodayScore }>('/api/me'),
   register: (username: string, password: string) => call<{ account: Account }>('/api/auth/register', { method: 'POST', body: { username, password } }),
   login: (username: string, password: string) => call<{ account: Account }>('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => call('/api/logout', { method: 'POST' }),
@@ -92,7 +92,8 @@ export const api = {
   sync: () => call<SyncResult>('/api/sync', { method: 'POST' }),
   titles: () => call<TitleEntry[]>('/api/titles'),
   characters: () => call<CharacterEntry[]>('/api/characters'),
-  daily: (mode: Mode) => call<PuzzleState>(`/api/puzzle?mode=${mode}`),
+  /** The daily puzzle of `date` (YYYY-MM-DD; omitted = today). */
+  daily: (mode: Mode, date?: string) => call<PuzzleState>(`/api/puzzle?mode=${mode}${date ? `&date=${date}` : ''}`),
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
   guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),

@@ -1,8 +1,9 @@
 import { describeAccount, viewer } from '../server/accounts.js';
 import { isAdmin } from '../server/admin.js';
 import { json, route } from '../server/http.js';
+import { todayScore } from '../server/stats.js';
 
 export const GET = route(async (req) => {
-  const { account } = await viewer(req);
-  return json({ account: account ? await describeAccount(account) : null, admin: isAdmin(account) });
+  const { account, key } = await viewer(req);
+  return json({ account: account ? await describeAccount(account) : null, admin: isAdmin(account), today: await todayScore(key) });
 });

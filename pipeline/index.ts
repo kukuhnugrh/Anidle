@@ -4,7 +4,7 @@ import { CANONICAL_SQL, EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason,
 import { franchiseIds } from '../shared/franchise.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { poolUsers } from '../server/env.js';
-import { animeDetail, malGet, MalError } from '../server/mal.js';
+import { animeDetail, animeSynopsis, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { Limiter } from './limiter.js';
 import { stepCharacters, stepMedia, stepNicknames, stepScreenshots } from './media.js';
@@ -114,14 +114,15 @@ async function enrichOne(id: number): Promise<'ok' | 'excluded' | 'gone'> {
     [
       {
         sql: `INSERT INTO anime (mal_id, title, title_en, title_ja, synonyms, media_type, status, num_episodes, year, season,
-                start_date, score, members, source, rating, studios, nsfw, cover_src, excluded, fetched_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                start_date, score, members, source, rating, studios, nsfw, cover_src, excluded, fetched_at, synopsis)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
               ON CONFLICT (mal_id) DO UPDATE SET
                 title = excluded.title, title_en = excluded.title_en, title_ja = excluded.title_ja, synonyms = excluded.synonyms,
                 media_type = excluded.media_type, status = excluded.status, num_episodes = excluded.num_episodes,
                 year = excluded.year, season = excluded.season, start_date = excluded.start_date, score = excluded.score,
                 members = excluded.members, source = excluded.source, rating = excluded.rating, studios = excluded.studios,
-                nsfw = excluded.nsfw, cover_src = excluded.cover_src, excluded = excluded.excluded, fetched_at = excluded.fetched_at`,
+                nsfw = excluded.nsfw, cover_src = excluded.cover_src, excluded = excluded.excluded, fetched_at = excluded.fetched_at,
+                synopsis = excluded.synopsis`,
         args: [
           d.id,
           d.title,
@@ -143,6 +144,7 @@ async function enrichOne(id: number): Promise<'ok' | 'excluded' | 'gone'> {
           d.main_picture?.large ?? d.main_picture?.medium ?? null,
           excluded,
           nowIso(),
+          d.synopsis || null,
         ],
       },
       { sql: 'DELETE FROM anime_genre WHERE mal_id = ?', args: [id] },
@@ -178,6 +180,34 @@ async function stepEnrich(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   log(`enrich: ok ${counts.ok}, dikecualikan ${counts.excluded}, tidak ada di MAL ${counts.gone}, gagal ${counts.failed}`);
+}
+
+/** Synopsis (Anidle's 2nd clue) of every show enriched before it was stored; `enrich` keeps it current after that. */
+async function stepSynopsis(limit: number) {
+  const ids = (
+    await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} AND synopsis IS NULL ORDER BY members DESC`)
+  )
+    .map((r) => Number(r.mal_id))
+    .slice(0, limit)
+    .reverse();
+  log(`synopsis: ${ids.length} show`);
+  const counts = { ok: 0, empty: 0, failed: 0 };
+  const workers = Array.from({ length: 6 }, async () => {
+    for (let id = ids.pop(); id !== undefined; id = ids.pop()) {
+      try {
+        const { synopsis } = await malLimiter.schedule(() => animeSynopsis(id));
+        // '' marks "MAL has none", so the title is not asked again.
+        await run('UPDATE anime SET synopsis = ? WHERE mal_id = ?', [synopsis?.trim() ?? '', id]);
+        counts[synopsis?.trim() ? 'ok' : 'empty']++;
+      } catch (err) {
+        counts.failed++;
+        log(`synopsis: ${id} GAGAL: ${err instanceof Error ? err.message : err}`);
+      }
+      if ((counts.ok + counts.empty + counts.failed) % 200 === 0) log('synopsis:', counts);
+    }
+  });
+  await Promise.all(workers);
+  log('synopsis:', counts);
 }
 
 /**
@@ -268,7 +298,7 @@ async function writeActionsSummary(row: Record<string, number>) {
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'franchise', 'media', 'characters', 'nicknames', 'screenshots'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'screenshots'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -293,6 +323,7 @@ for (const step of steps) {
   if (step === 'franchise') await stepFranchise();
   if (step === 'media') await stepMedia(flag('refresh'), limit);
   if (step === 'characters') await stepCharacters(flag('refresh'), limit);
+  if (step === 'synopsis') await stepSynopsis(limit);
   if (step === 'nicknames') await stepNicknames(flag('refresh'), limit);
   if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
 }

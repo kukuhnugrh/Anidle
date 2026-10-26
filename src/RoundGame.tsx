@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS, SCREENSHOT_CLUES } from '../shared/modes';
+import { MODE_LABELS, MODE_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
@@ -78,7 +78,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
   const isCurrent = roundView === puzzle.current;
   const playing = isCurrent && !round.finished;
   const opened = round.finished ? SCREENSHOT_CLUES.length : round.clues;
-  const worth = puzzle.points.max - puzzle.points.perClue * round.clues;
+  const perClue = round.max * SCREENSHOT_CLUE_COST;
+  const worth = round.max - perClue * round.clues;
 
   const send = async (task: () => Promise<RoundState>) => {
     setSending(true);
@@ -99,8 +100,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">
-            Guess the anime from a screenshot of its opening. One guess per round: {puzzle.points.max} pts, minus {puzzle.points.perClue} for every clue you unlock (two more
-            screenshots, then the title's initials).
+            Guess the anime from a screenshot of its opening. One guess per round (600 / 700 / 700 pts); every clue you unlock (two more screenshots, then the title's
+            initials) takes a quarter off.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -161,7 +162,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
                     key={i}
                     className="clue-tab locked"
                     disabled={!next || sending}
-                    title={next ? `−${puzzle.points.perClue} pts` : 'Unlock the previous clue first'}
+                    title={next ? `−${perClue} pts` : 'Unlock the previous clue first'}
                     onClick={() => send(() => api.roundClue<RoundState>(puzzle.id, roundView))}
                   >
                     <LockIcon />
@@ -226,7 +227,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             <span className="eyebrow">Finished</span>
             <h2>{puzzle.score ?? 0} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {puzzle.points.max * puzzle.rounds.length} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {MODE_MAX_POINTS} pts
             </p>
           </div>
           <div className="actions">

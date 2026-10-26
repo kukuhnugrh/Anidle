@@ -1,9 +1,10 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { MODES, MODE_LABELS, todayWib, WIB_OFFSET_MS, type Mode } from '../shared/modes';
+import { DAILY_MAX_POINTS, MODES, MODE_LABELS, todayWib, WIB_OFFSET_MS, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
-import { fmtDate } from './format';
+import { DatePicker } from './DatePicker';
+import { fmtDate, fmtNumber } from './format';
 import { ArrowIcon, DatabaseIcon, DiscIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
-import { dailyHref } from './route';
+import { archiveDate, dailyHref } from './route';
 
 const DAY_MS = 86_400_000;
 
@@ -54,22 +55,39 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
 }
 
 export function Home({ account }: { account: Account | null }) {
+  // null = today; an earlier day replays the archive (`#/?date=`).
+  const [date, setDate] = useState<string | null>(() => archiveDate(new URLSearchParams(location.hash.split('?')[1] ?? '').get('date')));
   const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
   useEffect(() => {
+    history.replaceState(null, '', date ? `#/?date=${date}` : '#/');
+    let cancelled = false;
+    setDaily({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
     for (const mode of MODES)
-      api.daily(mode).then(
-        (p) => setDaily((d) => ({ ...d, [mode]: p })),
-        () => setDaily((d) => ({ ...d, [mode]: 'unavailable' })),
+      api.daily(mode, date ?? undefined).then(
+        (p) => !cancelled && setDaily((d) => ({ ...d, [mode]: p })),
+        () => !cancelled && setDaily((d) => ({ ...d, [mode]: 'unavailable' })),
       );
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [date]);
+  const shown = date ?? todayWib();
+  const dayScore = MODES.reduce((sum, m) => {
+    const p = daily[m];
+    return sum + (p && p !== 'unavailable' && p.finished ? (p.score ?? 0) : 0);
+  }, 0);
 
   return (
     <div className="stack">
       <section className="hero">
         <div className="hero-body">
-          <span className="eyebrow">Daily puzzle · {fmtDate(todayWib())}</span>
-          <h1>Guess today's anime</h1>
-          <p>Five modes, the same puzzle set for everyone. Daily puzzles are always easy or medium titles, so they make a good warm-up.</p>
+          <span className="eyebrow">{date ? 'From the archive' : 'Daily puzzle'} · {fmtDate(shown)}</span>
+          <h1>{date ? 'Replay an earlier day' : "Guess today's anime"}</h1>
+          <p>
+            {date
+              ? "The same five puzzles everyone had that day. Replays are just for fun: they don't count for the leaderboard or your streak."
+              : 'Five modes, the same puzzle set for everyone. Daily puzzles are always easy or medium titles, so they make a good warm-up.'}
+          </p>
         </div>
         <div className="hero-clock">
           <span className="eyebrow">New puzzle in</span>
@@ -78,12 +96,19 @@ export function Home({ account }: { account: Account | null }) {
         </div>
       </section>
 
+      <div className="day-bar">
+        <DatePicker date={shown} onChange={(d) => setDate(d === todayWib() ? null : d)} />
+        <span className="muted">
+          {date ? fmtDate(date) : 'Today'}: <b>{fmtNumber(dayScore)}</b> / {fmtNumber(DAILY_MAX_POINTS)} pts
+        </span>
+      </div>
+
       <div className="daily-grid">
         {MODES.map((mode) => {
           const { Icon, text } = MODE_CARDS[mode];
           const status = dailyStatus(daily[mode]);
           return (
-            <a key={mode} className="mode-card" href={dailyHref(mode)}>
+            <a key={mode} className="mode-card" href={dailyHref(mode, date)}>
               <div className="mode-card-head">
                 <span className="tile-icon">
                   <Icon />

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
-import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } from './api';
+import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type TodayScore } from './api';
 import type { Mode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
 import { RoundGame } from './RoundGame';
@@ -32,17 +32,19 @@ function takeRedirectNotice(): Notice {
 export function App() {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [admin, setAdmin] = useState(false);
+  const [today, setToday] = useState<TodayScore | null>(null);
   const [route, setRoute] = useState(readRoute);
   const [notice] = useState(takeRedirectNotice);
   const [navOpen, setNavOpen] = useState(false);
 
-  // The admin flag follows the session, so it is re-read after logging in.
+  // The admin flag follows the session, so it is re-read after logging in; today's score after every finished puzzle.
   const refreshMe = useCallback(
     () =>
       api.me().then(
         (r) => {
           setAccount(r.account);
           setAdmin(r.admin);
+          setToday(r.today);
         },
         () => setAccount(null),
       ),
@@ -77,6 +79,7 @@ export function App() {
       <Sidebar
         route={route}
         account={account}
+        today={today}
         admin={admin}
         open={navOpen}
         onClose={() => setNavOpen(false)}
@@ -84,6 +87,7 @@ export function App() {
           api.logout().then(() => {
             setAccount(null);
             setAdmin(false);
+            void refreshMe();
             go('#/');
           })
         }
@@ -97,8 +101,8 @@ export function App() {
         </header>
         <main className="page">
           {route.view === 'home' && <Home account={account} />}
-          {route.view === 'daily' && <PuzzleLoader key={`daily:${route.mode}`} daily={route.mode} />}
-          {route.view === 'play' && <PuzzleLoader key={route.id} id={route.id} />}
+          {route.view === 'daily' && <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshMe} />}
+          {route.view === 'play' && <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} />}
           {route.view === 'unlimited' && <Unlimited account={account} />}
           {route.view === 'database' && <Database />}
           {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
@@ -120,17 +124,26 @@ export function App() {
   );
 }
 
-/** Today's puzzle of a mode, or the puzzle `id` (unlimited, resumable after reload because the id is in the URL). */
-function PuzzleLoader(props: { daily: Mode } | { id: string }) {
+/** A mode's daily puzzle (today, or `date` from the archive), or the puzzle `id` (unlimited, resumable after reload because the id is in the URL). */
+function PuzzleLoader(props: ({ daily: Mode; date: string | null } | { id: string }) & { onFinished: () => void }) {
   const [puzzle, setPuzzle] = useState<PuzzleState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const source = 'id' in props ? props.id : props.daily;
+  const source = 'id' in props ? props.id : `${props.daily}:${props.date}`;
   const reload = useCallback(() => {
     setError(null);
-    ('id' in props ? api.resume(props.id) : api.daily(props.daily)).then(setPuzzle, (err: unknown) => setError(errorMessage(err)));
+    ('id' in props ? api.resume(props.id) : api.daily(props.daily, props.date ?? undefined)).then(setPuzzle, (err: unknown) => setError(errorMessage(err)));
     // `source` identifies the props; the object itself is new every render.
   }, [source]);
   useEffect(reload, [reload]);
+  // A finished daily puzzle changes today's score in the sidebar.
+  const { onFinished } = props;
+  const change = useCallback(
+    (p: PuzzleState) => {
+      setPuzzle(p);
+      if (p.finished) onFinished();
+    },
+    [onFinished],
+  );
 
   if (error)
     return (
@@ -147,8 +160,8 @@ function PuzzleLoader(props: { daily: Mode } | { id: string }) {
     );
   // "Play unlimited" after a game keeps the last unlimited filters but stays in this mode.
   const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`#/play/${p.id}`));
-  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
 }

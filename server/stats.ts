@@ -1,9 +1,29 @@
-import { PERFECT_SOLVED, todayWib, type Mode } from '../shared/modes.js';
-import { all } from './db.js';
+import { DAILY_MAX_POINTS, PERFECT_SOLVED, todayWib, type Mode } from '../shared/modes.js';
+import { all, one } from './db.js';
 
 /** Anidle guesses (play.guesses is number[] there). The round modes report rounds solved instead, so this is unused for them. */
 function attemptCount(guesses: string): number {
   return (JSON.parse(guesses) as unknown[]).length;
+}
+
+/**
+ * SQL (play `g`, puzzle `p`): a daily play finished on its own day (WIB, UTC+7). Replaying an earlier
+ * day from the archive is just for fun: it stays out of leaderboards, streaks and stats.
+ */
+const ON_THE_DAY = "substr(datetime(g.finished_at, '+7 hours'), 1, 10) = p.date";
+
+export interface TodayScore {
+  score: number;
+  max: number;
+}
+
+/** The player's points over today's daily puzzles (out of DAILY_MAX_POINTS). */
+export async function todayScore(playerKey: string): Promise<TodayScore> {
+  const row = await one<{ score: number | null }>(
+    'SELECT SUM(g.score) AS score FROM play g JOIN puzzle p ON p.id = g.puzzle_id WHERE g.username = ? AND p.date = ? AND g.finished_at IS NOT NULL',
+    [playerKey, todayWib()],
+  );
+  return { score: Number(row?.score ?? 0), max: DAILY_MAX_POINTS };
 }
 
 export interface LeaderboardEntry {
@@ -23,7 +43,7 @@ export interface Leaderboard {
   total: Array<{ username: string; avatar: string | null; score: number; modes: number }>;
 }
 
-/** Finished daily puzzles of `date` by accounts (anonymous players have no name to show). */
+/** Daily puzzles of `date` finished that same day by accounts (anonymous players have no name to show). */
 export async function leaderboard(date: string): Promise<Leaderboard> {
   const rows = await all<{ mode: Mode; username: string; avatar: string | null; score: number | null; solved: number; guesses: string; finished_at: string }>(
     `SELECT p.mode, ac.username, pr.avatar, g.score, g.solved, g.guesses, g.finished_at
@@ -31,7 +51,7 @@ export async function leaderboard(date: string): Promise<Leaderboard> {
      JOIN play g ON g.puzzle_id = p.id AND g.finished_at IS NOT NULL
      JOIN account ac ON g.username = 'u:' || ac.id
      LEFT JOIN player pr ON pr.username = ac.mal_username
-     WHERE p.date = ?
+     WHERE p.date = ? AND ${ON_THE_DAY}
      ORDER BY g.score DESC, g.finished_at ASC`,
     [date],
   );
@@ -68,7 +88,7 @@ export interface HistoryEntry {
 }
 
 export interface ModeStats {
-  /** Daily puzzles finished. */
+  /** Daily puzzles finished on their own day (archive replays do not count). */
   played: number;
   /** Anidle solved, or round-mode puzzles with every round solved. */
   perfect: number;
@@ -102,8 +122,8 @@ function streaks(dates: string[]): { streak: number; bestStreak: number } {
 }
 
 export async function history(playerKey: string): Promise<History> {
-  const rows = await all<{ id: string; date: string | null; mode: Mode; answer_id: number; score: number | null; solved: number; guesses: string; finished_at: string }>(
-    `SELECT p.id, p.date, p.mode, p.answer_id, g.score, g.solved, g.guesses, g.finished_at
+  const rows = await all<{ id: string; date: string | null; mode: Mode; answer_id: number; score: number | null; solved: number; guesses: string; finished_at: string; on_the_day: number }>(
+    `SELECT p.id, p.date, p.mode, p.answer_id, g.score, g.solved, g.guesses, g.finished_at, (p.date IS NOT NULL AND ${ON_THE_DAY}) AS on_the_day
      FROM play g JOIN puzzle p ON p.id = g.puzzle_id
      WHERE g.username = ? AND g.finished_at IS NOT NULL
      ORDER BY g.finished_at DESC`,
@@ -129,7 +149,7 @@ export async function history(playerKey: string): Promise<History> {
   );
 
   const modeStats = (mode: Mode): ModeStats => {
-    const daily = rows.filter((r) => r.mode === mode && r.date);
+    const daily = rows.filter((r) => r.mode === mode && Number(r.on_the_day));
     const scores = daily.map((r) => Number(r.score ?? 0));
     return {
       played: daily.length,

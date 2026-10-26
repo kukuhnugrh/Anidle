@@ -9,6 +9,12 @@ export function todayWib(now = Date.now()): string {
   return new Date(now + WIB_OFFSET_MS).toISOString().slice(0, 10);
 }
 
+/** The first daily puzzles; the archive (playing an earlier day) goes back to here. */
+export const FIRST_DAILY_DATE = '2026-10-25';
+
+/** `date` (YYYY-MM-DD) shifted by `days`. */
+export const shiftDate = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
 export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot'] as const;
 export type Mode = (typeof MODES)[number];
 /** Song modes: one title per round, the full song plays, one guess, an optional blurred clue. */
@@ -43,11 +49,18 @@ export const SCREENSHOTS_PER_TITLE = 3;
  */
 export const SCREENSHOT_CLUES = ['shot', 'shot', 'title'] as const;
 
-/** Screenshot: one guess per round; right = 500 minus 125 per clue opened, wrong or given up = 0. */
-export const SCREENSHOT_POINTS = { max: 500, perClue: 125 } as const;
+/** Every mode's puzzle is worth MODE_MAX_POINTS, so a day's five daily puzzles make DAILY_MAX_POINTS (10,000). */
+export const MODE_MAX_POINTS = 2000;
+export const DAILY_MAX_POINTS = MODE_MAX_POINTS * MODES.length;
 
-/** Song modes: a right guess scores 500, or 250 after opening the clue (blurred OP video / blurred cover); a miss scores 0. */
-export const SONG_POINTS = { plain: 500, withClue: 250 } as const;
+/** Round modes: round 1 (easy) 600, rounds 2–3 (medium) 700 each, together MODE_MAX_POINTS. */
+export const ROUND_MAX_POINTS: readonly number[] = [600, 700, 700];
+
+/** Song modes: one guess; right = the round's points, half of them after opening the clue (the blurred music video); a miss scores 0. */
+export const SONG_CLUE_SHARE = 0.5;
+
+/** Screenshot: one guess; right = the round's points minus this share per clue opened; a miss scores 0. */
+export const SCREENSHOT_CLUE_COST = 0.25;
 
 /**
  * Difficulty of each round of a multi-round puzzle: round 1 easy, the rest medium, when the pool is
@@ -74,4 +87,3 @@ export const PERFECT_SOLVED: Record<Mode, number> = {
 
 export const CHARACTERS_PER_TITLE = 4;
 
-export const MAX_ROUND_POINTS = 500;

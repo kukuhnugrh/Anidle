@@ -122,7 +122,7 @@ export async function completedIds(user: string, auth: MalAuth, schedule: <T>(ta
 
 export const DETAIL_FIELDS = [
   'id', 'title', 'alternative_titles', 'main_picture', 'start_date', 'start_season', 'mean', 'num_list_users',
-  'media_type', 'status', 'num_episodes', 'source', 'rating', 'nsfw', 'studios', 'genres', 'related_anime',
+  'media_type', 'status', 'num_episodes', 'source', 'rating', 'nsfw', 'studios', 'genres', 'related_anime', 'synopsis',
 ].join(',');
 
 export interface MalAnimeDetail {
@@ -143,9 +143,13 @@ export interface MalAnimeDetail {
   studios?: Array<{ id: number; name: string }>;
   genres?: Array<{ id: number; name: string }>;
   related_anime?: Array<{ node: { id: number }; relation_type: string }>;
+  synopsis?: string;
 }
 
 export const animeDetail = (id: number) => malGet<MalAnimeDetail>(`/anime/${id}`, { fields: DETAIL_FIELDS });
+
+/** Only the synopsis (pipeline step `synopsis`, for titles enriched before it was stored). */
+export const animeSynopsis = (id: number) => malGet<{ synopsis?: string }>(`/anime/${id}`, { fields: 'synopsis' });
 
 /** Maps a MAL token failure to something a page can show. */
 export function toHttpError(err: unknown): HttpError {

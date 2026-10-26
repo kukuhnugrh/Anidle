@@ -15,7 +15,8 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // Character mode accepts nicknames and the kanji name; details_at = when they were fetched.
   anime_character: { nicknames: "TEXT NOT NULL DEFAULT '[]'", name_kanji: 'TEXT', details_at: 'TEXT' },
   // The franchise's most popular entry (pipeline step `franchise`); NULL until computed = itself.
-  anime: { canonical_id: 'INTEGER' },
+  // synopsis: Anidle's second clue (MAL text; '' = MAL has none).
+  anime: { canonical_id: 'INTEGER', synopsis: 'TEXT' },
 };
 
 /** Indexes on ADDED_COLUMNS, created once the columns exist. */

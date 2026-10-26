@@ -1,14 +1,14 @@
 import { viewer } from '../server/accounts.js';
-import { dailyPuzzle, getPuzzle, parseDifficulties, parseMode, parsePool, poolSpec, unlimitedPuzzle, type PuzzleOptions } from '../server/game.js';
+import { dailyPuzzle, getPuzzle, parseDailyDate, parseDifficulties, parseMode, parsePool, poolSpec, unlimitedPuzzle, type PuzzleOptions } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
 import { puzzleState } from '../server/puzzles.js';
 
-/** ?mode=anidle|opening|ending → today's puzzle. ?id=<uuid> → resume any puzzle (e.g. an unlimited one after reload). */
+/** ?mode=…[&date=YYYY-MM-DD] → that day's puzzle (today by default; earlier days replay the archive). ?id=<uuid> → resume any puzzle. */
 export const GET = route(async (req) => {
   const me = await viewer(req);
   const params = new URL(req.url).searchParams;
   const id = params.get('id');
-  const puzzle = id ? await getPuzzle(id) : await dailyPuzzle(parseMode(params.get('mode') ?? 'anidle'));
+  const puzzle = id ? await getPuzzle(id) : await dailyPuzzle(parseMode(params.get('mode') ?? 'anidle'), parseDailyDate(params.get('date')));
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);
 });
 

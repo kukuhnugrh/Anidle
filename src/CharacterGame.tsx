@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { CHARACTER_FIELD_POINTS } from '../shared/characters';
-import { MAX_ROUND_POINTS } from '../shared/modes';
+import { MODE_MAX_POINTS } from '../shared/modes';
 import { api, errorMessage, type CharacterPick, type CharacterState } from './api';
 import { fmtDate } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
@@ -80,8 +79,8 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>Character</h1>
           <p className="muted small">
-            Four characters from four different anime. Pick each one's name and their anime, then press Guess (fields you leave empty stay open) — one pick per field,{' '}
-            {CHARACTER_FIELD_POINTS} pts each.
+            Four characters from four different anime. Pick each one's name and their anime, then press Guess (fields you leave empty stay open) — one pick per field, each right
+            one worth {fmtPoints(round.fieldPoints)} pts this round.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -141,7 +140,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
 
       <div className="char-bar">
         <span className="muted">
-          Round {view + 1}: {fmtPoints(round.points)} / {MAX_ROUND_POINTS} pts
+          Round {view + 1}: {fmtPoints(round.points)} / {round.max} pts
         </span>
         <div className="actions">
           {isCurrent && !round.finished && (
@@ -172,7 +171,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             <span className="eyebrow">Finished</span>
             <h2>{fmtPoints(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {puzzle.rounds.length * MAX_ROUND_POINTS} pts
+              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {MODE_MAX_POINTS} pts
             </p>
           </div>
           <div className="actions">
