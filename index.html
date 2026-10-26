@@ -3,7 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#fffdf5" />
+    <meta name="theme-color" content="#161824" />
+    <!-- Night mode unless the anidle_theme cookie says light; set before CSS paints, so there is no flash. -->
+    <script>
+      if (/(?:^|;\s*)anidle_theme=light(?:;|$)/.test(document.cookie)) {
+        document.documentElement.dataset.theme = 'light';
+        document.querySelector('meta[name="theme-color"]').content = '#fffdf5';
+      } else document.documentElement.dataset.theme = 'dark';
+    </script>
     <link rel="preload" href="/fonts/host-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
     <title>Anidle</title>

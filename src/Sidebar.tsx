@@ -1,9 +1,29 @@
-import type { ComponentType } from 'react';
+import { useState, type ComponentType } from 'react';
 import { MODE_LABELS, type Mode } from '../shared/modes';
 import type { Account, TodayScore } from './api';
 import { fmtNumber } from './format';
-import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
+import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
+import { applyTheme, currentTheme } from './theme';
+
+/** Night/day switch; the choice is kept in a cookie (see theme.ts). */
+function ThemeToggle() {
+  const [theme, setTheme] = useState(currentTheme);
+  const next = theme === 'dark' ? 'light' : 'dark';
+  return (
+    <button
+      className="icon-button theme-toggle"
+      onClick={() => {
+        applyTheme(next);
+        setTheme(next);
+      }}
+      aria-label={next === 'light' ? 'Switch to day mode' : 'Switch to night mode'}
+      title={next === 'light' ? 'Day mode' : 'Night mode'}
+    >
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+    </button>
+  );
+}
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode (those show today's score for it). */
 const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: Mode }[] }[] = [
@@ -81,9 +101,12 @@ export function Sidebar({
       <aside className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-head">
           <Brand />
-          <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close menu">
-            <CloseIcon />
-          </button>
+          <span className="sidebar-tools">
+            <ThemeToggle />
+            <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close menu">
+              <CloseIcon />
+            </button>
+          </span>
         </div>
         <nav className="sidebar-nav">
           {sections.map((section) => (
