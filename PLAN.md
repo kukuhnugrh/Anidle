@@ -212,9 +212,10 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Screenshot: 3 frame per show (bukan 5), tanpa zoom, mengikuti gaya AniGuessr: screenshot asli, lalu clue dibuka lewat tombol (screenshot 2, screenshot 3, judul `N_____`), satu tebakan, 500 − 125 per clue. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi hanya show easy + medium yang diproses.
 - Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
-- Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu pilihan per kolom, 62,5 poin per kolom benar.
+- Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu tombol Guess per ronde (kolom kosong = salah, ronde selesai).
+- Difficulty Character diambil dari favorit MAL karakternya sendiri, bukan dari animenya: easy ≥ 5.000, medium 500–4.999, hard 100–499 (contoh Naruto: Naruto 88 rb, Neji 3,8 rb, Iruka 362). Ronde 1/2/3 = karakter easy/medium/hard dari pool anime biasa; per show disimpan maksimal 3 karakter per difficulty. Karakter utama saja terlalu gampang bagi yang sudah nonton.
 - Season/movie/OVA satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
-- Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium).
+- Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium). Pengecualian: Character, yang ronde 1/2/3-nya easy/medium/hard menurut karakter.
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde, clue = video OP/ED blur tanpa suara yang mengikuti lagu (klip 240p di R2 untuk show easy + medium, selebihnya video terkecil AnimeThemes lewat proxy; cover blur kalau video gagal).
 
 ## 14. Risiko
