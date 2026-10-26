@@ -21,8 +21,8 @@ function PickField({ label, children }: { label: string; children: ReactNode }) 
   );
 }
 
-/** A field after the Guess: the right answer, green or red, and what was picked when it differs. */
-function ResultRow({ label, field, answer, picked, samePick }: { label: string; field: Field; answer: ReactNode; picked: string | undefined; samePick: boolean }) {
+/** A field after the Guess: the right answer, green or red, what was picked when it differs, and what else counts. */
+function ResultRow({ label, field, answer, also, picked, samePick }: { label: string; field: Field; answer: ReactNode; also: ReactNode[]; picked: string | undefined; samePick: boolean }) {
   return (
     <div className={`char-field ${field.solved ? 'ok' : 'bad'}`}>
       <div className="char-field-head">
@@ -30,6 +30,17 @@ function ResultRow({ label, field, answer, picked, samePick }: { label: string; 
         <span className="char-mark">{field.solved ? `✓ +${fmtNumber(field.points)}` : '✗ 0'}</span>
       </div>
       <div className="char-result">{answer}</div>
+      {also.length > 0 && (
+        <span className="char-also small">
+          Also accepted:{' '}
+          {also.map((a, i) => (
+            <span key={i}>
+              {i > 0 && ' · '}
+              {a}
+            </span>
+          ))}
+        </span>
+      )}
       {!picked && <span className="char-pick muted small">Not answered</span>}
       {picked && !samePick && (
         <span className="char-pick small">
@@ -134,7 +145,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             <div className="char-fields">
               {slot.answer && (
                 <>
-                  <ResultRow label="Name" field={slot.name} answer={slot.answer.name} picked={slot.name.pick?.name} samePick={slot.name.solved} />
+                  <ResultRow label="Name" field={slot.name} answer={slot.answer.name} also={slot.answer.aliases} picked={slot.name.pick?.name} samePick={slot.name.solved} />
                   <ResultRow
                     label="Anime"
                     field={slot.anime}
@@ -143,6 +154,11 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
                         {slot.answer.anime.title}
                       </a>
                     }
+                    also={slot.answer.otherShows.map((show) => (
+                      <a key={show.malId} href={`https://myanimelist.net/anime/${show.malId}`} target="_blank" rel="noreferrer">
+                        {show.title}
+                      </a>
+                    ))}
                     picked={slot.anime.pick?.title}
                     samePick={slot.anime.pick?.malId === slot.answer.anime.malId}
                   />

@@ -31,8 +31,8 @@ export interface CharacterSlotState {
   portrait: string;
   name: FieldState<{ charId: number; name: string }>;
   anime: FieldState<{ malId: number; title: string }>;
-  /** Once both fields are over. */
-  answer: { name: string; nicknames: string[]; anime: AnswerInfo } | null;
+  /** Once both fields are over. aliases: kanji name and nicknames (they find the same name entry); otherShows: the other shows that count as the anime. */
+  answer: { name: string; aliases: string[]; anime: AnswerInfo; otherShows: Array<{ malId: number; title: string }> } | null;
 }
 
 export interface CharacterRoundState {
@@ -66,13 +66,14 @@ interface SlotRow {
   char_id: number;
   name: string;
   nicknames: string;
+  name_kanji: string | null;
   favorites: number | null;
   r2_key: string;
 }
 
 async function loadSlots(puzzleId: string): Promise<SlotRow[][]> {
   const rows = await all<SlotRow>(
-    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.favorites, c.r2_key
+    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.name_kanji, c.favorites, c.r2_key
      FROM puzzle_character p JOIN anime_character c ON c.mal_id = p.mal_id AND c.char_id = p.char_id
      WHERE p.puzzle_id = ? ORDER BY p.round, p.slot`,
     [puzzleId],
@@ -106,9 +107,10 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
   const names = await characterNames(picks.flatMap((s) => (s.n ? [s.n] : [])));
   // Shows (canonical entries, as the autocomplete offers them) each asked character appears in: any of them is right.
   const charIds = slots.flat().map((s) => Number(s.char_id));
-  const appearances = await all<{ char_id: number; show: number }>(
-    `SELECT cs.char_id, COALESCE(a.canonical_id, a.mal_id) AS show FROM character_show cs JOIN anime a ON a.mal_id = cs.mal_id
-     WHERE cs.char_id IN (${charIds.map(() => '?').join(',')})`,
+  const appearances = await all<{ char_id: number; show: number; title: string }>(
+    `SELECT DISTINCT cs.char_id, s.mal_id AS show, s.title FROM character_show cs
+     JOIN anime a ON a.mal_id = cs.mal_id JOIN anime s ON s.mal_id = COALESCE(a.canonical_id, a.mal_id)
+     WHERE s.excluded IS NULL AND cs.char_id IN (${charIds.map(() => '?').join(',')}) ORDER BY s.members DESC`,
     charIds,
   );
   const showsOf = Map.groupBy(appearances, (r) => Number(r.char_id));
@@ -128,7 +130,8 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       const nameRight = picked !== undefined && displayName(picked).toLowerCase() === displayName(s.name).toLowerCase();
       const name = field(tried.n ? { charId: tried.n, name: displayName(picked ?? `#${tried.n}`) } : null, tried.n != null, nameRight, worth);
       const guessed = tried.a ? anime.get(tried.a) : undefined;
-      const animeRight = guessed !== undefined && (isCorrect(answer, guessed) || (showsOf.get(Number(s.char_id)) ?? []).some((row) => Number(row.show) === guessed.malId));
+      const shows = showsOf.get(Number(s.char_id)) ?? [];
+      const animeRight = guessed !== undefined && (isCorrect(answer, guessed) || shows.some((row) => Number(row.show) === guessed.malId));
       const animeField = field(tried.a ? { malId: tried.a, title: guessed?.title ?? `#${tried.a}` } : null, tried.a != null, animeRight, worth);
       if (name.solved && animeField.solved) perfect++;
       const done = name.finished && animeField.finished;
@@ -136,7 +139,14 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
         portrait: mediaUrl(s.r2_key),
         name,
         anime: animeField,
-        answer: done ? { name: displayName(s.name), nicknames: JSON.parse(s.nicknames) as string[], anime: info } : null,
+        answer: done
+          ? {
+              name: displayName(s.name),
+              aliases: [s.name_kanji, ...(JSON.parse(s.nicknames) as string[])].filter((n): n is string => Boolean(n)),
+              anime: info,
+              otherShows: shows.filter((row) => Number(row.show) !== info.malId).map((row) => ({ malId: Number(row.show), title: row.title })),
+            }
+          : null,
       };
     });
     return {

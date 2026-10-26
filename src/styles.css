@@ -378,6 +378,7 @@ input:focus, select:focus { outline: none; border-color: var(--accent-2); box-sh
 .char-field.bad .char-mark { color: var(--bad); }
 .char-result { font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
 .char-pick { color: var(--muted); overflow-wrap: anywhere; }
+.char-also { color: var(--muted); overflow-wrap: anywhere; line-height: 1.5; }
 .char-pick .wrong { color: var(--bad); text-decoration: line-through; }
 .char-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .guess-input.compact input { font-size: 14px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg); }
