@@ -7,7 +7,7 @@ import { linkMal, signInWithMal, syncCompleted } from '../../server/players.js';
 
 // Errors land on the page the flow started from: the account page (link) or the sign-in page.
 const back = (req: Request, page: 'akun' | 'masuk', error: string | null, cookies: string[] = []) =>
-  redirect(error ? `/?mal_error=${encodeURIComponent(error)}#/${page}` : page === 'akun' ? '/?mal=linked#/akun' : '/#/', [setCookie(req, OAUTH_COOKIE, '', 0), ...cookies]);
+  redirect(error ? `/${page}?mal_error=${encodeURIComponent(error)}` : page === 'akun' ? '/akun?mal=linked' : '/', [setCookie(req, OAUTH_COOKIE, '', 0), ...cookies]);
 
 // Reached through the /oauth/callback rewrite (vercel.json / vite.config.ts).
 export const GET = route(async (req) => {

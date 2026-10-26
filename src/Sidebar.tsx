@@ -27,7 +27,7 @@ function ThemeToggle() {
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode (those show today's score for it). */
 const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: Mode }[] }[] = [
-  { title: 'Main', items: [{ id: 'home', href: '#/', label: 'Home', Icon: HomeIcon }] },
+  { title: 'Main', items: [{ id: 'home', href: '/', label: 'Home', Icon: HomeIcon }] },
   {
     title: 'Daily',
     items: [
@@ -41,28 +41,28 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
   {
     title: 'Free play',
     items: [
-      { id: 'unlimited', href: '#/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
-      { id: 'database', href: '#/database', label: 'Database', Icon: DatabaseIcon },
+      { id: 'unlimited', href: '/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
+      { id: 'database', href: '/database', label: 'Database', Icon: DatabaseIcon },
     ],
   },
   {
     title: 'Community',
     items: [
-      { id: 'leaderboard', href: '#/leaderboard', label: 'Leaderboard', Icon: TrophyIcon },
-      { id: 'history', href: '#/riwayat', label: 'History', Icon: ClockIcon },
+      { id: 'leaderboard', href: '/leaderboard', label: 'Leaderboard', Icon: TrophyIcon },
+      { id: 'history', href: '/riwayat', label: 'History', Icon: ClockIcon },
     ],
   },
 ];
 
 /** Only for ADMIN_USERS (the server checks again on every admin request). */
-const ADMIN_SECTION: (typeof NAV)[number] = { title: 'Admin', items: [{ id: 'admin', href: '#/admin', label: 'Review media', Icon: ShieldIcon }] };
+const ADMIN_SECTION: (typeof NAV)[number] = { title: 'Admin', items: [{ id: 'admin', href: '/admin', label: 'Review media', Icon: ShieldIcon }] };
 
 /** An unlimited puzzle in progress belongs to the Unlimited entry. */
 const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view);
 
 export function Brand() {
   return (
-    <a className="brand" href="#/">
+    <a className="brand" href="/">
       <img className="brand-mark" src="/logo-128.png" alt="" />
       Anidle
     </a>
@@ -130,7 +130,7 @@ export function Sidebar({
           ))}
         </nav>
         {today && (
-          <a className="today-score" href="#/" title="Points from today's five daily puzzles">
+          <a className="today-score" href="/" title="Points from today's five daily puzzles">
             <span className="muted small">Today's score</span>
             <span>
               <b>{fmtNumber(today.score)}</b>
@@ -141,7 +141,7 @@ export function Sidebar({
         <div className="sidebar-foot">
           {account ? (
             <div className="account-row">
-              <a className={`account-chip${current === 'account' ? ' active' : ''}`} href="#/akun" title="Account & MAL">
+              <a className={`account-chip${current === 'account' ? ' active' : ''}`} href="/akun" title="Account & MAL">
                 <Avatar account={account} />
                 <span className="account-text">
                   <b>{account.username}</b>
@@ -155,7 +155,7 @@ export function Sidebar({
           ) : (
             <div className="guest">
               <p className="muted small">Playing as a guest. Progress is saved in this browser.</p>
-              <a className={`button primary block${current === 'auth' ? ' active' : ''}`} href="#/masuk">
+              <a className={`button primary block${current === 'auth' ? ' active' : ''}`} href="/masuk">
                 Sign in / Sign up
               </a>
             </div>

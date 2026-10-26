@@ -282,7 +282,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
               <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
                 Play unlimited
               </button>
-              <a className="button ghost" href="#/">
+              <a className="button ghost" href="/">
                 Home
               </a>
             </div>

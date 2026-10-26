@@ -41,7 +41,7 @@ export function Unlimited({ account }: { account: Account | null }) {
       const options: UnlimitedOptions = { mode, pool, genreId: genreId === '' ? undefined : genreId, difficulties: DIFFICULTY_CHOICES[difficulty]!.value };
       const puzzle = await api.unlimited(options);
       savedUnlimited.save(options);
-      go(`#/play/${puzzle.id}`);
+      go(`/play/${puzzle.id}`);
     } catch (err) {
       setError(errorMessage(err));
       setBusy(false);
@@ -81,7 +81,7 @@ export function Unlimited({ account }: { account: Account | null }) {
           </div>
           {poolLocked && (
             <p className="muted small">
-              This pool uses your MAL completed list. {account ? <a href="#/akun">Link your MAL account first.</a> : <a href="/api/oauth/login">Sign in with MyAnimeList first.</a>}
+              This pool uses your MAL completed list. {account ? <a href="/akun">Link your MAL account first.</a> : <a href="/api/oauth/login">Sign in with MyAnimeList first.</a>}
             </p>
           )}
         </div>

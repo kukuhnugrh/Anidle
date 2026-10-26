@@ -7,7 +7,7 @@ import { dailyHref } from './route';
 export function DayBar({ mode, date }: { mode: Mode; date: string | null }) {
   return (
     <nav className="mode-bar" aria-label={date ? `Puzzles of ${fmtDate(date)}` : "Today's puzzles"}>
-      <a className="button ghost small back-link" href={date ? `#/?date=${date}` : '#/'}>
+      <a className="button ghost small back-link" href={date ? `/?date=${date}` : '/'}>
         <BackIcon />
         {date ? fmtDate(date) : 'Today'}
       </a>
@@ -26,7 +26,7 @@ export function DayBar({ mode, date }: { mode: Mode; date: string | null }) {
 export function UnlimitedBar() {
   return (
     <nav className="mode-bar" aria-label="Unlimited">
-      <a className="button ghost small back-link" href="#/unlimited">
+      <a className="button ghost small back-link" href="/unlimited">
         <BackIcon />
         Unlimited
       </a>

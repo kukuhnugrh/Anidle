@@ -4,10 +4,10 @@ import { DB_SORTS, type DbFacets, type DbFilters, type DbGenre, type DbItem, typ
 import { api, errorMessage } from './api';
 import { fmtNumber, pretty } from './format';
 
-// ------------------------------------------------------------------ URL state (#/database?sort=…&genre=…)
+// ------------------------------------------------------------------ URL state (/database?sort=…&genre=…)
 
 function readFilters(): DbFilters {
-  const p = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const p = new URLSearchParams(location.search);
   const sort = p.get('sort');
   const difficulty = p.get('difficulty');
   return {
@@ -73,7 +73,7 @@ export function Database() {
 
   useEffect(() => {
     const query = toQuery(filters);
-    history.replaceState(null, '', `#/database${query ? `?${query}` : ''}`);
+    history.replaceState(null, '', `/database${query ? `?${query}` : ''}`);
     let cancelled = false;
     setLoading(true);
     api

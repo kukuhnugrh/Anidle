@@ -371,7 +371,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
               Play {MODE_LABELS[puzzle.mode]} unlimited
             </button>
-            <a className="button ghost" href="#/">
+            <a className="button ghost" href="/">
               Home
             </a>
           </div>

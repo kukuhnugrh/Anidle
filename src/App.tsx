@@ -18,7 +18,7 @@ import { go, readRoute } from './route';
 import { Brand, Sidebar } from './Sidebar';
 import { Unlimited } from './Unlimited';
 
-/** One-shot message from the MAL redirect (?mal=linked / ?mal_error=…), then cleaned from the URL. */
+/** One-shot message from the MAL redirect (?mal=linked / ?mal_error=…), then those params are cleaned from the URL. */
 function takeRedirectNotice(): Notice {
   const params = new URLSearchParams(location.search);
   const notice: Notice = params.get('mal_error')
@@ -26,8 +26,25 @@ function takeRedirectNotice(): Notice {
     : params.get('mal') === 'linked'
       ? { kind: 'ok', text: 'MAL account linked. Your completed list has been synced.' }
       : null;
-  if (location.search) history.replaceState(null, '', location.pathname + location.hash);
+  if (params.has('mal') || params.has('mal_error')) {
+    params.delete('mal');
+    params.delete('mal_error');
+    const rest = params.toString();
+    history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+  }
   return notice;
+}
+
+/**
+ * Same-origin links navigate inside the app (no reload). /api/* and /oauth/* are left to the browser:
+ * they are server routes (e.g. starting the MAL login). Modified clicks and new-tab links open normally.
+ */
+function inAppLink(e: MouseEvent): string | null {
+  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
+  const a = e.target instanceof Element ? e.target.closest('a') : null;
+  if (!a || a.target || a.hasAttribute('download') || a.origin !== location.origin) return null;
+  if (a.pathname.startsWith('/api/') || a.pathname.startsWith('/oauth/')) return null;
+  return a.pathname + a.search;
 }
 
 export function App() {
@@ -54,16 +71,24 @@ export function App() {
 
   useEffect(() => {
     void refreshMe();
-    const onHash = () => {
+    const onNavigate = () => {
       setRoute(readRoute());
       setNavOpen(false);
       scrollTo({ top: 0 });
     };
+    const onClick = (e: MouseEvent) => {
+      const href = inAppLink(e);
+      if (href === null) return;
+      e.preventDefault();
+      go(href);
+    };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
-    addEventListener('hashchange', onHash);
+    addEventListener('popstate', onNavigate);
+    document.addEventListener('click', onClick);
     addEventListener('keydown', onKey);
     return () => {
-      removeEventListener('hashchange', onHash);
+      removeEventListener('popstate', onNavigate);
+      document.removeEventListener('click', onClick);
       removeEventListener('keydown', onKey);
     };
   }, [refreshMe]);
@@ -89,7 +114,7 @@ export function App() {
             setAccount(null);
             setAdmin(false);
             void refreshMe();
-            go('#/');
+            go('/');
           })
         }
       />
@@ -126,7 +151,7 @@ export function App() {
               onDone={(a) => {
                 setAccount(a);
                 void refreshMe();
-                go('#/');
+                go('/');
               }}
             />
           )}
@@ -171,7 +196,7 @@ function PuzzleLoader(props: ({ daily: Mode; date: string | null } | { id: strin
       </div>
     );
   // "Play unlimited" after a game keeps the last unlimited filters but stays in this mode.
-  const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`#/play/${p.id}`));
+  const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`/play/${p.id}`));
   if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;

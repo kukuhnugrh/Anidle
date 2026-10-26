@@ -53,7 +53,7 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
             <a className="button mal-button" href="/api/oauth/login">
               Continue with MyAnimeList
             </a>
-            <a className="button primary" href="#/masuk">
+            <a className="button primary" href="/masuk">
               Sign in / Sign up
             </a>
           </div>

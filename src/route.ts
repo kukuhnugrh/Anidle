@@ -23,14 +23,14 @@ export function archiveDate(value: string | null): string | null {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= FIRST_DAILY_DATE && value < todayUtc7() ? value : null;
 }
 
-/** Daily puzzle of a mode: `#/daily` is Anidle (the first mode, kept for old links), `#/daily/opening`…, `?date=` an earlier day. */
-export const dailyHref = (mode: Mode, date: string | null = null) => `${mode === 'anidle' ? '#/daily' : `#/daily/${mode}`}${date ? `?date=${date}` : ''}`;
+/** Daily puzzle of a mode: `/daily` is Anidle (the first mode, kept for old links), `/daily/opening`…, `?date=` an earlier day. */
+export const dailyHref = (mode: Mode, date: string | null = null) => `${mode === 'anidle' ? '/daily' : `/daily/${mode}`}${date ? `?date=${date}` : ''}`;
 
-/** `#/database?genre=1` → database, `#/play/<id>` → that puzzle, anything unknown → home. */
+/** `/database?genre=1` → database, `/play/<id>` → that puzzle, anything unknown → home. */
 export function readRoute(): Route {
-  const [path = '', query = ''] = location.hash.replace(/^#\/?/, '').split('?');
+  const path = location.pathname.replace(/^\/+|\/+$/g, '');
   if (path.startsWith('play/')) return { view: 'play', id: path.slice('play/'.length) };
-  const date = archiveDate(new URLSearchParams(query).get('date'));
+  const date = archiveDate(new URLSearchParams(location.search).get('date'));
   if (path === 'daily') return { view: 'daily', mode: 'anidle', date };
   if (path.startsWith('daily/')) {
     const mode = MODES.find((m) => m === path.slice('daily/'.length));
@@ -39,6 +39,13 @@ export function readRoute(): Route {
   return { view: PATHS[path] ?? 'home' };
 }
 
-export const go = (hash: string) => {
-  location.hash = hash;
+/** Links shared before clean URLs (`/#/daily/opening`) become their path (`/daily/opening`). */
+export function upgradeHashUrl() {
+  if (location.hash.startsWith('#/')) history.replaceState(null, '', location.hash.slice(1));
+}
+
+/** In-app navigation: a new history entry, then the app re-reads the route (as it does on back/forward). */
+export const go = (href: string) => {
+  history.pushState(null, '', href);
+  dispatchEvent(new PopStateEvent('popstate'));
 };

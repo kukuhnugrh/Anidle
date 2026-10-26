@@ -55,11 +55,11 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
 }
 
 export function Home({ account }: { account: Account | null }) {
-  // null = today; an earlier day replays the archive (`#/?date=`).
-  const [date, setDate] = useState<string | null>(() => archiveDate(new URLSearchParams(location.hash.split('?')[1] ?? '').get('date')));
+  // null = today; an earlier day replays the archive (`/?date=`).
+  const [date, setDate] = useState<string | null>(() => archiveDate(new URLSearchParams(location.search).get('date')));
   const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
   useEffect(() => {
-    history.replaceState(null, '', date ? `#/?date=${date}` : '#/');
+    history.replaceState(null, '', date ? `/?date=${date}` : '/');
     let cancelled = false;
     setDaily({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
     for (const mode of MODES)
@@ -148,21 +148,21 @@ export function Home({ account }: { account: Account | null }) {
       </section>
 
       <div className="tiles">
-        <a className="tile" href="#/unlimited">
+        <a className="tile" href="/unlimited">
           <span className="tile-icon">
             <ShuffleIcon />
           </span>
           <h3>Unlimited</h3>
           <p className="muted">As many random puzzles as you like in any mode. Set the pool, genre, and difficulty.</p>
         </a>
-        <a className="tile" href="#/database">
+        <a className="tile" href="/database">
           <span className="tile-icon">
             <DatabaseIcon />
           </span>
           <h3>Database</h3>
           <p className="muted">Every title that can show up, with genre, studio, and source filters.</p>
         </a>
-        <a className="tile" href={account ? '#/akun' : '#/masuk'}>
+        <a className="tile" href={account ? '/akun' : '/masuk'}>
           <span className="tile-icon">
             <UserIcon />
           </span>

@@ -70,7 +70,7 @@ export function HistoryPage({ account }: { account: Account | null }) {
             <ol className="history-list">
               {data.recent.map((h) => (
                 <li key={h.puzzleId}>
-                  <a href={`#/play/${h.puzzleId}`}>
+                  <a href={`/play/${h.puzzleId}`}>
                     <span className="history-when">
                       <b>{MODE_LABELS[h.mode]}</b>
                       <span className="muted small">{h.date ? fmtDate(h.date) : 'Unlimited'}</span>

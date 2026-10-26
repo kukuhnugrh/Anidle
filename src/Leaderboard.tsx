@@ -7,7 +7,7 @@ import { fmtNumber, resultText } from './format';
 type Tab = Mode | 'total';
 
 function readDate(): string {
-  const date = new URLSearchParams(location.hash.split('?')[1] ?? '').get('date');
+  const date = new URLSearchParams(location.search).get('date');
   return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayUtc7();
 }
 
@@ -34,7 +34,7 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
   const today = todayUtc7();
 
   useEffect(() => {
-    history.replaceState(null, '', `#/leaderboard${date === today ? '' : `?date=${date}`}`);
+    history.replaceState(null, '', `/leaderboard${date === today ? '' : `?date=${date}`}`);
     let cancelled = false;
     setError(null);
     api.leaderboard(date).then(
@@ -69,7 +69,7 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
       {error && <div className="error-box">{error}</div>}
       {!account && (
         <p className="muted small">
-          <a href="#/masuk">Sign in or sign up</a> to get your score listed here.
+          <a href="/masuk">Sign in or sign up</a> to get your score listed here.
         </p>
       )}
 

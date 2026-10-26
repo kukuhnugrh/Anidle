@@ -4,7 +4,8 @@
   "regions": ["hnd1"],
   "rewrites": [
     { "source": "/oauth/callback", "destination": "/api/router?route=oauth/callback" },
-    { "source": "/api/:path((?!router$).*)", "destination": "/api/router?route=:path" }
+    { "source": "/api/:path((?!router$).*)", "destination": "/api/router?route=:path" },
+    { "source": "/((?!api/|oauth/).*)", "destination": "/index.html" }
   ],
   "headers": [{ "source": "/fonts/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }]
 }

@@ -224,7 +224,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
               Play Character unlimited
             </button>
-            <a className="button ghost" href="#/">
+            <a className="button ghost" href="/">
               Home
             </a>
           </div>
