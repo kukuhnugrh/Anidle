@@ -5,6 +5,7 @@ import { MAX_ROUND_POINTS } from '../shared/modes';
 import { api, errorMessage, type CharacterState } from './api';
 import { fmtDate } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
+import { RoundTitle } from './RoundTitle';
 import { characterShareText, ShareButton } from './share';
 
 type Slot = CharacterState['rounds'][number]['slots'][number];
@@ -92,6 +93,8 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           ))}
         </div>
       </header>
+
+      <RoundTitle round={view} difficulties={round.difficulties} />
 
       {error && <div className="error-box">{error}</div>}
       {zoomed && <Lightbox src={zoomed} onClose={() => setZoomed(null)} />}

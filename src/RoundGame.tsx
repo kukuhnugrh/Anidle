@@ -5,6 +5,7 @@ import { api, errorMessage, type RoundState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
 import { LockIcon, UnlockIcon } from './icons';
+import { RoundTitle } from './RoundTitle';
 import { roundShareText, ShareButton } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
@@ -13,8 +14,8 @@ type Round = RoundState['rounds'][number];
 /** Gives up on a round whose first screenshot has not decoded in this long (a screenshot is ~60 KB). */
 const PRELOAD_TIMEOUT_MS = 20_000;
 
-/** Tab labels: the screenshot shown first, then one per clue (SCREENSHOT_CLUES order). */
-const VIEW_LABELS = ['Original screenshot', 'First clue', 'Second clue', 'Title clue'];
+/** Screenshot tabs: the original, then the screenshot clues (SCREENSHOT_CLUES order); the title clue is shown below them. */
+const SHOT_LABELS = ['Original screenshot', 'First clue', 'Second clue'];
 const UNLOCK_LABELS = ['', 'Unlock first clue', 'Unlock second clue', 'Unlock title clue'];
 
 /**
@@ -52,20 +53,13 @@ function useFrames(urls: string[]) {
   return { status, retry: (i: number) => load(i, urls[i]!) };
 }
 
-/** What a view shows: a screenshot, or the masked title in the same frame. */
-function ClueFrame({ round, view }: { round: Round; view: number }) {
-  if (SCREENSHOT_CLUES[view - 1] === 'title' && round.hint)
-    return (
-      <div className="shot title-hint">
-        <span className="field-label">Title clue</span>
-        <code>{round.hint.title}</code>
-        {round.hint.english && <code className="muted">{round.hint.english}</code>}
-      </div>
-    );
-  const shot = round.media[Math.min(view, round.media.length - 1)]!;
+/** The masked title, kept under the screenshots so every screenshot stays one click away. */
+function TitleHint({ hint }: { hint: NonNullable<Round['hint']> }) {
   return (
-    <div className="shot">
-      <img src={shot} alt="" />
+    <div className="title-hint">
+      <span className="field-label">Title clue</span>
+      <code>{hint.title}</code>
+      {hint.english && <code className="muted">{hint.english}</code>}
     </div>
   );
 }
@@ -74,9 +68,10 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
   const { status, retry } = useFrames(puzzle.rounds.map((r) => r.media[0]!));
   const [roundView, setRoundView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
   const round = puzzle.rounds[roundView]!;
-  // The frame on screen: 0 = original screenshot, n = clue n. Follows the newest clue when one opens.
-  const [clueView, setClueView] = useState(round.clues);
-  useEffect(() => setClueView(round.clues), [roundView, round.clues]);
+  // The screenshot on screen: 0 = original, n = screenshot clue n. Follows the newest screenshot when one opens.
+  const lastShot = round.media.length - 1;
+  const [shotView, setShotView] = useState(lastShot);
+  useEffect(() => setShotView(lastShot), [roundView, lastShot]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,10 +120,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         </div>
       </header>
 
-      <div className="round-title">
-        <h2>Round {roundView + 1}</h2>
-        <span className={`difficulty ${round.difficulty}`}>{round.difficulty}</span>
-      </div>
+      <RoundTitle round={roundView} difficulties={[round.difficulty]} />
 
       {status[roundView] === 'error' ? (
         <div className="card load-error">
@@ -148,31 +140,37 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         </section>
       ) : (
         <section className="card stage-card">
-          <ClueFrame round={round} view={Math.min(clueView, opened)} />
+          <div className="shot">
+            <img src={round.media[Math.min(shotView, lastShot)]} alt="" />
+          </div>
           <div className="clue-tabs">
-            {VIEW_LABELS.map((label, i) => {
-              if (i <= opened)
+            {/* 0 = original screenshot, i = clue i; an opened title clue shows below instead of as a tab. */}
+            {UNLOCK_LABELS.map((_, i) => {
+                if (i <= opened) {
+                  if (SCREENSHOT_CLUES[i - 1] === 'title') return null;
+                  return (
+                    <button key={i} className={`clue-tab${i === shotView ? ' active' : ''}`} onClick={() => setShotView(i)}>
+                      <UnlockIcon />
+                      {SHOT_LABELS[i]}
+                    </button>
+                  );
+                }
+                const next = playing && i === opened + 1;
                 return (
-                  <button key={i} className={`clue-tab${i === clueView ? ' active' : ''}`} onClick={() => setClueView(i)}>
-                    <UnlockIcon />
-                    {label}
+                  <button
+                    key={i}
+                    className="clue-tab locked"
+                    disabled={!next || sending}
+                    title={next ? `−${puzzle.points.perClue} pts` : 'Unlock the previous clue first'}
+                    onClick={() => send(() => api.roundClue<RoundState>(puzzle.id, roundView))}
+                  >
+                    <LockIcon />
+                    {UNLOCK_LABELS[i]}
                   </button>
                 );
-              const next = playing && i === opened + 1;
-              return (
-                <button
-                  key={i}
-                  className="clue-tab locked"
-                  disabled={!next || sending}
-                  title={next ? `−${puzzle.points.perClue} pts` : 'Unlock the previous clue first'}
-                  onClick={() => send(() => api.roundClue<RoundState>(puzzle.id, roundView))}
-                >
-                  <LockIcon />
-                  {UNLOCK_LABELS[i]}
-                </button>
-              );
             })}
           </div>
+          {round.hint && <TitleHint hint={round.hint} />}
           {playing && (
             <div className="stage-controls">
               <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />

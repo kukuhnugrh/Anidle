@@ -1,5 +1,5 @@
 import { isCorrect } from '../shared/anidle.js';
-import type { Pool } from '../shared/catalog.js';
+import type { Difficulty, Pool } from '../shared/catalog.js';
 import { MODE_MEDIA, ROUND_COUNT, SONG_POINTS, type SongMode } from '../shared/modes.js';
 import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
@@ -33,6 +33,8 @@ export interface SongRoundState {
     /** The cover to show (blurred) if the video does not load. */
     fallback: string | null;
   };
+  /** The answer's difficulty: shown from the start, like the round's label. */
+  difficulty: Difficulty;
   guess: { malId: number; title: string } | null;
   gaveUp: boolean;
   solved: boolean;
@@ -99,8 +101,10 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
     const guessed = played.g ? anime.get(played.g) : undefined;
     const solved = guessed !== undefined && isCorrect(answer, guessed);
     const finished = played.g !== null;
+    const info = answerInfo(answer);
     return {
       audio: media(i, 'audio'),
+      difficulty: info.difficulty,
       clue: {
         opened: played.c,
         url: played.c || finished ? media(i, 'video') : null,
@@ -111,7 +115,7 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
       solved,
       finished,
       points: solved ? (played.c ? SONG_POINTS.withClue : SONG_POINTS.plain) : 0,
-      answer: finished ? { ...answerInfo(answer), song: s.song } : null,
+      answer: finished ? { ...info, song: s.song } : null,
     };
   });
   const current = rounds.findIndex((r) => !r.finished);

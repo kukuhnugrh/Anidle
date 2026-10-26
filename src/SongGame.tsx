@@ -5,6 +5,7 @@ import { api, errorMessage, type SongState } from './api';
 import { fmtDate } from './format';
 import { GuessInput } from './GuessInput';
 import { PauseIcon, PlayIcon } from './icons';
+import { RoundTitle } from './RoundTitle';
 import { ShareButton, songShareText } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
@@ -258,6 +259,8 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           ))}
         </div>
       </header>
+
+      <RoundTitle round={view} difficulties={[round.difficulty]} />
 
       {song?.status === 'error' ? (
         <div className="card load-error">

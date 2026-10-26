@@ -1,5 +1,5 @@
 import { isCorrect } from '../shared/anidle.js';
-import { CANONICAL_SQL, type Pool } from '../shared/catalog.js';
+import { CANONICAL_SQL, DIFFICULTIES, type Difficulty, type Pool } from '../shared/catalog.js';
 import { CHARACTER_FIELD_POINTS, displayName } from '../shared/characters.js';
 import { ROUND_COUNT } from '../shared/modes.js';
 import type { CharacterEntry } from '../shared/normalize.js';
@@ -36,6 +36,8 @@ export interface CharacterSlotState {
 
 export interface CharacterRoundState {
   slots: CharacterSlotState[];
+  /** Difficulties of the round's anime (one per kind, usually just one), shown from the start. */
+  difficulties: Difficulty[];
   finished: boolean;
   points: number;
 }
@@ -98,9 +100,12 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
   const names = await characterNames(picks.flatMap((s) => (s.n ? [s.n] : [])));
   let perfect = 0;
   const rounds = slots.map((roundSlots, r): CharacterRoundState => {
+    const difficulties: Difficulty[] = [];
     const states = roundSlots.map((s, i): CharacterSlotState => {
       const answer = anime.get(Number(s.mal_id));
       if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
+      const info = answerInfo(answer);
+      difficulties.push(info.difficulty);
       const tried = stored[r]?.[i] ?? { n: null, a: null };
       const name = field(tried.n ? { charId: tried.n, name: displayName(names.get(tried.n) ?? `#${tried.n}`) } : null, tried.n != null, tried.n === Number(s.char_id));
       const guessed = tried.a ? anime.get(tried.a) : undefined;
@@ -111,10 +116,15 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
         portrait: mediaUrl(s.r2_key),
         name,
         anime: animeField,
-        answer: done ? { name: displayName(s.name), nicknames: JSON.parse(s.nicknames) as string[], anime: answerInfo(answer) } : null,
+        answer: done ? { name: displayName(s.name), nicknames: JSON.parse(s.nicknames) as string[], anime: info } : null,
       };
     });
-    return { slots: states, finished: states.every((s) => s.answer), points: states.reduce((sum, s) => sum + s.name.points + s.anime.points, 0) };
+    return {
+      slots: states,
+      difficulties: DIFFICULTIES.filter((d) => difficulties.includes(d)),
+      finished: states.every((s) => s.answer),
+      points: states.reduce((sum, s) => sum + s.name.points + s.anime.points, 0),
+    };
   });
   const current = rounds.findIndex((r) => !r.finished);
   const finished = current < 0;
