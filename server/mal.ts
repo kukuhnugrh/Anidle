@@ -1,4 +1,4 @@
-import { requireEnv } from './env.js';
+import { optionalEnv, requireEnv } from './env.js';
 import { HttpError } from './http.js';
 
 const API = 'https://api.myanimelist.net/v2';
@@ -70,7 +70,9 @@ export function authorizeUrl(state: string, verifier: string): string {
 }
 
 async function requestTokens(params: Record<string, string>): Promise<MalTokens> {
-  const body = new URLSearchParams({ client_id: requireEnv('MAL_CLIENT_ID'), client_secret: requireEnv('MAL_CLIENT_SECRET'), ...params });
+  // MAL issues a client secret only to apps of type "web"; other app types send none.
+  const secret = optionalEnv('MAL_CLIENT_SECRET');
+  const body = new URLSearchParams({ client_id: requireEnv('MAL_CLIENT_ID'), ...(secret ? { client_secret: secret } : {}), ...params });
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
