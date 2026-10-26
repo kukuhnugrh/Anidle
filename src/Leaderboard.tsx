@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MODE_LABELS, MODES, todayWib, type Mode } from '../shared/modes';
+import { MODE_LABELS, MODES, todayUtc, type Mode } from '../shared/modes';
 import { api, errorMessage, type Account, type Leaderboard } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtNumber, resultText } from './format';
@@ -8,7 +8,7 @@ type Tab = Mode | 'total';
 
 function readDate(): string {
   const date = new URLSearchParams(location.hash.split('?')[1] ?? '').get('date');
-  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayWib();
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayUtc();
 }
 
 interface Row {
@@ -31,7 +31,7 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
   const [tab, setTab] = useState<Tab>('total');
   const [data, setData] = useState<Leaderboard | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const today = todayWib();
+  const today = todayUtc();
 
   useEffect(() => {
     history.replaceState(null, '', `#/leaderboard${date === today ? '' : `?date=${date}`}`);

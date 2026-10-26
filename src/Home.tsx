@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from 'react';
-import { DAILY_MAX_POINTS, MODES, MODE_LABELS, todayWib, WIB_OFFSET_MS, type Mode } from '../shared/modes';
+import { DAILY_MAX_POINTS, MODES, MODE_LABELS, todayUtc, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtDate, fmtNumber } from './format';
@@ -8,9 +8,9 @@ import { archiveDate, dailyHref } from './route';
 
 const DAY_MS = 86_400_000;
 
-/** The daily puzzle rolls over at 00:00 WIB (UTC+7). */
+/** The daily puzzle rolls over at 00:00 UTC. */
 function Countdown() {
-  const left = () => DAY_MS - ((Date.now() + WIB_OFFSET_MS) % DAY_MS);
+  const left = () => DAY_MS - (Date.now() % DAY_MS);
   const [ms, setMs] = useState(left);
   useEffect(() => {
     const timer = setInterval(() => setMs(left()), 1000);
@@ -22,7 +22,7 @@ function Countdown() {
 }
 
 const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
-  anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, source, studio, genres and tags. 10 guesses.' },
+  anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, source, studio, genres and tags. 16 tries, and Skip jumps to the next clue.' },
   opening: { Icon: MusicIcon, text: '3 rounds of full openings, one guess each. Stuck? The blurred music video costs half the points.' },
   ending: { Icon: DiscIcon, text: '3 rounds of full endings, one guess each. The clue: the blurred music video and cover.' },
   character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Pick each name and anime, then one Guess.' },
@@ -71,7 +71,7 @@ export function Home({ account }: { account: Account | null }) {
       cancelled = true;
     };
   }, [date]);
-  const shown = date ?? todayWib();
+  const shown = date ?? todayUtc();
   const dayScore = MODES.reduce((sum, m) => {
     const p = daily[m];
     return sum + (p && p !== 'unavailable' && p.finished ? (p.score ?? 0) : 0);
@@ -109,13 +109,13 @@ export function Home({ account }: { account: Account | null }) {
           <div className="hero-clock">
             <span className="eyebrow">New puzzle in</span>
             <Countdown />
-            <span className="muted small">every day at 00:00 WIB</span>
+            <span className="muted small">every day at 00:00 UTC</span>
           </div>
         </div>
       </section>
 
       <div className="day-bar">
-        <DatePicker date={shown} onChange={(d) => setDate(d === todayWib() ? null : d)} />
+        <DatePicker date={shown} onChange={(d) => setDate(d === todayUtc() ? null : d)} />
         <span className="muted">
           {date ? fmtDate(date) : 'Today'}: <b>{fmtNumber(dayScore)}</b> / {fmtNumber(DAILY_MAX_POINTS)} pts
         </span>

@@ -239,6 +239,13 @@ input:focus-visible, select:focus-visible { outline: none; }
 .narrow { max-width: 780px; }
 .page-head { display: grid; gap: 4px; margin-bottom: 4px; }
 .page-head p { margin: 4px 0 0; max-width: 70ch; }
+/* Above a puzzle: back to its day (or Unlimited) and the same day's other modes */
+.mode-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.back-link { flex: none; }
+.mode-chips { display: flex; gap: 6px; padding: 5px; background: var(--ground); border: var(--detail); border-radius: 16px; overflow-x: auto; max-width: 100%; }
+.mode-chip { flex: none; padding: 5px 12px; border: var(--dp-border-detail-width) solid transparent; border-radius: 11px; color: var(--ink); font-size: 14px; font-weight: 650; white-space: nowrap; }
+.mode-chip:hover { text-decoration: none; background: var(--panel); border-color: var(--dp-color-rule-muted); }
+.mode-chip.active { background: var(--accent); border-color: var(--line); color: #fff; box-shadow: var(--shadow-sm); }
 .eyebrow { font-size: var(--dp-typography-metadata); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent-ink); }
 .card { background: var(--panel); border: var(--outline); border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -432,6 +439,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .result.lose { background: var(--bad-bg); }
 .result img { width: 124px; border-radius: 62px 62px 14px 14px; border: var(--outline); box-shadow: 5px 5px 0 var(--dp-color-accent-warm); }
 .result h3 { font-size: 26px; margin: 2px 0 6px; }
+.result h3:has(+ .answer-en) { margin-bottom: 0; }
+.answer-en { margin-bottom: 6px; font-weight: 600; color: var(--muted); }
 .result .score { font-family: var(--dp-typography-display); font-size: 30px; font-weight: 800; margin: 8px 0 14px; color: var(--accent); }
 
 /* Character mode */

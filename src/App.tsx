@@ -13,6 +13,7 @@ import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
 import { Home } from './Home';
 import { MenuIcon } from './icons';
+import { DayBar, UnlimitedBar } from './ModeBar';
 import { go, readRoute } from './route';
 import { Brand, Sidebar } from './Sidebar';
 import { Unlimited } from './Unlimited';
@@ -101,8 +102,18 @@ export function App() {
         </header>
         <main className="page">
           {route.view === 'home' && <Home account={account} />}
-          {route.view === 'daily' && <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshMe} />}
-          {route.view === 'play' && <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} />}
+          {route.view === 'daily' && (
+            <>
+              <DayBar mode={route.mode} date={route.date} />
+              <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshMe} />
+            </>
+          )}
+          {route.view === 'play' && (
+            <>
+              <UnlimitedBar />
+              <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} />
+            </>
+          )}
           {route.view === 'unlimited' && <Unlimited account={account} />}
           {route.view === 'database' && <Database />}
           {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}

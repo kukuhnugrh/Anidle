@@ -15,7 +15,7 @@ import {
   type Pool,
 } from '../shared/catalog.js';
 import { CHARACTER_MIN_FAVORITES, CHARACTER_ROUND_DIFFICULTIES, characterDifficultyOf, displayName } from '../shared/characters.js';
-import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
+import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayUtc, type MediaKind, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
@@ -174,6 +174,7 @@ export async function titleEntries(): Promise<TitleEntry[]> {
 interface AnimeRow {
   mal_id: number;
   title: string;
+  title_en: string | null;
   year: number | null;
   score: number | null;
   source: string | null;
@@ -184,13 +185,14 @@ interface AnimeRow {
   members: number | null;
 }
 
-export type LoadedAnime = AnidleAnime & { cover: string | null; members: number | null };
+/** titleEn: MAL's English title, when it differs from the romaji one. */
+export type LoadedAnime = AnidleAnime & { titleEn: string | null; cover: string | null; members: number | null };
 
 export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime>> {
   if (!ids.length) return new Map();
   const marks = ids.map(() => '?').join(',');
   const rows = await all<AnimeRow>(
-    `SELECT a.mal_id, a.title, a.year, a.score, a.source, a.studios, a.franchise_id, a.cover_src,
+    `SELECT a.mal_id, a.title, a.title_en, a.year, a.score, a.source, a.studios, a.franchise_id, a.cover_src,
             ${COVER_KEY_SQL} AS cover_key, a.members
      FROM anime a WHERE a.mal_id IN (${marks})`,
     ids,
@@ -204,6 +206,7 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
     out.set(Number(r.mal_id), {
       malId: Number(r.mal_id),
       title: r.title,
+      titleEn: r.title_en && r.title_en.toLowerCase() !== r.title.toLowerCase() ? r.title_en : null,
       year: r.year == null ? null : Number(r.year),
       score: r.score == null ? null : Number(r.score),
       source: r.source,
@@ -227,6 +230,8 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
 export interface AnswerInfo {
   malId: number;
   title: string;
+  /** MAL's English title, when it differs from `title`. */
+  titleEn: string | null;
   cover: string | null;
   year: number | null;
   members: number | null;
@@ -236,6 +241,7 @@ export interface AnswerInfo {
 export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
   malId: a.malId,
   title: a.title,
+  titleEn: a.titleEn,
   cover: a.cover,
   year: a.year,
   members: a.members,
@@ -364,7 +370,7 @@ async function answerInserts(puzzleId: string, mode: Mode, answers: number[][], 
 
 /** A daily puzzle's date from a request: today when absent, else a day between FIRST_DAILY_DATE and today. */
 export function parseDailyDate(value: string | null): string {
-  const today = todayWib();
+  const today = todayUtc();
   if (!value) return today;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value > today || value < FIRST_DAILY_DATE) throw new HttpError(400, `Daily puzzles exist from ${FIRST_DAILY_DATE} to today.`);
   return value;

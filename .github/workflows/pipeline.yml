@@ -6,7 +6,7 @@ name: pipeline
 
 on:
   schedule:
-    # Mondays 20:00 UTC = Tuesday 03:00 WIB, far from the 00:00 WIB daily rollover.
+    # Mondays 20:00 UTC, four hours before the 00:00 UTC daily rollover.
     - cron: '0 20 * * 1'
   workflow_dispatch:
     inputs:

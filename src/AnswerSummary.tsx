@@ -58,6 +58,7 @@ export function RoundsSummary({ rounds }: { rounds: SummaryRound[] }) {
                 <Mark ok={r.solved} />
                 <b>{malLink(r.answer)}</b>
               </span>
+              {r.answer.titleEn && <span className="muted small">{r.answer.titleEn}</span>}
               {r.detail && <span className="muted small">{r.detail}</span>}
               <span className="small">
                 {r.solved ? (

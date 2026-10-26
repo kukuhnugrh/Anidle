@@ -216,6 +216,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
                   : `Not ${round.guess?.title}. The answer:`}
             </div>
             <h3>{round.answer.title}</h3>
+            {round.answer.titleEn && <div className="answer-en">{round.answer.titleEn}</div>}
             <div className="muted answer-meta">
               {round.answer.year ?? ''}
               <span className={`difficulty ${round.answer.difficulty}`}>{round.answer.difficulty}</span>

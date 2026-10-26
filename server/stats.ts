@@ -1,4 +1,4 @@
-import { DAILY_MAX_POINTS, PERFECT_SOLVED, todayWib, type Mode } from '../shared/modes.js';
+import { DAILY_MAX_POINTS, PERFECT_SOLVED, todayUtc, type Mode } from '../shared/modes.js';
 import { all } from './db.js';
 
 /** Anidle guesses (play.guesses is number[] there). The round modes report rounds solved instead, so this is unused for them. */
@@ -7,10 +7,10 @@ function attemptCount(guesses: string): number {
 }
 
 /**
- * SQL (play `g`, puzzle `p`): a daily play finished on its own day (WIB, UTC+7). Replaying an earlier
- * day from the archive is just for fun: it stays out of leaderboards, streaks and stats.
+ * SQL (play `g`, puzzle `p`): a daily play finished on its own day (UTC; finished_at is an ISO UTC time).
+ * Replaying an earlier day from the archive is just for fun: it stays out of leaderboards, streaks and stats.
  */
-const ON_THE_DAY = "substr(datetime(g.finished_at, '+7 hours'), 1, 10) = p.date";
+const ON_THE_DAY = 'substr(g.finished_at, 1, 10) = p.date';
 
 export interface TodayScore {
   score: number;
@@ -23,7 +23,7 @@ export interface TodayScore {
 export async function todayScore(playerKey: string): Promise<TodayScore> {
   const rows = await all<{ mode: Mode; score: number | null }>(
     'SELECT p.mode, g.score FROM play g JOIN puzzle p ON p.id = g.puzzle_id WHERE g.username = ? AND p.date = ? AND g.finished_at IS NOT NULL',
-    [playerKey, todayWib()],
+    [playerKey, todayUtc()],
   );
   const modes = Object.fromEntries(rows.map((r) => [r.mode, Number(r.score ?? 0)]));
   return { score: rows.reduce((sum, r) => sum + Number(r.score ?? 0), 0), max: DAILY_MAX_POINTS, modes };
@@ -118,7 +118,7 @@ function streaks(dates: string[]): { streak: number; bestStreak: number } {
     run = i > 0 && days[i] === days[i - 1]! + 1 ? run + 1 : 1;
     best = Math.max(best, run);
   }
-  const today = Date.parse(`${todayWib()}T00:00:00Z`) / DAY_MS;
+  const today = Date.parse(`${todayUtc()}T00:00:00Z`) / DAY_MS;
   const last = days.at(-1);
   // The run ending at the last played day only counts if that day is today or yesterday.
   return { streak: last !== undefined && today - last <= 1 ? run : 0, bestStreak: best };

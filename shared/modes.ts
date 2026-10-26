@@ -1,12 +1,9 @@
 // Game modes and the rules of the multi-round modes (PLAN.md §8).
 import type { Difficulty } from './catalog.js';
 
-/** Daily puzzles roll over at 00:00 WIB (UTC+7). */
-export const WIB_OFFSET_MS = 7 * 3_600_000;
-
-/** Today's date in WIB, YYYY-MM-DD: the date of the daily puzzles. */
-export function todayWib(now = Date.now()): string {
-  return new Date(now + WIB_OFFSET_MS).toISOString().slice(0, 10);
+/** Today's date in UTC, YYYY-MM-DD: the date of the daily puzzles (they roll over at 00:00 UTC). */
+export function todayUtc(now = Date.now()): string {
+  return new Date(now).toISOString().slice(0, 10);
 }
 
 /** The first daily puzzles; the archive (playing an earlier day) goes back to here. */

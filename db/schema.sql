@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS enrich_queue (
 
 CREATE TABLE IF NOT EXISTS puzzle (
   id          TEXT PRIMARY KEY,
-  date        TEXT,           -- YYYY-MM-DD (WIB) for daily puzzles, NULL for unlimited
+  date        TEXT,           -- YYYY-MM-DD (UTC) for daily puzzles, NULL for unlimited
   mode        TEXT NOT NULL,
   pool        TEXT NOT NULL,
   answer_id   INTEGER NOT NULL,

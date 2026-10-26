@@ -109,7 +109,7 @@ export function HowToPlay({ mode }: { mode: Mode }) {
           <p className="help-scoring">
             <b>Scoring.</b> {scoring} Max {fmtNumber(MODE_MAX_POINTS)} pts per puzzle.
           </p>
-          <p className="muted small">The daily puzzle is the same for everyone and changes at 00:00 WIB.</p>
+          <p className="muted small">The daily puzzle is the same for everyone and changes at 00:00 UTC.</p>
           <div className="actions">
             <button className="primary" autoFocus onClick={() => dialog.current?.close()}>
               Got it

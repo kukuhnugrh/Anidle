@@ -267,6 +267,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
           <div>
             <div className="muted small">{puzzle.solved ? `Solved in ${puzzle.guesses.length} ${puzzle.guesses.length === 1 ? 'try' : 'tries'}` : 'Out of tries. The answer:'}</div>
             <h3>{puzzle.answer.title}</h3>
+            {puzzle.answer.titleEn && <div className="answer-en">{puzzle.answer.titleEn}</div>}
             <div className="muted answer-meta">
               {puzzle.answer.year ?? ''}
               <span className={`difficulty ${puzzle.answer.difficulty}`}>{puzzle.answer.difficulty}</span>

@@ -334,6 +334,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
               {round.solved ? (round.clue.opened ? 'Right, with the clue' : 'Right!') : round.gaveUp ? 'You gave up. The answer:' : `Not ${round.guess?.title}. The answer:`}
             </div>
             <h3>{round.answer.title}</h3>
+            {round.answer.titleEn && <div className="answer-en">{round.answer.titleEn}</div>}
             <div className="song">
               {[round.answer.song.label, round.answer.song.title && `“${round.answer.song.title}”`, round.answer.song.artist].filter(Boolean).join(' · ')}
             </div>
