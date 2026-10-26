@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_MAX_POINTS } from '../shared/modes';
 import { api, errorMessage, type CharacterPick, type CharacterState } from './api';
+import { CharacterSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { CharacterInput, GuessInput } from './GuessInput';
@@ -229,6 +230,8 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           </div>
         </section>
       )}
+
+      {puzzle.finished && <CharacterSummary puzzle={puzzle} />}
     </div>
   );
 }

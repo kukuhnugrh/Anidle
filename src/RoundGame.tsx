@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
+import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
@@ -253,6 +254,16 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             </a>
           </div>
         </section>
+      )}
+
+      {puzzle.finished && (
+        <RoundsSummary
+          rounds={puzzle.rounds.flatMap((r) =>
+            r.answer
+              ? [{ answer: r.answer, detail: null, guess: r.guess, solved: r.solved, gaveUp: r.gaveUp, clueNote: r.clues ? `with ${r.clues} clue${r.clues > 1 ? 's' : ''}` : null, points: r.points, max: r.max }]
+              : [],
+          )}
+        />
       )}
     </div>
   );

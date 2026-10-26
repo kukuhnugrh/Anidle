@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SONG_CLUE_SHARE } from '../shared/modes';
 import { api, errorMessage, type SongState } from './api';
+import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
 import { GuessInput } from './GuessInput';
@@ -374,6 +375,27 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             </a>
           </div>
         </section>
+      )}
+
+      {puzzle.finished && (
+        <RoundsSummary
+          rounds={puzzle.rounds.flatMap((r) =>
+            r.answer
+              ? [
+                  {
+                    answer: r.answer,
+                    detail: [r.answer.song.label, r.answer.song.title && `“${r.answer.song.title}”`, r.answer.song.artist].filter(Boolean).join(' · ') || null,
+                    guess: r.guess,
+                    solved: r.solved,
+                    gaveUp: r.gaveUp,
+                    clueNote: r.clue.opened ? 'with the clue' : null,
+                    points: r.points,
+                    max: r.max,
+                  },
+                ]
+              : [],
+          )}
+        />
       )}
     </div>
   );

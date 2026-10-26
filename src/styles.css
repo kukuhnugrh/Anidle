@@ -518,6 +518,30 @@ input:focus-visible, select:focus-visible { outline: none; }
 .final h2 { font-size: 40px; margin: 2px 0; }
 .final p { margin: 0; }
 
+/* End-of-puzzle answers: every round, right or wrong */
+.answers { display: grid; gap: 14px; }
+.answers h2 { margin: 0; font-size: 24px; }
+.answer-group { display: grid; gap: 8px; }
+.answer-group-head { display: flex; justify-content: space-between; align-items: baseline; margin: 6px 0 0; }
+.answer-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.answer-row { display: grid; grid-template-columns: 74px 52px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 10px 14px; border: var(--detail); border-radius: var(--radius); }
+.answer-row.character { grid-template-columns: 52px minmax(0, 1fr) auto; }
+.answer-row.ok { background: var(--ok-bg); }
+.answer-row.half { background: var(--partial-bg); }
+.answer-row.bad { background: var(--bad-bg); }
+.answer-round { font-size: 12.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.answer-cover { width: 52px; aspect-ratio: 225 / 320; object-fit: cover; border: var(--detail); border-radius: 8px; background: var(--ground); }
+.answer-cover.portrait { aspect-ratio: 225 / 350; border-radius: 26px 26px 8px 8px; }
+.answer-body { display: grid; gap: 3px; min-width: 0; }
+.answer-line { display: flex; align-items: baseline; gap: 8px; overflow-wrap: anywhere; }
+.answer-line a { color: var(--ink); }
+.summary-mark { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border: var(--detail); border-radius: 50%; font-size: 12px; font-weight: 800; }
+.summary-mark.ok { background: var(--ok-fill); color: var(--ink); }
+.summary-mark.bad { background: var(--panel); color: var(--bad); border-color: var(--bad); }
+.summary-wrong { color: var(--bad); }
+.answer-points { font-size: 14px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.answer-points b { font-family: var(--dp-typography-display); font-size: 17px; color: var(--ink); }
+
 /* ------------------------------------------------------------------ leaderboard + history */
 .board-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .date-nav { display: flex; align-items: center; gap: 10px; }
@@ -666,6 +690,11 @@ input:focus-visible, select:focus-visible { outline: none; }
   .pip { width: 12px; }
   .shot { border-radius: var(--radius); box-shadow: 5px 5px 0 var(--dp-color-accent-warm), 5px 5px 0 3px var(--line); }
   .final { box-shadow: 6px 6px 0 var(--accent); }
+  .answer-row { grid-template-columns: 52px minmax(0, 1fr); gap: 4px 12px; }
+  .answer-row .answer-round { grid-column: 1 / -1; }
+  .answer-row .answer-cover { grid-row: span 2; align-self: start; }
+  .answer-row .answer-points { grid-column: 2; }
+  .answer-row.character .answer-cover { grid-row: span 2; }
 }
 
 @media (max-width: 520px) {
