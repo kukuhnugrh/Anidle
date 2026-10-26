@@ -86,9 +86,9 @@ export function anidleScore(solved: boolean, guessCount: number): number {
   return solved ? Math.max(step, MODE_MAX_POINTS - step * (guessCount - 1)) : 0;
 }
 
-/** Clues Anidle unlocks as wrong guesses pile up: after 4 a blurred screenshot, after 7 the synopsis, after 9 two characters (one guess left). */
+/** Clues Anidle unlocks as wrong guesses pile up: after 4 the blurred poster, after 7 the synopsis, after 9 two characters (one guess left). */
 export const ANIDLE_CLUES = [
-  { kind: 'screenshot', after: 4 },
+  { kind: 'cover', after: 4 },
   { kind: 'synopsis', after: 7 },
   { kind: 'characters', after: 9 },
 ] as const;

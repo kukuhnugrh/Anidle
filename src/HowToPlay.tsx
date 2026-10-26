@@ -37,7 +37,7 @@ const HOW_TO: Record<Mode, { rules: ReactNode[]; scoring: ReactNode }> = {
       </>,
       <>"What you know so far" sums up everything your guesses have ruled in or out.</>,
       <>
-        Missing helps: after {clueAfter('screenshot')} guesses a blurred screenshot unlocks, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
+        Missing helps: after {clueAfter('cover')} guesses its blurred poster unlocks, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
         {clueAfter('characters')} two of its characters.
       </>,
     ],

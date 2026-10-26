@@ -1,21 +1,21 @@
 import type { ComponentType } from 'react';
-import { MODE_LABELS } from '../shared/modes';
+import { MODE_LABELS, type Mode } from '../shared/modes';
 import type { Account, TodayScore } from './api';
 import { fmtNumber } from './format';
 import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 
-/** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode. */
-const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType }[] }[] = [
+/** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode (those show today's score for it). */
+const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: Mode }[] }[] = [
   { title: 'Main', items: [{ id: 'home', href: '#/', label: 'Home', Icon: HomeIcon }] },
   {
     title: 'Daily',
     items: [
-      { id: 'daily:anidle', href: dailyHref('anidle'), label: MODE_LABELS.anidle, Icon: PuzzleIcon },
-      { id: 'daily:opening', href: dailyHref('opening'), label: MODE_LABELS.opening, Icon: MusicIcon },
-      { id: 'daily:ending', href: dailyHref('ending'), label: MODE_LABELS.ending, Icon: DiscIcon },
-      { id: 'daily:character', href: dailyHref('character'), label: MODE_LABELS.character, Icon: UsersIcon },
-      { id: 'daily:screenshot', href: dailyHref('screenshot'), label: MODE_LABELS.screenshot, Icon: ImageIcon },
+      { id: 'daily:anidle', href: dailyHref('anidle'), label: MODE_LABELS.anidle, Icon: PuzzleIcon, mode: 'anidle' },
+      { id: 'daily:opening', href: dailyHref('opening'), label: MODE_LABELS.opening, Icon: MusicIcon, mode: 'opening' },
+      { id: 'daily:ending', href: dailyHref('ending'), label: MODE_LABELS.ending, Icon: DiscIcon, mode: 'ending' },
+      { id: 'daily:character', href: dailyHref('character'), label: MODE_LABELS.character, Icon: UsersIcon, mode: 'character' },
+      { id: 'daily:screenshot', href: dailyHref('screenshot'), label: MODE_LABELS.screenshot, Icon: ImageIcon, mode: 'screenshot' },
     ],
   },
   {
@@ -35,7 +35,7 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
 ];
 
 /** Only for ADMIN_USERS (the server checks again on every admin request). */
-const ADMIN_SECTION = { title: 'Admin', items: [{ id: 'admin', href: '#/admin', label: 'Review media', Icon: ShieldIcon }] };
+const ADMIN_SECTION: (typeof NAV)[number] = { title: 'Admin', items: [{ id: 'admin', href: '#/admin', label: 'Review media', Icon: ShieldIcon }] };
 
 /** An unlimited puzzle in progress belongs to the Unlimited entry. */
 const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view);
@@ -89,12 +89,20 @@ export function Sidebar({
           {sections.map((section) => (
             <div key={section.title} className="nav-section">
               <div className="nav-title">{section.title}</div>
-              {section.items.map(({ id, href, label, Icon }) => (
-                <a key={id} className={`nav-item${current === id ? ' active' : ''}`} href={href} aria-current={current === id ? 'page' : undefined}>
-                  <Icon />
-                  {label}
-                </a>
-              ))}
+              {section.items.map(({ id, href, label, Icon, mode }) => {
+                const score = mode ? today?.modes[mode] : undefined;
+                return (
+                  <a key={id} className={`nav-item${current === id ? ' active' : ''}`} href={href} aria-current={current === id ? 'page' : undefined}>
+                    <Icon />
+                    {label}
+                    {score != null && (
+                      <span className="nav-score" title={`Today's ${label} score`}>
+                        {fmtNumber(score)}
+                      </span>
+                    )}
+                  </a>
+                );
+              })}
             </div>
           ))}
         </nav>

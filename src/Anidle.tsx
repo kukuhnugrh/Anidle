@@ -170,7 +170,7 @@ function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
   );
 }
 
-const CLUE_LABELS: Record<AnidleClueKind, string> = { screenshot: 'Blurred screenshot', synopsis: 'Synopsis', characters: 'Two of its characters' };
+const CLUE_LABELS: Record<AnidleClueKind, string> = { cover: 'Blurred poster', synopsis: 'Synopsis', characters: 'Two of its characters' };
 
 /** The clues unlocked so far, and when the next ones open (ANIDLE_CLUES). */
 function CluePanel({ puzzle }: { puzzle: AnidleState }) {
@@ -182,18 +182,18 @@ function CluePanel({ puzzle }: { puzzle: AnidleState }) {
         const open = kind in clues;
         return (
           <div key={kind} className={`anidle-clue ${kind}${open ? '' : ' locked'}`}>
-            <span className="cell-label">{kind === 'screenshot' && clues.screenshot?.cover ? 'Blurred cover' : CLUE_LABELS[kind]}</span>
+            <span className="cell-label">{CLUE_LABELS[kind]}</span>
             {!open && (
               <span className="muted small">
                 Unlocks after {after} guesses ({after - used} more)
               </span>
             )}
-            {kind === 'screenshot' && clues.screenshot && (
-              <span className="anidle-shot-frame">
-                <img className="anidle-shot" src={clues.screenshot.url} alt="" />
+            {kind === 'cover' && clues.cover && (
+              <span className="anidle-cover-frame">
+                <img className="anidle-cover" src={clues.cover} alt="" />
               </span>
             )}
-            {kind === 'screenshot' && open && !clues.screenshot && <span className="muted small">No image for this one.</span>}
+            {kind === 'cover' && open && !clues.cover && <span className="muted small">No poster for this one.</span>}
             {kind === 'synopsis' && open && <p className="anidle-synopsis">{clues.synopsis ?? 'MAL has no synopsis for this one.'}</p>}
             {kind === 'characters' && clues.characters && (
               <div className="anidle-chars">

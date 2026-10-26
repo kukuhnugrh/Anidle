@@ -474,8 +474,8 @@ export async function assertPlayable(malId: number) {
 
 /** Keyed by AnidleClueKind, so a clue is present exactly when it is unlocked. */
 export interface AnidleClues {
-  /** Blurred in the UI: a screenshot of the opening, or the cover when the show has no screenshot. */
-  screenshot: { url: string; cover: boolean } | null;
+  /** The anime's poster (blurred in the UI). */
+  cover: string | null;
   /** MAL synopsis with the title masked (null when MAL has none). */
   synopsis: string | null;
   /** The two best-known characters. */
@@ -501,10 +501,7 @@ export interface AnidleState {
 /** The clues of `kinds` for one show; only those are read. */
 async function anidleClues(malId: number, kinds: ReadonlySet<AnidleClueKind>, cover: string | null): Promise<Partial<AnidleClues>> {
   const clues: Partial<AnidleClues> = {};
-  if (kinds.has('screenshot')) {
-    const shot = await one<{ r2_key: string }>('SELECT r2_key FROM anime_screenshot WHERE mal_id = ? ORDER BY slot LIMIT 1', [malId]);
-    clues.screenshot = shot ? { url: mediaUrl(shot.r2_key), cover: false } : cover ? { url: cover, cover: true } : null;
-  }
+  if (kinds.has('cover')) clues.cover = cover;
   if (kinds.has('synopsis')) {
     const row = await one<{ synopsis: string | null; title: string; title_en: string | null; title_ja: string | null; synonyms: string }>(
       'SELECT synopsis, title, title_en, title_ja, synonyms FROM anime WHERE mal_id = ?',
