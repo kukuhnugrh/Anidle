@@ -198,7 +198,12 @@ function ClueVideo({ url, audio, stage, onFail }: { url: string; audio: HTMLAudi
 function ClueView({ clue, withCover, audio, stage }: { clue: Clue; withCover: boolean; audio: HTMLAudioElement | null; stage: RefObject<HTMLDivElement | null> }) {
   const [videoFailed, setVideoFailed] = useState(false);
   const onFail = useCallback(() => setVideoFailed(true), []);
-  const cover = clue.cover ? <img className="clue-media cover" src={clue.cover} alt="" /> : null;
+  // The outline sits on the wrapper: a border on the blurred image itself would blur too.
+  const cover = clue.cover ? (
+    <span className="clue-cover">
+      <img className="clue-media cover" src={clue.cover} alt="" />
+    </span>
+  ) : null;
   if (!clue.url || videoFailed) return cover;
   const video = <ClueVideo url={clue.url} audio={audio} stage={stage} onFail={onFail} />;
   return withCover ? (

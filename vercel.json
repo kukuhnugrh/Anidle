@@ -5,5 +5,6 @@
   "rewrites": [
     { "source": "/oauth/callback", "destination": "/api/router?route=oauth/callback" },
     { "source": "/api/:path((?!router$).*)", "destination": "/api/router?route=:path" }
-  ]
+  ],
+  "headers": [{ "source": "/fonts/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }]
 }

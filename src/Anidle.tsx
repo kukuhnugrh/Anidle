@@ -187,7 +187,11 @@ function CluePanel({ puzzle }: { puzzle: AnidleState }) {
                 Unlocks after {after} guesses ({after - used} more)
               </span>
             )}
-            {kind === 'screenshot' && clues.screenshot && <img className="anidle-shot" src={clues.screenshot.url} alt="" />}
+            {kind === 'screenshot' && clues.screenshot && (
+              <span className="anidle-shot-frame">
+                <img className="anidle-shot" src={clues.screenshot.url} alt="" />
+              </span>
+            )}
             {kind === 'screenshot' && open && !clues.screenshot && <span className="muted small">No image for this one.</span>}
             {kind === 'synopsis' && open && <p className="anidle-synopsis">{clues.synopsis ?? 'MAL has no synopsis for this one.'}</p>}
             {kind === 'characters' && clues.characters && (

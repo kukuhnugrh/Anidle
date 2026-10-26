@@ -89,10 +89,28 @@ export function Home({ account }: { account: Account | null }) {
               : 'Five modes, the same puzzle set for everyone. Daily puzzles are always easy or medium titles, so they make a good warm-up.'}
           </p>
         </div>
-        <div className="hero-clock">
-          <span className="eyebrow">New puzzle in</span>
-          <Countdown />
-          <span className="muted small">every day at 00:00 WIB</span>
+        <div className="hero-art">
+          {/* Decorative shapes only; the countdown ticket on top is the content. */}
+          <svg className="hero-shapes" viewBox="0 0 420 340" aria-hidden="true" focusable="false">
+            <g className="shape-shadow">
+              <rect x="34" y="196" width="262" height="116" rx="24" />
+              <circle cx="300" cy="112" r="80" />
+              <path d="M58 196V122a62 62 0 0 1 124 0v74z" />
+              <path d="M300 314l56-104 56 104z" />
+            </g>
+            <rect className="shape mint" x="28" y="190" width="262" height="116" rx="24" />
+            <circle className="shape violet" cx="294" cy="106" r="80" />
+            <path className="shape pink" d="M52 190V116a62 62 0 0 1 124 0v74z" />
+            <path className="shape amber" d="M294 308l56-104 56 104z" />
+            <circle className="shape amber" cx="36" cy="58" r="13" />
+            <rect className="shape mint" x="196" y="18" width="24" height="24" rx="5" transform="rotate(18 208 30)" />
+            <circle className="shape pink" cx="398" cy="30" r="9" />
+          </svg>
+          <div className="hero-clock">
+            <span className="eyebrow">New puzzle in</span>
+            <Countdown />
+            <span className="muted small">every day at 00:00 WIB</span>
+          </div>
         </div>
       </section>
 
@@ -103,28 +121,31 @@ export function Home({ account }: { account: Account | null }) {
         </span>
       </div>
 
-      <div className="daily-grid">
-        {MODES.map((mode) => {
-          const { Icon, text } = MODE_CARDS[mode];
-          const status = dailyStatus(daily[mode]);
-          return (
-            <a key={mode} className="mode-card" href={dailyHref(mode, date)}>
-              <div className="mode-card-head">
-                <span className="tile-icon">
-                  <Icon />
+      <section className="book">
+        <h2 className="book-tab">Daily puzzles</h2>
+        <div className="daily-grid">
+          {MODES.map((mode) => {
+            const { Icon, text } = MODE_CARDS[mode];
+            const status = dailyStatus(daily[mode]);
+            return (
+              <a key={mode} className="mode-card" href={dailyHref(mode, date)}>
+                <div className="mode-card-head">
+                  <span className="tile-icon">
+                    <Icon />
+                  </span>
+                  {status.text && <span className={`mode-status${status.won ? ' won' : ''}`}>{status.text}</span>}
+                </div>
+                <h3>{MODE_LABELS[mode]}</h3>
+                <p className="muted">{text}</p>
+                <span className="mode-cta">
+                  {status.cta}
+                  <ArrowIcon />
                 </span>
-                {status.text && <span className={`mode-status${status.won ? ' won' : ''}`}>{status.text}</span>}
-              </div>
-              <h3>{MODE_LABELS[mode]}</h3>
-              <p className="muted">{text}</p>
-              <span className="mode-cta">
-                {status.cta}
-                <ArrowIcon />
-              </span>
-            </a>
-          );
-        })}
-      </div>
+              </a>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="tiles">
         <a className="tile" href="#/unlimited">
