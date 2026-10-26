@@ -49,6 +49,11 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
   const choose = (slot: number, field: CharacterPick['field']) => (id: number | null) =>
     setPicks(({ [`${slot}:${field}`]: _old, ...rest }) => (id == null ? rest : { ...rest, [`${slot}:${field}`]: { slot, field, id } }));
   const pending = Object.values(picks);
+  const empty = round.slots.length * 2 - pending.length;
+  const guess = () => {
+    if (empty && !confirm(`${empty} field${empty > 1 ? 's are' : ' is'} still empty and will count as wrong. Guess anyway?`)) return;
+    quiet(send(() => api.characterGuess(puzzle.id, view, pending)).then(() => setPicks({})));
+  };
 
   // Warm the cache for every portrait so later rounds show instantly.
   useEffect(() => {
@@ -78,8 +83,8 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>Character</h1>
           <p className="muted small">
-            Four characters from four different anime. Pick each one's name and their anime, then press Guess (fields you leave empty stay open) — one pick per field, each right
-            one worth {fmtNumber(round.fieldPoints)} pts this round.
+            Four characters from four different anime, easy, medium, then hard by how well known the character is. Pick each one's name and their anime, then press Guess:
+            one Guess per round, an empty field counts as wrong. Each right field is worth {fmtNumber(round.fieldPoints)} pts this round.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -143,18 +148,9 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
         </span>
         <div className="actions">
           {isCurrent && !round.finished && (
-            <>
-              <button
-                className="ghost danger"
-                disabled={sending}
-                onClick={() => confirm('Give up the rest of this round? Unanswered names and anime score 0.') && quiet(send(() => api.characterGiveUp(puzzle.id, view)))}
-              >
-                Give up round
-              </button>
-              <button className="primary" disabled={sending || !pending.length} onClick={() => quiet(send(() => api.characterGuess(puzzle.id, view, pending)).then(() => setPicks({})))}>
-                Guess{pending.length ? ` (${pending.length})` : ''}
-              </button>
-            </>
+            <button className="primary" disabled={sending} onClick={guess}>
+              Guess ({pending.length}/{round.slots.length * 2})
+            </button>
           )}
           {round.finished && view < puzzle.current && puzzle.current < puzzle.rounds.length && (
             <button className="primary" onClick={() => setView(puzzle.current)}>

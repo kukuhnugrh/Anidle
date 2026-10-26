@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
+import { characterDifficultyOf } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
 import { roundDifficulties } from './modes';
@@ -62,6 +63,16 @@ describe('anidleScore', () => {
     expect(anidleScore(true, 4)).toBe(14_000);
     expect(anidleScore(true, 10)).toBe(2_000);
     expect(anidleScore(false, 10)).toBe(0);
+  });
+});
+
+describe('characterDifficultyOf', () => {
+  it("buckets by the character's own MAL favorites", () => {
+    expect(characterDifficultyOf(88_366)).toBe('easy'); // Naruto
+    expect(characterDifficultyOf(5_000)).toBe('easy');
+    expect(characterDifficultyOf(4_999)).toBe('medium');
+    expect(characterDifficultyOf(500)).toBe('medium');
+    expect(characterDifficultyOf(499)).toBe('hard');
   });
 });
 

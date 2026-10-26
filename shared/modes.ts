@@ -85,5 +85,3 @@ export const PERFECT_SOLVED: Record<Mode, number> = {
   character: ROUND_COUNT * CHARACTERS_PER_ROUND,
 };
 
-export const CHARACTERS_PER_TITLE = 4;
-

@@ -14,7 +14,7 @@ import {
   type GenreType,
   type Pool,
 } from '../shared/catalog.js';
-import { CHARACTER_QUIZ_SLOT, displayName } from '../shared/characters.js';
+import { CHARACTER_MIN_FAVORITES, CHARACTER_ROUND_DIFFICULTIES, characterDifficultyOf, displayName } from '../shared/characters.js';
 import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayWib, type MediaKind, type Mode } from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
@@ -286,11 +286,25 @@ export function pickTitles(from: PoolTitle[], count: number, draw: (n: number, s
   return picked.length === count ? picked : null;
 }
 
+/** For Character mode: the character difficulties each show can be asked at (from its stored characters' favorites). */
+async function characterDifficultiesByShow(): Promise<Map<number, Set<Difficulty>>> {
+  const rows = await all<{ mal_id: number; favorites: number }>('SELECT mal_id, favorites FROM anime_character WHERE favorites >= ?', [CHARACTER_MIN_FAVORITES]);
+  const out = new Map<number, Set<Difficulty>>();
+  for (const r of rows) {
+    const set = out.get(Number(r.mal_id)) ?? new Set<Difficulty>();
+    set.add(characterDifficultyOf(Number(r.favorites)));
+    out.set(Number(r.mal_id), set);
+  }
+  return out;
+}
+
 /**
  * The answers of a new puzzle per round, all from different franchises. Each round draws from its
  * roundDifficulties() slice of the pool (round 1 easy, then medium); a slice that is too small (media
- * still being copied) falls back to the whole pool. Titles in `avoid` (recent daily answers) are only
- * reused when nothing else is left.
+ * still being copied) falls back to the whole pool. Character mode instead keeps the whole pool for
+ * every round and asks for a character of CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by
+ * the character's own popularity), so only shows with such a character qualify. Titles in `avoid`
+ * (recent daily answers) are only reused when nothing else is left.
  */
 export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<number[][]> {
   const { rounds, perRound } = SHAPE[mode];
@@ -300,15 +314,18 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
     if (!pools.has(key)) pools.set(key, poolTitles({ ...spec, difficulties }));
     return pools.get(key)!;
   };
+  const characters = mode === 'character' ? await characterDifficultiesByShow() : null;
   const used = new Set<number>();
   const out: number[][] = [];
   for (let round = 0; round < rounds; round++) {
-    const staged = rounds > 1 ? roundDifficulties(spec.difficulties, round) : spec.difficulties;
+    const staged = rounds > 1 && !characters ? roundDifficulties(spec.difficulties, round) : spec.difficulties;
     const tries = staged === spec.difficulties ? [staged] : [staged, spec.difficulties];
+    const wanted = CHARACTER_ROUND_DIFFICULTIES[round]!;
     const roundDraw = (n: number, size: number) => draw(round, n, size);
     let picked: PoolTitle[] | null = null;
     for (const difficulties of tries) {
-      const pool = await titlesOf(difficulties);
+      const titles = await titlesOf(difficulties);
+      const pool = characters ? titles.filter((t) => characters.get(t.malId)?.has(wanted)) : titles;
       picked = pickTitles(pool.filter((t) => !avoid.has(t.malId)), perRound, roundDraw, used) ?? pickTitles(pool, perRound, roundDraw, used);
       if (picked) break;
     }
@@ -319,22 +336,29 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
   return out;
 }
 
-/** Rows that store a new puzzle's answers: puzzle_round for one-title rounds (song, staged), puzzle_character for Character. */
-async function answerInserts(puzzleId: string, mode: Mode, answers: number[][]) {
+/**
+ * Rows that store a new puzzle's answers: puzzle_round for one-title rounds (song, staged), puzzle_character
+ * for Character, whose character per show is drawn among its characters of the round's difficulty.
+ */
+async function answerInserts(puzzleId: string, mode: Mode, answers: number[][], draw: Draw) {
   if (isRoundMode(mode) || isSongMode(mode))
     return answers.map(([malId], round) => ({ sql: 'INSERT OR IGNORE INTO puzzle_round (puzzle_id, round, mal_id) VALUES (?, ?, ?)', args: [puzzleId, round, malId!] }));
   if (mode !== 'character') return [];
   const ids = answers.flat();
-  const chars = await all<{ mal_id: number; char_id: number }>(
-    `SELECT mal_id, char_id FROM anime_character WHERE slot = ? AND mal_id IN (${ids.map(() => '?').join(',')})`,
-    [CHARACTER_QUIZ_SLOT, ...ids],
+  const chars = await all<{ mal_id: number; char_id: number; favorites: number }>(
+    `SELECT mal_id, char_id, favorites FROM anime_character WHERE favorites >= ? AND mal_id IN (${ids.map(() => '?').join(',')}) ORDER BY favorites DESC`,
+    [CHARACTER_MIN_FAVORITES, ...ids],
   );
-  const charOf = new Map(chars.map((c) => [Number(c.mal_id), Number(c.char_id)]));
+  const byShow = Map.groupBy(chars, (c) => Number(c.mal_id));
   return answers.flatMap((titles, round) =>
-    titles.map((malId, slot) => ({
-      sql: 'INSERT OR IGNORE INTO puzzle_character (puzzle_id, round, slot, mal_id, char_id) VALUES (?, ?, ?, ?, ?)',
-      args: [puzzleId, round, slot, malId, charOf.get(malId) ?? 0],
-    })),
+    titles.map((malId, slot) => {
+      const known = byShow.get(malId) ?? [];
+      const fitting = known.filter((c) => characterDifficultyOf(Number(c.favorites)) === CHARACTER_ROUND_DIFFICULTIES[round]);
+      const from = fitting.length ? fitting : known;
+      // Draw indexes past the title draws (n < 200), so the character choice is its own random number.
+      const charId = from.length ? Number(from[draw(round, 1000 + slot, from.length)]!.char_id) : 0;
+      return { sql: 'INSERT OR IGNORE INTO puzzle_character (puzzle_id, round, slot, mal_id, char_id) VALUES (?, ?, ?, ?, ?)', args: [puzzleId, round, slot, malId, charId] };
+    }),
   );
 }
 
@@ -373,7 +397,7 @@ export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> 
   // requests drew the same answers, so the answer rows go to whichever puzzle row won.
   await run('INSERT OR IGNORE INTO puzzle (id, date, mode, pool, answer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), date, mode, 'semua', answers[0]![0]!, nowIso()]);
   const row = (await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]))!;
-  const inserts = await answerInserts(row.id, mode, answers);
+  const inserts = await answerInserts(row.id, mode, answers, seeded);
   if (inserts.length) await db().batch(inserts, 'write');
   return row;
 }
@@ -387,7 +411,7 @@ export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: Puzzl
         sql: 'INSERT INTO puzzle (id, date, mode, pool, answer_id, created_by, options, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         args: [row.id, row.date, row.mode, row.pool, row.answer_id, row.created_by, row.options, nowIso()],
       },
-      ...(await answerInserts(row.id, mode, answers)),
+      ...(await answerInserts(row.id, mode, answers, randomDraw)),
     ],
     'write',
   );
@@ -490,7 +514,7 @@ async function anidleClues(malId: number, kinds: ReadonlySet<AnidleClueKind>, co
     clues.synopsis = row?.synopsis ? maskSynopsis(row.synopsis, names) : null;
   }
   if (kinds.has('characters')) {
-    const rows = await all<{ name: string; r2_key: string }>('SELECT name, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot DESC LIMIT 2', [malId]);
+    const rows = await all<{ name: string; r2_key: string }>('SELECT name, r2_key FROM anime_character WHERE mal_id = ? ORDER BY favorites DESC LIMIT 2', [malId]);
     clues.characters = rows.map((c) => ({ name: displayName(c.name), portrait: mediaUrl(c.r2_key) }));
   }
   return clues;

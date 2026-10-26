@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
-import { CHARACTER_QUIZ_SLOT } from '../shared/characters.js';
-import { CHARACTERS_PER_TITLE, SCREENSHOTS_PER_TITLE, type MediaKind } from '../shared/modes.js';
+import { CHARACTER_MIN_FAVORITES, CHARACTERS_PER_DIFFICULTY, characterDifficultyOf } from '../shared/characters.js';
+import { SCREENSHOTS_PER_TITLE, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { putObject } from './r2.js';
@@ -212,13 +212,14 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
 const isPlaceholder = (url: string | null) => !url || url.includes('questionmark');
 
 /**
- * Karakter mode: CHARACTERS_PER_TITLE portraits per title from jikan-edge, Main roles first, then by
- * MAL favorites. Stored so slot 0 (the least known of them) is shown first and the best known last.
- * Titles with fewer usable portraits are `missing` and stay out of the mode.
+ * Character mode and Anidle's last clue: per show, the CHARACTERS_PER_DIFFICULTY best-known characters
+ * of each difficulty (by MAL favorites, characterDifficultyOf), from jikan-edge, with a portrait and at
+ * least CHARACTER_MIN_FAVORITES. Stored best known first (slot 0). Shows with fewer than two are
+ * `missing` (Anidle shows two). --refresh redoes every show, e.g. after a threshold changes.
  */
 export async function stepCharacters(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
-  const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'chars'`);
+  const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, video_url, checked_at FROM anime_media WHERE kind = 'chars'`);
   const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const queue = anime
@@ -234,24 +235,34 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
   const workers = Array.from({ length: 4 }, async () => {
     for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
       try {
-        const picked = (await animeCharacters(id))
-          .filter((c) => !isPlaceholder(c.imageUrl))
-          .sort((a, b) => Number(b.role === 'Main') - Number(a.role === 'Main') || (b.favorites ?? 0) - (a.favorites ?? 0))
-          .slice(0, CHARACTERS_PER_TITLE)
-          .reverse();
-        if (picked.length < CHARACTERS_PER_TITLE) {
-          await save(id, 'chars', { status: 'missing', error: `${picked.length} karakter bergambar` });
+        const known = (await animeCharacters(id))
+          .filter((c) => !isPlaceholder(c.imageUrl) && (c.favorites ?? 0) >= CHARACTER_MIN_FAVORITES)
+          .sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0));
+        const perDifficulty = Map.groupBy(known, (c) => characterDifficultyOf(c.favorites ?? 0));
+        const picked = [...perDifficulty.values()].flatMap((list) => list.slice(0, CHARACTERS_PER_DIFFICULTY)).sort((a, b) => (b.favorites ?? 0) - (a.favorites ?? 0));
+        if (picked.length < 2) {
+          await save(id, 'chars', { status: 'missing', error: `${picked.length} karakter bergambar dengan ≥ ${CHARACTER_MIN_FAVORITES} favorit` });
           counts.missing++;
         } else {
           try {
             const keys = await Promise.all(picked.map((c) => processImage(c.imageUrl!, 'char', PORTRAIT_WIDTH)));
+            // Nicknames already fetched for a character (step `nicknames`) carry over.
+            const details = new Map(
+              (await all<{ char_id: number; nicknames: string; name_kanji: string | null; details_at: string | null }>('SELECT char_id, nicknames, name_kanji, details_at FROM anime_character WHERE mal_id = ?', [id])).map(
+                (d) => [Number(d.char_id), d],
+              ),
+            );
             await db().batch(
               [
                 { sql: 'DELETE FROM anime_character WHERE mal_id = ?', args: [id] },
-                ...picked.map((c, slot) => ({
-                  sql: 'INSERT INTO anime_character (mal_id, slot, char_id, name, role, favorites, r2_key) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                  args: [id, slot, c.malId, c.name, c.role, c.favorites, keys[slot]!],
-                })),
+                ...picked.map((c, slot) => {
+                  const d = details.get(c.malId);
+                  return {
+                    sql: `INSERT INTO anime_character (mal_id, slot, char_id, name, role, favorites, r2_key, nicknames, name_kanji, details_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [id, slot, c.malId, c.name, c.role, c.favorites, keys[slot]!, d?.nicknames ?? '[]', d?.name_kanji ?? null, d?.details_at ?? null],
+                  };
+                }),
               ],
               'write',
             );
@@ -276,15 +287,15 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
 }
 
 /**
- * Nicknames and kanji name of every quiz character (CHARACTER_QUIZ_SLOT, from jikan-edge character detail), so Character mode
- * also accepts "Ed" or "Fullmetal Alchemist". Characters already fetched are skipped unless --refresh.
+ * Nicknames and kanji name of every stored character (jikan-edge character detail), so the name
+ * autocomplete also finds "Ed" or "Fullmetal Alchemist". Best-known characters first; ones already
+ * fetched are skipped unless --refresh. A character listed under several shows is asked for once.
  */
 export async function stepNicknames(refreshAll: boolean, limit: number) {
   const queue = (
-    await all<{ mal_id: number; char_id: number }>(
-      `SELECT c.mal_id, c.char_id FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
-       WHERE c.slot = ? AND (? OR c.details_at IS NULL) ORDER BY a.members DESC`,
-      [CHARACTER_QUIZ_SLOT, refreshAll ? 1 : 0],
+    await all<{ char_id: number }>(
+      `SELECT char_id FROM anime_character WHERE (? OR details_at IS NULL) GROUP BY char_id ORDER BY MAX(favorites) DESC`,
+      [refreshAll ? 1 : 0],
     )
   )
     .slice(0, limit)
@@ -297,11 +308,10 @@ export async function stepNicknames(refreshAll: boolean, limit: number) {
     for (let row = queue.pop(); row; row = queue.pop()) {
       try {
         const d = await characterDetail(Number(row.char_id));
-        await run('UPDATE anime_character SET nicknames = ?, name_kanji = ?, details_at = ? WHERE mal_id = ? AND char_id = ?', [
+        await run('UPDATE anime_character SET nicknames = ?, name_kanji = ?, details_at = ? WHERE char_id = ?', [
           JSON.stringify((d.nicknames ?? []).filter(Boolean)),
           d.nameKanji || null,
           nowIso(),
-          row.mal_id,
           row.char_id,
         ]);
         counts.ok++;
@@ -469,11 +479,21 @@ export async function stepClips(refreshAll: boolean, limit: number) {
       const id = Number(row.mal_id);
       try {
         // mp4 needs a seekable output for +faststart (the index first, so the browser can start right away).
-        const { seconds } = await ffmpeg([
-          '-rw_timeout', '60000000', '-i', row.video_url, '-an',
-          '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
-          '-movflags', '+faststart', '-y', file,
-        ]);
+        // The video host answers 5xx in bursts when busy: wait and try again (30 s, 60 s, 90 s) before skipping.
+        let result: FfmpegResult | null = null;
+        for (let attempt = 1; !result; attempt++) {
+          try {
+            result = await ffmpeg([
+              '-rw_timeout', '60000000', '-i', row.video_url, '-an',
+              '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
+              '-movflags', '+faststart', '-y', file,
+            ]);
+          } catch (err) {
+            if (!(err instanceof MediaError) || attempt >= 4) throw err;
+            await sleep(30_000 * attempt);
+          }
+        }
+        const { seconds } = result;
         const out = new Uint8Array(await readFile(file));
         if (out.length < 50_000 || seconds < 20) throw new MediaError(`klip terlalu pendek (${out.length} B, ${seconds} dtk)`);
         const key = contentKey('clip', out, 'mp4');

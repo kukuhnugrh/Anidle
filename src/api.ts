@@ -104,7 +104,6 @@ export const api = {
   /** Song and Screenshot puzzles; answers with the same kind of state it was asked for. */
   replaceRound: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   characterGuess: (puzzleId: string, round: number, picks: CharacterPick[]) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, picks } }),
-  characterGiveUp: (puzzleId: string, round: number) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),
   history: () => call<History>('/api/history'),
