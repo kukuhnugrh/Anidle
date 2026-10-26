@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
 import { MODE_LABELS } from '../shared/modes';
 import { api, errorMessage, type SongState } from './api';
@@ -73,31 +73,31 @@ function useSongs(urls: string[]) {
   return { songs, retry: (i: number) => load(i, urls[i]!) };
 }
 
-/** Play/pause and a seek bar over the whole song (the clue video follows it); switching rounds pauses the previous one. */
-function SongPlayer({ audio, loading }: { audio: HTMLAudioElement | null; loading: boolean }) {
+/** Play/pause and a seek bar over the song, or over the clue video once it took over; switching pauses the previous one. */
+function SongPlayer({ media, loading }: { media: HTMLMediaElement | null; loading: boolean }) {
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(NaN);
 
   useEffect(() => {
-    if (!audio) return;
+    if (!media) return;
     const sync = () => {
-      setPlaying(!audio.paused);
-      setTime(audio.currentTime);
-      setDuration(audio.duration);
+      setPlaying(!media.paused);
+      setTime(media.currentTime);
+      setDuration(media.duration);
     };
     sync();
     const events = ['play', 'pause', 'timeupdate', 'durationchange', 'ended'] as const;
-    for (const e of events) audio.addEventListener(e, sync);
+    for (const e of events) media.addEventListener(e, sync);
     return () => {
-      audio.pause();
-      for (const e of events) audio.removeEventListener(e, sync);
+      media.pause();
+      for (const e of events) media.removeEventListener(e, sync);
     };
-  }, [audio]);
+  }, [media]);
 
   return (
     <div className="clip">
-      <button className="play-button primary" disabled={!audio} onClick={() => (audio?.paused ? void audio.play() : audio?.pause())} aria-label={playing ? 'Pause' : 'Play'}>
+      <button className="play-button primary" disabled={!media} onClick={() => (media?.paused ? void media.play() : media?.pause())} aria-label={playing ? 'Pause' : 'Play'}>
         {playing ? <PauseIcon /> : <PlayIcon />}
       </button>
       <div className="clip-body">
@@ -108,9 +108,9 @@ function SongPlayer({ audio, loading }: { audio: HTMLAudioElement | null; loadin
           max={Number.isFinite(duration) ? duration : 0}
           step={0.1}
           value={time}
-          disabled={!audio}
+          disabled={!media}
           onChange={(e) => {
-            if (audio) audio.currentTime = Number(e.target.value);
+            if (media) media.currentTime = Number(e.target.value);
           }}
           aria-label="Seek"
         />
@@ -125,73 +125,84 @@ function SongPlayer({ audio, loading }: { audio: HTMLAudioElement | null; loadin
 
 /** A clue video that cannot show a frame in this long gives way to the blurred cover. */
 const CLUE_VIDEO_TIMEOUT_MS = 20_000;
-/** The video follows the song; it is pulled back when it drifts further than this (seconds). */
-const MAX_DRIFT_S = 0.4;
+
+const toggleFullscreen = (target: HTMLElement | null) =>
+  void (document.fullscreenElement ? document.exitFullscreen() : target?.requestFullscreen())?.catch(() => {});
 
 /**
- * The opening's video, blurred and muted, following the song: the player controls (and a click on
- * the video) play, pause and seek both, so the song never runs on its own beside a looping clip.
- * The corner button shows it fullscreen.
+ * The theme's own video, blurred. It carries the same song, so once it can play it takes over from the
+ * audio at the same moment, with its own sound (`onTakeOver`), and the player drives it; when it goes
+ * away (fails, round over, another round shown) the audio takes the video's position back, paused.
+ * Click = play/pause, double click or the corner button = fullscreen (of `stage`, so the player comes along).
  */
-function ClueVideo({ url, audio, onFail }: { url: string; audio: HTMLAudioElement | null; onFail: () => void }) {
-  const frame = useRef<HTMLDivElement>(null);
+function ClueVideo({
+  url,
+  audio,
+  stage,
+  onTakeOver,
+  onFail,
+}: {
+  url: string;
+  audio: HTMLAudioElement | null;
+  stage: RefObject<HTMLDivElement | null>;
+  onTakeOver: (video: HTMLVideoElement | null) => void;
+  onFail: () => void;
+}) {
   const video = useRef<HTMLVideoElement>(null);
-  const [shown, setShown] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (shown) return;
+    if (ready) return;
     const timer = setTimeout(onFail, CLUE_VIDEO_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [shown, onFail]);
+  }, [ready, onFail]);
 
   useEffect(() => {
     const v = video.current;
-    if (!audio || !v) return;
-    const follow = () => {
-      if (!v.seeking && Math.abs(v.currentTime - audio.currentTime) > MAX_DRIFT_S) v.currentTime = audio.currentTime;
-      if (audio.paused) v.pause();
-      else if (v.paused) void v.play().catch(() => {});
-    };
-    follow();
-    const events = ['play', 'pause', 'seeked', 'timeupdate'] as const;
-    for (const e of events) audio.addEventListener(e, follow);
     return () => {
-      for (const e of events) audio.removeEventListener(e, follow);
+      if (!ready || !v || !audio) return;
+      audio.currentTime = v.currentTime;
+      onTakeOver(null);
     };
-  }, [audio]);
+  }, [ready, audio, onTakeOver]);
+
+  const takeOver = (v: HTMLVideoElement) => {
+    if (ready || !audio) return;
+    const wasPlaying = !audio.paused;
+    v.currentTime = audio.currentTime;
+    audio.pause();
+    setReady(true);
+    onTakeOver(v);
+    if (wasPlaying) void v.play().catch(() => {});
+  };
 
   return (
-    <div ref={frame} className="clue-frame">
+    <div className="clue-frame">
       <video
         ref={video}
         className="clue-media"
         src={url}
-        muted
         preload="auto"
         playsInline
-        onClick={() => audio && (audio.paused ? void audio.play() : audio.pause())}
-        onLoadedData={() => setShown(true)}
+        onClick={(e) => (e.currentTarget.paused ? void e.currentTarget.play() : e.currentTarget.pause())}
+        onDoubleClick={() => toggleFullscreen(stage.current)}
+        onCanPlay={(e) => takeOver(e.currentTarget)}
         onError={onFail}
       />
-      {!shown && <span className="clue-status small">Loading the video…</span>}
-      <button
-        className="clue-fullscreen small"
-        onClick={() => void (document.fullscreenElement ? document.exitFullscreen() : frame.current?.requestFullscreen())?.catch(() => {})}
-      >
+      {!ready && <span className="clue-status small">Loading the video… the song keeps playing until it is ready</span>}
+      <button className="clue-fullscreen small" onClick={() => toggleFullscreen(stage.current)}>
         ⛶ Fullscreen
       </button>
     </div>
   );
 }
 
-/** The opened clue: the blurred opening video (blurred cover when it will not play), or the blurred cover. */
-function ClueView({ clue, audio }: { clue: Clue; audio: HTMLAudioElement | null }) {
+/** The opened clue: the theme's blurred video, or the blurred cover when the video will not play. */
+function ClueView({ clue, audio, stage, onTakeOver }: { clue: Clue; audio: HTMLAudioElement | null; stage: RefObject<HTMLDivElement | null>; onTakeOver: (video: HTMLVideoElement | null) => void }) {
   const [videoFailed, setVideoFailed] = useState(false);
   const onFail = useCallback(() => setVideoFailed(true), []);
-  if (!clue.url) return null;
-  if (clue.kind === 'video' && !videoFailed) return <ClueVideo url={clue.url} audio={audio} onFail={onFail} />;
-  const image = clue.kind === 'cover' ? clue.url : clue.fallback;
-  return image ? <img className="clue-media cover" src={image} alt="" /> : null;
+  if (clue.url && !videoFailed) return <ClueVideo url={clue.url} audio={audio} stage={stage} onTakeOver={onTakeOver} onFail={onFail} />;
+  return clue.fallback ? <img className="clue-media cover" src={clue.fallback} alt="" /> : null;
 }
 
 export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongState; onChange: (p: SongState) => void; onNewUnlimited: () => Promise<void> }) {
@@ -204,7 +215,9 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
   const round = puzzle.rounds[view]!;
   const song = songs[view];
   const isCurrent = view === puzzle.current;
-  const clueName = round.clue.kind === 'video' ? 'the blurred opening video' : 'the blurred anime cover';
+  const stage = useRef<HTMLDivElement>(null);
+  // The clue video, once it took over from the audio (it carries the song with the picture).
+  const [clueVideo, setClueVideo] = useState<HTMLVideoElement | null>(null);
 
   const send = async (task: () => Promise<SongState>) => {
     setSending(true);
@@ -225,7 +238,8 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
           <h1>{MODE_LABELS[puzzle.mode]}</h1>
           <p className="muted small">
-            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {puzzle.points.plain} pts if right, {puzzle.points.withClue} pts if you opened the clue, 0 if wrong.
+            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {puzzle.points.plain} pts if right, {puzzle.points.withClue} pts if you
+            opened the clue (its blurred music video), 0 if wrong.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -259,8 +273,10 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
         </div>
       ) : (
         <section className="card stage-card">
-          <SongPlayer audio={song?.audio ?? null} loading={song?.status === 'loading'} />
-          {round.clue.opened && !round.finished && <ClueView key={round.audio} clue={round.clue} audio={song?.audio ?? null} />}
+          <div ref={stage} className="song-stage">
+            {round.clue.opened && !round.finished && <ClueView key={round.audio} clue={round.clue} audio={song?.audio ?? null} stage={stage} onTakeOver={setClueVideo} />}
+            <SongPlayer media={clueVideo ?? song?.audio ?? null} loading={song?.status === 'loading'} />
+          </div>
           {!round.finished && isCurrent && (
             <div className="stage-controls">
               <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId))} />
@@ -268,7 +284,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
                 <span className="muted small">One guess · right now = {round.clue.opened ? puzzle.points.withClue : puzzle.points.plain} pts</span>
                 <div className="actions">
                   {!round.clue.opened && (
-                    <button disabled={sending} onClick={() => send(() => api.roundClue<SongState>(puzzle.id, view))} title={`Shows ${clueName}`}>
+                    <button disabled={sending} onClick={() => send(() => api.roundClue<SongState>(puzzle.id, view))} title="Shows the blurred music video; its sound takes over from the song">
                       Show clue (−{puzzle.points.plain - puzzle.points.withClue} pts)
                     </button>
                   )}

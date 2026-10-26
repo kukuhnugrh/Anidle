@@ -49,9 +49,6 @@ export const SCREENSHOT_POINTS = { max: 500, perClue: 125 } as const;
 /** Song modes: a right guess scores 500, or 250 after opening the clue (blurred OP video / blurred cover); a miss scores 0. */
 export const SONG_POINTS = { plain: 500, withClue: 250 } as const;
 
-/** The clue a song mode offers: the opening's own video, or (endings rarely have one) the anime's cover. */
-export const SONG_CLUE: Record<SongMode, 'video' | 'cover'> = { opening: 'video', ending: 'cover' };
-
 /**
  * Difficulty of each round of a multi-round puzzle: round 1 easy, the rest medium, when the pool is
  * every difficulty or easy + medium (the daily puzzles). A pool narrowed any other way keeps its

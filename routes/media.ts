@@ -9,7 +9,7 @@ const PASSED = ['content-type', 'content-length', 'content-range', 'accept-range
 
 /**
  * ?puzzle=&round=&kind=audio|video : streams a song round's full audio (or, once the player opened the
- * clue, the opening's video) from AnimeThemes. Same origin, so the file name, which is the anime's
+ * clue, the theme's video) from AnimeThemes. Same origin, so the file name, which is the anime's
  * name, never shows up in the browser.
  */
 export const GET = route(async (req) => {
@@ -22,7 +22,6 @@ export const GET = route(async (req) => {
   const kind = p.get('kind');
   let upstream = source.audioUrl;
   if (kind === 'video') {
-    if (puzzle.mode !== 'opening') throw new HttpError(400, 'Only openings have a video clue.');
     const played = (await storedSongs(puzzle.id, (await viewer(req)).key))[round];
     if (!played?.c && (played?.g ?? null) === null) throw new HttpError(403, 'Open the clue first.');
     upstream = videoOf(source.audioUrl);

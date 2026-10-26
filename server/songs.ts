@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Pool } from '../shared/catalog.js';
-import { MODE_MEDIA, ROUND_COUNT, SONG_CLUE, SONG_POINTS, type SongMode } from '../shared/modes.js';
+import { MODE_MEDIA, ROUND_COUNT, SONG_POINTS, type SongMode } from '../shared/modes.js';
 import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
@@ -8,7 +8,7 @@ import { HttpError } from './http.js';
 
 // Opening / Ending: ROUND_COUNT rounds of one title. The whole song plays (streamed from AnimeThemes
 // through /api/media, so the file name never reaches the browser); the player gets one guess, and may
-// first open a blurred clue (the opening's video, or the cover for endings) for half the points.
+// first open a blurred clue (the opening's or ending's own video) for half the points.
 // play.guesses holds StoredSong[] per round: g = guessed mal_id (0 = gave up, null = not yet), c = clue opened.
 
 interface StoredSong {
@@ -27,11 +27,10 @@ export interface SongRoundState {
   /** Same-origin stream of the full song. */
   audio: string;
   clue: {
-    kind: 'video' | 'cover';
     opened: boolean;
-    /** Only once opened: the blurred video stream, or the cover image. */
+    /** Only once opened: the blurred video stream of the same theme (it carries the song too). */
     url: string | null;
-    /** Opening clue: the cover to show (blurred) if the video does not load. */
+    /** The cover to show (blurred) if the video does not load. */
     fallback: string | null;
   };
   guess: { malId: number; title: string } | null;
@@ -100,13 +99,11 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
     const guessed = played.g ? anime.get(played.g) : undefined;
     const solved = guessed !== undefined && isCorrect(answer, guessed);
     const finished = played.g !== null;
-    const clueKind = SONG_CLUE[mode];
     return {
       audio: media(i, 'audio'),
       clue: {
-        kind: clueKind,
         opened: played.c,
-        url: played.c || finished ? (clueKind === 'video' ? media(i, 'video') : answer.cover) : null,
+        url: played.c || finished ? media(i, 'video') : null,
         fallback: played.c || finished ? answer.cover : null,
       },
       guess: played.g ? { malId: played.g, title: guessed?.title ?? `#${played.g}` } : null,
