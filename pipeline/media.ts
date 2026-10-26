@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { CHARACTER_QUIZ_SLOT } from '../shared/characters.js';
@@ -88,6 +91,7 @@ interface MediaRow {
   kind: MediaKind;
   status: 'ok' | 'missing' | 'broken' | 'rejected';
   source_url: string | null;
+  video_url: string | null;
   checked_at: string;
 }
 
@@ -98,13 +102,27 @@ interface MediaRow {
 const isDue = (row: MediaRow | undefined, refreshAll: boolean, stale: string) =>
   refreshAll || !row || ((row.status === 'missing' || row.status === 'broken') && row.checked_at < stale);
 
+/** A clip made for an earlier source of the same theme is dropped when the source changes. */
 async function save(malId: number, kind: MediaKind, row: { status: MediaRow['status']; key?: string | null; source?: string | null; theme?: ThemeSource | null; error?: string | null }) {
   await run(
-    `INSERT INTO anime_media (mal_id, kind, status, r2_key, source_url, label, song_title, artist, error, checked_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO anime_media (mal_id, kind, status, r2_key, source_url, label, song_title, artist, video_url, error, checked_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (mal_id, kind) DO UPDATE SET status = excluded.status, r2_key = excluded.r2_key, source_url = excluded.source_url,
-       label = excluded.label, song_title = excluded.song_title, artist = excluded.artist, error = excluded.error, checked_at = excluded.checked_at`,
-    [malId, kind, row.status, row.key ?? null, row.source ?? null, row.theme?.label ?? null, row.theme?.title ?? null, row.theme?.artist ?? null, row.error ?? null, nowIso()],
+       label = excluded.label, song_title = excluded.song_title, artist = excluded.artist, video_url = excluded.video_url, error = excluded.error,
+       checked_at = excluded.checked_at, clip_key = CASE WHEN anime_media.source_url IS excluded.source_url THEN anime_media.clip_key END`,
+    [
+      malId,
+      kind,
+      row.status,
+      row.key ?? null,
+      row.source ?? null,
+      row.theme?.label ?? null,
+      row.theme?.title ?? null,
+      row.theme?.artist ?? null,
+      row.theme ? (row.theme.videoUrl ?? '') : null,
+      row.error ?? null,
+      nowIso(),
+    ],
   );
 }
 
@@ -123,17 +141,19 @@ const isSourceFault = (err: unknown) => err instanceof MediaError || (err instan
  */
 export async function stepMedia(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number; cover_src: string | null }>(`SELECT mal_id, cover_src FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
-  const rows = await all<MediaRow>('SELECT mal_id, kind, status, source_url, checked_at FROM anime_media');
+  const rows = await all<MediaRow>('SELECT mal_id, kind, status, source_url, video_url, checked_at FROM anime_media');
   const byKey = new Map(rows.map((r) => [`${r.mal_id}:${r.kind}`, r]));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const due = (row: MediaRow | undefined) => isDue(row, refreshAll, stale);
+  // OP/ED recorded before their smallest video was: fetch the theme again for its video_url.
+  const needsVideo = (row: MediaRow | undefined) => row?.status === 'ok' && row.video_url == null;
 
   const jobs = anime
     .map((a) => ({
       id: Number(a.mal_id),
       coverSrc: a.cover_src,
       cover: refreshAll || due(byKey.get(`${a.mal_id}:cover`)) || byKey.get(`${a.mal_id}:cover`)?.source_url !== a.cover_src,
-      themes: due(byKey.get(`${a.mal_id}:op`)) || due(byKey.get(`${a.mal_id}:ed`)),
+      themes: [`${a.mal_id}:op`, `${a.mal_id}:ed`].some((key) => due(byKey.get(key)) || needsVideo(byKey.get(key))),
     }))
     .filter((j) => j.cover || j.themes)
     .slice(0, limit);
@@ -164,8 +184,8 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
           for (const kind of ['op', 'ed'] as const) {
             const theme = themes[kind];
             const prev = byKey.get(`${job.id}:${kind}`);
-            // Same source as last time and already decided (ok, or rejected by an admin): nothing to do.
-            if (!refreshAll && (prev?.status === 'ok' || prev?.status === 'rejected') && prev.source_url === theme?.audioUrl) continue;
+            // Same source as last time, already decided (ok, or rejected by an admin) and its video known: nothing to do.
+            if (!refreshAll && (prev?.status === 'ok' || prev?.status === 'rejected') && prev.source_url === theme?.audioUrl && !needsVideo(prev)) continue;
             if (!theme) {
               await save(job.id, kind, { status: 'missing' });
               count(kind, 'missing');
@@ -414,4 +434,64 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   log('screenshots:', counts);
+}
+
+const CLIP_HEIGHT = 240;
+
+/**
+ * The OP/ED clue as a small clip: the theme's video re-encoded to 240p H.264 without sound (the song
+ * keeps playing and the clip follows it), ~1.5 MB instead of 30–60 MB, at v1/clip/<hash>.mp4. It is
+ * shown blurred, so the low resolution does not show. R2's free 10 GB sets the scope: easy + medium
+ * shows (the daily pool) only; other titles stream video_url through /api/media as before. A video
+ * the encoder rejects gets clip_key '' (streamed instead), retried with --refresh.
+ */
+export async function stepClips(refreshAll: boolean, limit: number) {
+  const queue = (
+    await all<{ mal_id: number; kind: MediaKind; video_url: string }>(
+      `SELECT m.mal_id, m.kind, m.video_url FROM anime_media m JOIN anime a ON a.mal_id = m.mal_id
+       WHERE m.kind IN ('op', 'ed') AND m.status = 'ok' AND m.video_url <> '' AND (? OR m.clip_key IS NULL)
+         AND a.excluded IS NULL AND ${CANONICAL_SQL} AND a.members >= ?
+       ORDER BY a.members DESC, m.kind DESC`,
+      [refreshAll ? 1 : 0, MEDIUM_MIN_MEMBERS],
+    )
+  )
+    .slice(0, limit)
+    .reverse();
+  const total = queue.length;
+  log(`clips: ${total} lagu`);
+  const counts = { ok: 0, failed: 0, skipped: 0 };
+  const dir = await mkdtemp(path.join(tmpdir(), 'anidle-clip-'));
+  let done = 0;
+  // Each clip reads the whole 30–60 MB video; two at a time keeps AnimeThemes' file host comfortable.
+  const workers = Array.from({ length: 2 }, async (_, w) => {
+    const file = path.join(dir, `clip-${w}.mp4`);
+    for (let row = queue.pop(); row; row = queue.pop()) {
+      const id = Number(row.mal_id);
+      try {
+        // mp4 needs a seekable output for +faststart (the index first, so the browser can start right away).
+        const { seconds } = await ffmpeg([
+          '-rw_timeout', '60000000', '-i', row.video_url, '-an',
+          '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
+          '-movflags', '+faststart', '-y', file,
+        ]);
+        const out = new Uint8Array(await readFile(file));
+        if (out.length < 50_000 || seconds < 20) throw new MediaError(`klip terlalu pendek (${out.length} B, ${seconds} dtk)`);
+        const key = contentKey('clip', out, 'mp4');
+        await putObject(key, out, 'video/mp4');
+        await run('UPDATE anime_media SET clip_key = ? WHERE mal_id = ? AND kind = ?', [key, id, row.kind]);
+        counts.ok++;
+      } catch (err) {
+        // ffmpeg exits non-zero for a 5xx from the host as well; only a clean but bad result marks the theme.
+        if (err instanceof MediaError && err.message.startsWith('klip')) {
+          await run("UPDATE anime_media SET clip_key = '' WHERE mal_id = ? AND kind = ?", [id, row.kind]);
+          counts.failed++;
+        } else counts.skipped++;
+        log(`clips: ${id} ${row.kind} ${errorText(err)}`);
+      }
+      if (++done % 25 === 0) log(`clips: ${done}/${total}`, counts);
+    }
+  });
+  await Promise.all(workers);
+  await rm(dir, { recursive: true, force: true });
+  log('clips:', counts);
 }

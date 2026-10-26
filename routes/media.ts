@@ -2,7 +2,7 @@ import { isSongMode } from '../shared/modes.js';
 import { viewer } from '../server/accounts.js';
 import { getPuzzle } from '../server/game.js';
 import { HttpError, route } from '../server/http.js';
-import { songSources, storedSongs, videoOf } from '../server/songs.js';
+import { songSources, storedSongs } from '../server/songs.js';
 
 /** Response headers worth passing on from AnimeThemes (Range support lets the player seek). */
 const PASSED = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
@@ -24,7 +24,7 @@ export const GET = route(async (req) => {
   if (kind === 'video') {
     const played = (await storedSongs(puzzle.id, (await viewer(req)).key))[round];
     if (!played?.c && (played?.g ?? null) === null) throw new HttpError(403, 'Open the clue first.');
-    upstream = videoOf(source.audioUrl);
+    upstream = source.videoUrl;
   } else if (kind !== 'audio') throw new HttpError(400, 'kind must be audio or video.');
 
   // AnimeThemes takes ~5 s to answer each request, then the body streams for as long as it needs

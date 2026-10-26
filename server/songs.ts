@@ -5,6 +5,7 @@ import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
+import { mediaUrl } from './media.js';
 
 // Opening / Ending: ROUND_COUNT rounds of one title. The whole song plays (streamed from AnimeThemes
 // through /api/media, so the file name never reaches the browser); the player gets one guess, and may
@@ -28,7 +29,10 @@ export interface SongRoundState {
   audio: string;
   clue: {
     opened: boolean;
-    /** Only once opened: the blurred video stream of the same theme (it carries the song too). */
+    /**
+     * Only once opened: the theme's video, shown blurred and muted while the song plays on: the small
+     * clip on R2 when the pipeline made one, else the source video streamed through /api/media.
+     */
     url: string | null;
     /** Only once opened: the cover, shown blurred (Ending: beside the video; both: when the video does not load). */
     cover: string | null;
@@ -61,22 +65,30 @@ export interface SongState {
 export interface SongSource {
   malId: number;
   audioUrl: string;
+  /** The theme's smallest video on AnimeThemes (older rows: derived from the audio URL). */
+  videoUrl: string;
+  /** The 240p clue clip on R2 (pipeline step `clips`), when there is one. */
+  clipKey: string | null;
   song: SongInfo;
 }
 
-/** AnimeThemes extracts each audio file from a video of the same name: a.…/X.ogg ↔ v.…/X.webm. */
-export const videoOf = (audioUrl: string) => audioUrl.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm');
-
 /** The round titles of a song puzzle with their AnimeThemes source, in round order. */
 export async function songSources(puzzleId: string, mode: SongMode): Promise<SongSource[]> {
-  const rows = await all<{ mal_id: number; source_url: string | null; label: string | null; song_title: string | null; artist: string | null }>(
-    `SELECT r.mal_id, m.source_url, m.label, m.song_title, m.artist
+  const rows = await all<{ mal_id: number; source_url: string | null; video_url: string | null; clip_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
+    `SELECT r.mal_id, m.source_url, m.video_url, m.clip_key, m.label, m.song_title, m.artist
      FROM puzzle_round r LEFT JOIN anime_media m ON m.mal_id = r.mal_id AND m.kind = ?
      WHERE r.puzzle_id = ? ORDER BY r.round`,
     [MODE_MEDIA[mode]!, puzzleId],
   );
   if (rows.length !== ROUND_COUNT || rows.some((r) => !r.source_url)) throw new HttpError(500, 'Puzzle data is incomplete.');
-  return rows.map((r) => ({ malId: Number(r.mal_id), audioUrl: r.source_url!, song: { label: r.label, title: r.song_title, artist: r.artist } }));
+  return rows.map((r) => ({
+    malId: Number(r.mal_id),
+    audioUrl: r.source_url!,
+    // AnimeThemes extracts each audio file from a video of the same name: a.…/X.ogg ↔ v.…/X.webm.
+    videoUrl: r.video_url || r.source_url!.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm'),
+    clipKey: r.clip_key || null,
+    song: { label: r.label, title: r.song_title, artist: r.artist },
+  }));
 }
 
 export const storedSongs = async (puzzleId: string, playerKey: string): Promise<StoredSong[]> => {
@@ -108,7 +120,7 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
       difficulty: info.difficulty,
       clue: {
         opened: played.c,
-        url: played.c || finished ? media(i, 'video') : null,
+        url: played.c || finished ? (s.clipKey ? mediaUrl(s.clipKey) : media(i, 'video')) : null,
         cover: played.c || finished ? answer.cover : null,
       },
       guess: played.g ? { malId: played.g, title: guessed?.title ?? `#${played.g}` } : null,
