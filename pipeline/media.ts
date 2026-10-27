@@ -535,37 +535,47 @@ export async function stepClips(refreshAll: boolean, limit: number) {
 
 /** Daily song copies on R2 are kept this long; older days' rounds stream from AnimeThemes again. */
 const SONG_COPY_DAYS = 7;
+/**
+ * The copy is re-encoded: AnimeThemes' files are ~3.5 MB (rips at ~300 kb/s), and the player downloads the
+ * whole song before it starts. AAC at 112 kb/s in .m4a plays in every browser and is ~1.2 MB for 90 s.
+ */
+const SONG_BITRATE = '112k';
 const songHost = new Limiter('animethemes-files', [{ ms: 1000, max: 2 }]);
 
 /**
- * Gets today's Opening and Ending ready before players arrive (run right after the 00:00 UTC+7 rollover):
- * creates the day's puzzles if nobody has yet, copies each round's full song to R2 (puzzle_round.audio_key,
- * v1/song/<hash>.ogg, so the file name gives nothing away) and makes any missing clue clip. Players then
- * stream from Cloudflare instead of waiting ~5 s per song on AnimeThemes. Copies older than
- * SONG_COPY_DAYS are removed (R2's free 10 GB); a round without a copy streams through /api/media.
+ * Gets the Opening and Ending of today and tomorrow (UTC+7) ready before players arrive, so a late or skipped
+ * scheduled run does not matter: creates the day's puzzles if nobody has yet, copies each round's full song to
+ * R2 re-encoded (puzzle_round.audio_key, v1/song/<hash>.m4a, so the file name gives nothing away) and makes any
+ * missing clue clip. Players then stream ~1 MB from Cloudflare instead of ~3.5 MB from AnimeThemes. Copies older
+ * than SONG_COPY_DAYS are removed (R2's free 10 GB); a round without a copy streams through /api/media.
  */
 export async function stepDaily() {
-  const date = todayUtc7();
+  const today = todayUtc7();
   const counts = { songs: 0, clips: 0, kept: 0, failed: 0, removed: 0 };
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-daily-'));
-  for (const mode of ['opening', 'ending'] as const) {
-    const puzzle = await dailyPuzzle(mode, date);
-    const sources = await songSources(puzzle.id, mode);
-    for (const [round, source] of sources.entries()) {
-      try {
-        if (source.audioKey) counts.kept++;
-        else {
-          const song = await download(songHost, source.audioUrl);
-          if (song.length < 200_000) throw new MediaError(`lagu terlalu kecil (${song.length} B)`);
-          const key = contentKey('song', song, 'ogg');
-          await putObject(key, song, 'audio/ogg');
-          await run('UPDATE puzzle_round SET audio_key = ? WHERE puzzle_id = ? AND round = ?', [key, puzzle.id, round]);
-          counts.songs++;
+  for (const date of [today, shiftDate(today, 1)]) {
+    for (const mode of ['opening', 'ending'] as const) {
+      const puzzle = await dailyPuzzle(mode, date);
+      const sources = await songSources(puzzle.id, mode);
+      for (const [round, source] of sources.entries()) {
+        try {
+          if (source.audioKey) counts.kept++;
+          else {
+            const original = await download(songHost, source.audioUrl);
+            const file = path.join(dir, 'song.m4a');
+            const { seconds } = await ffmpeg(['-i', 'pipe:0', '-vn', '-ac', '2', '-c:a', 'aac', '-b:a', SONG_BITRATE, '-movflags', '+faststart', '-y', file], original);
+            const song = new Uint8Array(await readFile(file));
+            if (song.length < 100_000 || seconds < 20) throw new MediaError(`lagu terlalu pendek (${song.length} B, ${seconds} dtk)`);
+            const key = contentKey('song', song, 'm4a');
+            await putObject(key, song, 'audio/mp4');
+            await run('UPDATE puzzle_round SET audio_key = ? WHERE puzzle_id = ? AND round = ?', [key, puzzle.id, round]);
+            counts.songs++;
+          }
+          if (!source.clipKey && source.videoUrl && (await makeClip(source.malId, MODE_MEDIA[mode]!, source.videoUrl, path.join(dir, 'clip.mp4'))) === 'ok') counts.clips++;
+        } catch (err) {
+          counts.failed++;
+          log(`daily: ${date} ${mode} ronde ${round + 1} (${source.malId}) ${errorText(err)}`);
         }
-        if (!source.clipKey && source.videoUrl && (await makeClip(source.malId, MODE_MEDIA[mode]!, source.videoUrl, path.join(dir, 'clip.mp4'))) === 'ok') counts.clips++;
-      } catch (err) {
-        counts.failed++;
-        log(`daily: ${date} ${mode} ronde ${round + 1} (${source.malId}) ${errorText(err)}`);
       }
     }
   }
@@ -573,7 +583,7 @@ export async function stepDaily() {
 
   const old = await all<{ puzzle_id: string; round: number; audio_key: string }>(
     `SELECT r.puzzle_id, r.round, r.audio_key FROM puzzle_round r JOIN puzzle p ON p.id = r.puzzle_id WHERE r.audio_key IS NOT NULL AND p.date < ?`,
-    [shiftDate(date, -SONG_COPY_DAYS)],
+    [shiftDate(today, -SONG_COPY_DAYS)],
   );
   for (const row of old) {
     await run('UPDATE puzzle_round SET audio_key = NULL WHERE puzzle_id = ? AND round = ?', [row.puzzle_id, row.round]);
@@ -581,5 +591,5 @@ export async function stepDaily() {
     if (!(await all('SELECT 1 FROM puzzle_round WHERE audio_key = ? LIMIT 1', [row.audio_key])).length) await deleteObject(row.audio_key);
     counts.removed++;
   }
-  log(`daily: ${date}`, counts);
+  log(`daily: ${today} + ${shiftDate(today, 1)}`, counts);
 }
