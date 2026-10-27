@@ -25,8 +25,9 @@ export type ThemeKind = 'op' | 'ed';
 export type FirstThemes = Record<ThemeKind, ThemeSource | null>;
 
 /**
- * The first opening and ending of a MAL title that has a SFW audio file, or null for a kind
- * AnimeThemes does not have. `OP1` wins over `OP1-TV`, which wins over `OP2`.
+ * The first opening and ending of a MAL title that has an audio file, or null for a kind AnimeThemes
+ * does not have. `OP1` wins over `OP1-TV`, which wins over `OP2`. Within a theme a SFW entry is preferred,
+ * but an NSFW-flagged one (the flag is about the video) still counts: its video is a blurred clue anyway.
  */
 export async function firstThemes(malId: number): Promise<FirstThemes> {
   const query = new URLSearchParams({
@@ -40,8 +41,7 @@ export async function firstThemes(malId: number): Promise<FirstThemes> {
   const pick = (type: 'OP' | 'ED'): ThemeSource | null => {
     const ordered = themes.filter((t) => t.type === type).sort((a, b) => (a.sequence ?? 1) - (b.sequence ?? 1) || a.slug.length - b.slug.length);
     for (const theme of ordered) {
-      for (const entry of theme.animethemeentries ?? []) {
-        if (entry.nsfw) continue;
+      for (const entry of [...(theme.animethemeentries ?? [])].sort((a, b) => Number(a.nsfw ?? false) - Number(b.nsfw ?? false))) {
         const link = entry.videos?.find((v) => v.audio?.link)?.audio?.link;
         const video = [...(entry.videos ?? [])].filter((v) => v.link).sort((a, b) => (a.resolution ?? 9999) - (b.resolution ?? 9999))[0];
         if (link)
