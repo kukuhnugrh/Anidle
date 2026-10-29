@@ -326,8 +326,10 @@ input:focus-visible, select:focus-visible { outline: none; }
 .mode-card:hover { text-decoration: none; border-color: var(--line); background: var(--dp-color-selection); transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--accent); }
 .mode-card p { margin: 0; font-size: 13.5px; line-height: 1.5; }
 .mode-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.mode-status { font-size: 12px; font-weight: 650; padding: 2px 10px; border-radius: 999px; border: var(--detail); background: var(--ground); white-space: nowrap; }
+/* Short labels (points sit in the footer); ellipsis only as a guard on the narrowest five-across cards. */
+.mode-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 650; padding: 2px 10px; border-radius: 999px; border: var(--detail); background: var(--ground); white-space: nowrap; }
 .mode-status.won { background: var(--ok-fill); }
+.mode-card-head .tile-icon { flex: none; }
 .mode-cta { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; font-weight: 700; color: var(--accent-ink); }
 .tile-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; margin-bottom: 4px; color: var(--on-fill); background: var(--dp-color-accent-warm); border: var(--detail); }
 .tile-icon .icon { width: 19px; height: 19px; }
