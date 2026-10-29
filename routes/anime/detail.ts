@@ -7,6 +7,7 @@ export const GET = route(async (req) => {
   if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Invalid id.');
   const detail = await animeDetail(id);
   if (!detail) throw new HttpError(404, 'That title is not in the database.');
-  // Same for everyone and only changes with the pipeline: let the CDN keep it briefly.
-  return json(detail, { headers: { 'cache-control': 'public, s-maxage=300, max-age=60' } });
+  // Same for everyone and only changes with the pipeline: the CDN keeps it briefly (purged on every
+  // deploy). Browsers revalidate each time, so a cached response from an older deploy never meets new UI code.
+  return json(detail, { headers: { 'cache-control': 'public, s-maxage=300, max-age=0' } });
 });

@@ -10,6 +10,7 @@ import { AuthPage } from './AuthPage';
 import { AdminPage } from './AdminPage';
 import { AnimeDetail } from './AnimeDetail';
 import { Database } from './Database';
+import { ErrorBoundary } from './ErrorBoundary';
 import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
 import { Home } from './Home';
@@ -127,36 +128,38 @@ export function App() {
           <Brand />
         </header>
         <main className="page">
-          {route.view === 'home' && <Home account={account} />}
-          {route.view === 'daily' && (
-            <>
-              <DayBar mode={route.mode} date={route.date} />
-              <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshMe} />
-            </>
-          )}
-          {route.view === 'play' && (
-            <>
-              <UnlimitedBar />
-              <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} />
-            </>
-          )}
-          {route.view === 'unlimited' && <Unlimited account={account} />}
-          {route.view === 'database' && <Database />}
-          {route.view === 'anime' && <AnimeDetail key={route.id} id={route.id} />}
-          {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
-          {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
-          {route.view === 'history' && <HistoryPage account={account} />}
-          {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
-          {route.view === 'auth' && (
-            <AuthPage
-              notice={notice}
-              onDone={(a) => {
-                setAccount(a);
-                void refreshMe();
-                go('/');
-              }}
-            />
-          )}
+          <ErrorBoundary key={JSON.stringify(route)}>
+            {route.view === 'home' && <Home account={account} />}
+            {route.view === 'daily' && (
+              <>
+                <DayBar mode={route.mode} date={route.date} />
+                <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshMe} />
+              </>
+            )}
+            {route.view === 'play' && (
+              <>
+                <UnlimitedBar />
+                <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} />
+              </>
+            )}
+            {route.view === 'unlimited' && <Unlimited account={account} />}
+            {route.view === 'database' && <Database />}
+            {route.view === 'anime' && <AnimeDetail key={route.id} id={route.id} />}
+            {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
+            {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
+            {route.view === 'history' && <HistoryPage account={account} />}
+            {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
+            {route.view === 'auth' && (
+              <AuthPage
+                notice={notice}
+                onDone={(a) => {
+                  setAccount(a);
+                  void refreshMe();
+                  go('/');
+                }}
+              />
+            )}
+          </ErrorBoundary>
         </main>
       </div>
     </div>
