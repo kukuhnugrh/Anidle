@@ -687,34 +687,35 @@ input:focus-visible, select:focus-visible { outline: none; }
 .db-chips button.chip:hover:not(:disabled) { background: var(--dp-color-accent-warm); transform: none; box-shadow: var(--shadow-sm); }
 .db-paging { display: flex; justify-content: center; align-items: center; gap: 16px; }
 
-/* One show's page (/database/<id>): its facts, then one tab per mode with what that mode uses. */
+/* One show's page (/database/<id>): its facts, then one tab per mode with what that mode uses.
+   Never prefix classes with "ad-": ad blockers hide .ad-top, .ad-card, … on every site. */
 .anime-detail { gap: 14px; }
-.ad-top { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 22px; align-items: start; }
-.ad-cover { width: 120px; border-radius: 60px 60px 12px 12px; border: var(--outline); box-shadow: 5px 5px 0 var(--dp-color-accent-secondary); }
-.ad-facts { display: grid; gap: 10px; min-width: 0; }
-.ad-facts .page-head { margin: 0; gap: 2px; }
-.ad-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 16px; margin: 6px 0 0; }
-.ad-stats dt { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.ad-stats dd { margin: 2px 0 0; font-weight: 650; }
-.ad-tabs { flex-wrap: wrap; }
-.ad-card { padding: 18px 20px; }
-.ad-panel { display: grid; gap: 16px; }
-.ad-panel .anidle-clues { margin: 0; }
-.ad-song-title { margin-top: 4px; }
-.ad-panel audio { width: 100%; max-width: 640px; }
-.ad-clue-pair { justify-content: flex-start; margin-top: 8px; }
-.ad-clue-pair .clue-frame { margin: 0; }
-.ad-clue-pair .clue-media { cursor: default; }
-.ad-synopsis { margin: 6px 0 0; white-space: pre-line; line-height: 1.6; }
-.ad-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
-.ad-char { margin: 0; display: grid; gap: 8px; align-content: start; }
-.ad-char img { width: 100%; aspect-ratio: 225 / 350; object-fit: cover; border-radius: 75px 75px 12px 12px; border: var(--outline); box-shadow: 4px 4px 0 var(--accent); }
-.ad-char figcaption { display: grid; gap: 3px; justify-items: start; }
-.ad-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-.ad-shots figure { margin: 0; display: grid; gap: 4px; }
-.ad-shots img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: var(--outline); }
-.ad-hint { margin-top: 4px; font-family: var(--dp-typography-display); font-size: 20px; font-weight: 800; letter-spacing: .08em; }
-.ad-entries { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.show-top { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 22px; align-items: start; }
+.show-cover { width: 120px; border-radius: 60px 60px 12px 12px; border: var(--outline); box-shadow: 5px 5px 0 var(--dp-color-accent-secondary); }
+.show-facts { display: grid; gap: 10px; min-width: 0; }
+.show-facts .page-head { margin: 0; gap: 2px; }
+.show-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 16px; margin: 6px 0 0; }
+.show-stats dt { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.show-stats dd { margin: 2px 0 0; font-weight: 650; }
+.show-tabs { flex-wrap: wrap; }
+.show-card { padding: 18px 20px; }
+.show-panel { display: grid; gap: 16px; }
+.show-panel .anidle-clues { margin: 0; }
+.show-song-title { margin-top: 4px; }
+.show-panel audio { width: 100%; max-width: 640px; }
+.show-clue-pair { justify-content: flex-start; margin-top: 8px; }
+.show-clue-pair .clue-frame { margin: 0; }
+.show-clue-pair .clue-media { cursor: default; }
+.show-synopsis { margin: 6px 0 0; white-space: pre-line; line-height: 1.6; }
+.show-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+.show-char { margin: 0; display: grid; gap: 8px; align-content: start; }
+.show-char img { width: 100%; aspect-ratio: 225 / 350; object-fit: cover; border-radius: 75px 75px 12px 12px; border: var(--outline); box-shadow: 4px 4px 0 var(--accent); }
+.show-char figcaption { display: grid; gap: 3px; justify-items: start; }
+.show-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.show-shots figure { margin: 0; display: grid; gap: 4px; }
+.show-shots img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: var(--outline); }
+.show-hint { margin-top: 4px; font-family: var(--dp-typography-display); font-size: 20px; font-weight: 800; letter-spacing: .08em; }
+.show-entries { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 
 /* Light accent fills keep dark text in night mode too (the page ink turns light there). */
 .tag.ok, .tag.partial, .tag.bad, .help-button, .help-rules li::before, .nav-score, .book-tab, .mode-status.won,
@@ -781,10 +782,10 @@ input:focus-visible, select:focus-visible { outline: none; }
   .result { flex-direction: column; align-items: flex-start; border-radius: 24px; }
   .db-search { grid-column: auto; }
   .db-grid { grid-template-columns: 1fr; }
-  .ad-top { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
-  .ad-cover { width: 96px; }
-  .ad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ad-tabs .round-tab { flex: 1 1 30%; }
+  .show-top { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
+  .show-cover { width: 96px; }
+  .show-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .show-tabs .round-tab { flex: 1 1 30%; }
   .pip { width: 12px; }
   .shot { border-radius: var(--radius); box-shadow: 5px 5px 0 var(--dp-color-accent-warm), 5px 5px 0 3px var(--line); }
   .final { box-shadow: 6px 6px 0 var(--accent); }

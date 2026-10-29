@@ -26,10 +26,10 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function SongPanel({ song, poster, withCover }: { song: DbSong | null; poster: string | null; withCover: boolean }) {
   if (!song) return <p className="muted">No song found for this show, so this mode never asks it.</p>;
   return (
-    <div className="ad-panel">
+    <div className="show-panel">
       <div>
         <span className="field-label">The song (played in full)</span>
-        <div className="ad-song-title">
+        <div className="show-song-title">
           <b>{song.title ?? 'Unknown title'}</b>
           {song.label && <span className="muted small"> · {song.label}</span>}
         </div>
@@ -38,7 +38,7 @@ function SongPanel({ song, poster, withCover }: { song: DbSong | null; poster: s
       <audio controls preload="none" src={song.audio} />
       <div>
         <span className="field-label">The clue (halves the round's points)</span>
-        <div className="clue-pair ad-clue-pair">
+        <div className="clue-pair show-clue-pair">
           {song.clip ? (
             <div className="clue-frame">
               <video className="clue-media" src={song.clip} muted loop playsInline controls preload="metadata" />
@@ -61,10 +61,10 @@ function AnidlePanel({ d }: { d: DbDetail }) {
   const genres = d.genres.filter((g) => g.type === 'genres' || g.type === 'explicit_genres');
   const tags = d.genres.filter((g) => g.type === 'themes' || g.type === 'demographics');
   return (
-    <div className="ad-panel">
+    <div className="show-panel">
       <div>
         <span className="field-label">Compared with every guess</span>
-        <dl className="ad-stats">
+        <dl className="show-stats">
           <Fact label="Year">{d.year ?? '?'}</Fact>
           <Fact label="Score">{d.score?.toFixed(2) ?? '?'}</Fact>
           <Fact label="Source">{pretty(d.source)}</Fact>
@@ -111,11 +111,11 @@ function AnidlePanel({ d }: { d: DbDetail }) {
 function CharacterPanel({ d }: { d: DbDetail }) {
   if (!d.characters.length) return <p className="muted">No characters stored, so Character mode never asks this show.</p>;
   return (
-    <div className="ad-panel">
+    <div className="show-panel">
       <p className="muted small">Each round shows a character's portrait; you pick its name (or a nickname) and its anime. Difficulty comes from the character's own MAL favorites.</p>
-      <div className="ad-chars">
+      <div className="show-chars">
         {d.characters.map((c) => (
-          <figure key={c.id} className="ad-char">
+          <figure key={c.id} className="show-char">
             <img src={c.portrait} alt="" loading="lazy" />
             <figcaption>
               <b>{c.name}</b>
@@ -141,8 +141,8 @@ function CharacterPanel({ d }: { d: DbDetail }) {
 function ScreenshotPanel({ d }: { d: DbDetail }) {
   if (!d.screenshots.length) return <p className="muted">No screenshots stored, so Guess the Anime never asks this show.</p>;
   return (
-    <div className="ad-panel">
-      <div className="ad-shots">
+    <div className="show-panel">
+      <div className="show-shots">
         {d.screenshots.map((src, i) => (
           <figure key={src}>
             <img src={src} alt={`Screenshot ${i + 1}`} loading="lazy" />
@@ -152,8 +152,8 @@ function ScreenshotPanel({ d }: { d: DbDetail }) {
       </div>
       <div>
         <span className="field-label">Title clue</span>
-        <div className="ad-hint">{d.clues.titleHint.title}</div>
-        {d.clues.titleHint.english && <div className="ad-hint muted">{d.clues.titleHint.english}</div>}
+        <div className="show-hint">{d.clues.titleHint.title}</div>
+        {d.clues.titleHint.english && <div className="show-hint muted">{d.clues.titleHint.english}</div>}
       </div>
     </div>
   );
@@ -161,16 +161,16 @@ function ScreenshotPanel({ d }: { d: DbDetail }) {
 
 function AboutPanel({ d }: { d: DbDetail }) {
   return (
-    <div className="ad-panel">
+    <div className="show-panel">
       {d.synopsis && (
         <div>
           <span className="field-label">Synopsis</span>
-          <p className="ad-synopsis">{d.synopsis}</p>
+          <p className="show-synopsis">{d.synopsis}</p>
         </div>
       )}
       <div>
         <span className="field-label">MAL entries in this show (guessing any of them counts)</span>
-        <ul className="ad-entries">
+        <ul className="show-entries">
           {d.merged.map((e) => (
             <li key={e.malId}>
               <a href={malHref(e.malId)} target="_blank" rel="noreferrer">
@@ -220,17 +220,17 @@ export function AnimeDetail({ id }: { id: number }) {
     <div className="anime-detail stack">
       <div>{back}</div>
 
-      <section className="ad-top">
-        <a className="db-cover ad-cover" href={malHref(d.malId)} target="_blank" rel="noreferrer" title="Open on MAL">
+      <section className="show-top">
+        <a className="db-cover show-cover" href={malHref(d.malId)} target="_blank" rel="noreferrer" title="Open on MAL">
           {d.cover ? <img src={d.cover} alt="" /> : <span className="muted small">no image</span>}
         </a>
-        <div className="ad-facts">
+        <div className="show-facts">
           <header className="page-head">
             <h1>{d.title}</h1>
             {d.titleEn && d.titleEn !== d.title && <div className="muted">{d.titleEn}</div>}
             {d.titleJa && <div className="muted small">{d.titleJa}</div>}
           </header>
-          <dl className="ad-stats">
+          <dl className="show-stats">
             <Fact label="Aired">{[d.season && pretty(d.season), d.year].filter(Boolean).join(' ') || '?'}</Fact>
             <Fact label="Type">
               {pretty(d.mediaType)}
@@ -267,7 +267,7 @@ export function AnimeDetail({ id }: { id: number }) {
         </div>
       </section>
 
-      <div className="round-tabs ad-tabs" role="tablist">
+      <div className="round-tabs show-tabs" role="tablist">
         {tabs.map((t) => (
           <button key={t.id} role="tab" aria-selected={tab === t.id} className={`round-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
             <b>{t.label}</b>
@@ -276,7 +276,7 @@ export function AnimeDetail({ id }: { id: number }) {
         ))}
       </div>
 
-      <section className="card ad-card" role="tabpanel">
+      <section className="card show-card" role="tabpanel">
         {tab === 'anidle' && <AnidlePanel d={d} />}
         {tab === 'opening' && <SongPanel song={d.songs.op} poster={d.clues.poster} withCover={false} />}
         {tab === 'ending' && <SongPanel song={d.songs.ed} poster={d.clues.poster} withCover />}
