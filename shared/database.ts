@@ -80,7 +80,7 @@ export interface DbSong {
   artist: string | null;
   /** The full song (AnimeThemes). */
   audio: string;
-  /** The game's pre-blurred, muted clue clip, when the pipeline made one. */
+  /** The clue's video (shown blurred and muted): the 240p clip on R2, else the theme's AnimeThemes video. */
   clip: string | null;
 }
 
@@ -101,7 +101,7 @@ export interface DbCharacter {
 
 /** The clues as the game shows them. */
 export interface DbClues {
-  /** The pre-blurred poster: Anidle's first clue, Ending's beside the video, both modes' fallback when the video fails. */
+  /** The poster (shown blurred): Anidle's first clue, Ending's beside the video, both modes' fallback when the video fails. */
   poster: string | null;
   /** Anidle's second clue: the MAL synopsis with the title masked. */
   synopsis: string | null;

@@ -6,7 +6,7 @@ import { MODE_MEDIA, MODES } from '../shared/modes.js';
 import { titleHint } from '../shared/normalize.js';
 import { all, one } from './db.js';
 import { DIFFICULTY_SQL } from './game.js';
-import { COVER_BLUR_KEY_SQL, COVER_KEY_SQL, coverOf, isClueClip, mediaUrl } from './media.js';
+import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
 
 const ORDER_BY: Record<DbSort, string> = {
   popularity: 'a.members IS NULL, a.members DESC',
@@ -113,7 +113,6 @@ interface DetailRow extends Row {
   season: string | null;
   num_episodes: number | null;
   synopsis: string | null;
-  blur_key: string | null;
 }
 
 interface MediaRow {
@@ -123,6 +122,7 @@ interface MediaRow {
   song_title: string | null;
   artist: string | null;
   clip_key: string | null;
+  video_url: string | null;
 }
 
 /**
@@ -133,7 +133,7 @@ interface MediaRow {
  */
 export async function animeDetail(id: number): Promise<DbDetail | null> {
   const row = await one<DetailRow>(
-    `SELECT ${ITEM_SQL}, a.title_ja, a.synonyms, a.media_type, a.season, a.num_episodes, a.synopsis, ${COVER_BLUR_KEY_SQL} AS blur_key
+    `SELECT ${ITEM_SQL}, a.title_ja, a.synonyms, a.media_type, a.season, a.num_episodes, a.synopsis
      FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
      WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND a.mal_id = (SELECT COALESCE(x.canonical_id, x.mal_id) FROM anime x WHERE x.mal_id = ?)`,
     [id],
@@ -147,7 +147,7 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
        WHERE (mal_id = ? OR canonical_id = ?) AND excluded IS NULL ORDER BY start_date IS NULL, start_date, mal_id`,
       [malId, malId],
     ),
-    all<MediaRow>("SELECT kind, source_url, label, song_title, artist, clip_key FROM anime_media WHERE mal_id = ? AND status = 'ok'", [malId]),
+    all<MediaRow>("SELECT kind, source_url, label, song_title, artist, clip_key, video_url FROM anime_media WHERE mal_id = ? AND status = 'ok'", [malId]),
     all<{ char_id: number; name: string; nicknames: string; role: string | null; favorites: number | null; r2_key: string }>(
       'SELECT char_id, name, nicknames, role, favorites, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot',
       [malId],
@@ -166,7 +166,9 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
   const ok = new Map(media.map((m) => [m.kind, m]));
   const song = (kind: 'op' | 'ed'): DbSong | null => {
     const m = ok.get(kind);
-    return m?.source_url ? { label: m.label, title: m.song_title, artist: m.artist, audio: m.source_url, clip: isClueClip(m.clip_key) ? mediaUrl(m.clip_key) : null } : null;
+    // The clue's video: the 240p R2 clip when step `clips` made one, else the theme's AnimeThemes video (the game streams it).
+    const clip = m?.clip_key ? mediaUrl(m.clip_key) : m?.video_url || null;
+    return m?.source_url ? { label: m.label, title: m.song_title, artist: m.artist, audio: m.source_url, clip } : null;
   };
   return {
     ...toItem(row, genres),
@@ -193,7 +195,7 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
       : [],
     screenshots: ok.has('shots') ? screenshots.map((s) => mediaUrl(s.r2_key)) : [],
     clues: {
-      poster: row.blur_key ? mediaUrl(row.blur_key) : null,
+      poster: coverOf(row.cover_key, row.cover_src),
       synopsis: row.synopsis ? maskSynopsis(row.synopsis, [row.title, row.title_en, row.title_ja, ...synonyms].filter((n): n is string => Boolean(n))) : null,
       // Anidle's last clue reads the two best-known stored characters (server/game.ts anidleClues).
       characters: characters

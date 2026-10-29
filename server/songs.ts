@@ -5,12 +5,11 @@ import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
-import { isClueClip, mediaUrl } from './media.js';
+import { mediaUrl } from './media.js';
 
 // Opening / Ending: ROUND_COUNT rounds of one title. The whole song plays (streamed from AnimeThemes
 // through /api/media, so the file name never reaches the browser); the player gets one guess, and may
-// first open a blurred clue (the opening's or ending's own video) for half the points. Clues are blurred
-// in the file itself, never only in CSS: the sharp video or poster would show through "open in new tab".
+// first open a blurred clue (the opening's or ending's own video) for half the points.
 // play.guesses holds StoredSong[] per round: g = guessed mal_id (0 = gave up, null = not yet), c = clue opened.
 
 interface StoredSong {
@@ -31,11 +30,11 @@ export interface SongRoundState {
   clue: {
     opened: boolean;
     /**
-     * Only once opened: the theme's video as the pre-blurred clip on R2 (step `clips`), shown muted while
-     * the song plays on; null when there is none (then the blurred cover is the clue). The source video is never sent.
+     * Only once opened: the theme's video, shown blurred and muted while the song plays on: the small
+     * clip on R2 when the pipeline made one, else the source video streamed through /api/media.
      */
     url: string | null;
-    /** Only once opened: the pre-blurred cover (Ending: beside the video; both: when the video does not load). */
+    /** Only once opened: the cover, shown blurred (Ending: beside the video; both: when the video does not load). */
     cover: string | null;
   };
   /** The answer's difficulty: shown from the start, like the round's label. */
@@ -70,7 +69,7 @@ export interface SongSource {
   audioKey: string | null;
   /** The theme's smallest video on AnimeThemes (older rows: derived from the audio URL). */
   videoUrl: string;
-  /** The pre-blurred clue clip on R2 (pipeline step `clips`), when there is one; an old sharp clip counts as none. */
+  /** The 240p clue clip on R2 (pipeline step `clips`), when there is one. */
   clipKey: string | null;
   song: SongInfo;
 }
@@ -90,7 +89,7 @@ export async function songSources(puzzleId: string, mode: SongMode): Promise<Son
     audioKey: r.audio_key,
     // AnimeThemes extracts each audio file from a video of the same name: a.…/X.ogg ↔ v.…/X.webm.
     videoUrl: r.video_url || r.source_url!.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm'),
-    clipKey: isClueClip(r.clip_key) ? r.clip_key : null,
+    clipKey: r.clip_key || null,
     song: { label: r.label, title: r.song_title, artist: r.artist },
   }));
 }
@@ -109,7 +108,8 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
   const sources = await songSources(puzzle.id, mode);
   const anime = await loadAnidle([...sources.map((s) => s.malId), ...stored.flatMap((s) => (s.g ? [s.g] : []))]);
   // v changes when a round is replaced, so a cached copy of the old song is never played for the new one.
-  const stream = (round: number) => `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=audio&v=${opaqueTag(`${puzzle.id}:${round}:${sources[round]!.malId}`)}`;
+  const media = (round: number, kind: 'audio' | 'video') =>
+    `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}&v=${opaqueTag(`${puzzle.id}:${round}:${sources[round]!.malId}`)}`;
   const rounds = sources.map((s, i): SongRoundState => {
     const answer = anime.get(s.malId);
     if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
@@ -119,12 +119,12 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
     const finished = played.g !== null;
     const info = answerInfo(answer);
     return {
-      audio: s.audioKey ? mediaUrl(s.audioKey) : stream(i),
+      audio: s.audioKey ? mediaUrl(s.audioKey) : media(i, 'audio'),
       difficulty: info.difficulty,
       clue: {
         opened: played.c,
-        url: (played.c || finished) && s.clipKey ? mediaUrl(s.clipKey) : null,
-        cover: played.c || finished ? answer.coverBlur : null,
+        url: played.c || finished ? (s.clipKey ? mediaUrl(s.clipKey) : media(i, 'video')) : null,
+        cover: played.c || finished ? answer.cover : null,
       },
       guess: played.g ? { malId: played.g, title: guessed?.title ?? `#${played.g}` } : null,
       gaveUp: played.g === 0,

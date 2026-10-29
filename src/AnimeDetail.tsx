@@ -41,7 +41,7 @@ function SongPanel({ song, poster, withCover }: { song: DbSong | null; poster: s
         <div className="clue-pair show-clue-pair">
           {song.clip ? (
             <div className="clue-frame">
-              <video className="clue-media" src={song.clip} muted loop playsInline controls preload="metadata" />
+              <video className="clue-media" src={song.clip} muted loop playsInline controls controlsList="nodownload" disablePictureInPicture preload="metadata" />
             </div>
           ) : (
             <p className="muted small">No clue clip yet: the clue is the blurred poster.</p>

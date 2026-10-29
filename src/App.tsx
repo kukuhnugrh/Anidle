@@ -20,6 +20,9 @@ import { go, readRoute } from './route';
 import { Brand, Sidebar } from './Sidebar';
 import { Unlimited } from './Unlimited';
 
+/** Elements showing a blurred clue (styles.css also turns off long-press menus and selection on them). */
+const PROTECTED_MEDIA = '.clue-media, .clue-cover, .clue-frame, .anidle-cover-frame';
+
 /** One-shot message from the MAL redirect (?mal=linked / ?mal_error=…), then those params are cleaned from the URL. */
 function takeRedirectNotice(): Notice {
   const params = new URLSearchParams(location.search);
@@ -85,12 +88,19 @@ export function App() {
       go(href);
     };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
+    // Clue posters and videos: no "Open image/video in new tab" or drag to a new tab, where the
+    // sharp file would show. Best effort: the URL still shows in the browser's developer tools.
+    const onProtected = (e: Event) => e.target instanceof Element && e.target.closest(PROTECTED_MEDIA) && e.preventDefault();
     addEventListener('popstate', onNavigate);
     document.addEventListener('click', onClick);
+    document.addEventListener('contextmenu', onProtected);
+    document.addEventListener('dragstart', onProtected);
     addEventListener('keydown', onKey);
     return () => {
       removeEventListener('popstate', onNavigate);
       document.removeEventListener('click', onClick);
+      document.removeEventListener('contextmenu', onProtected);
+      document.removeEventListener('dragstart', onProtected);
       removeEventListener('keydown', onKey);
     };
   }, [refreshMe]);

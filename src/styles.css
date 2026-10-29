@@ -463,10 +463,11 @@ input:focus-visible, select:focus-visible { outline: none; }
 .anidle-clues { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: 12px; }
 .anidle-clue { display: grid; align-content: start; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--panel); border: var(--outline); box-shadow: var(--shadow-sm); }
 .anidle-clue.locked { border-style: dashed; border-color: var(--dp-color-rule-muted); box-shadow: none; background: var(--ground); }
-/* The blurred poster sits in a clipping frame that carries the outline (a border on the image would blur too).
-   The file is blurred already (pipeline `media`, so "open image" shows nothing sharper); 1px only smooths its upscaling. */
+/* The blurred poster sits in a clipping frame that carries the outline (a border on the image would blur too). */
 .anidle-cover-frame { display: block; width: 100%; max-width: 160px; justify-self: center; overflow: hidden; border: var(--detail); border-radius: 80px 80px 12px 12px; box-shadow: 4px 4px 0 var(--dp-color-accent-secondary); }
-.anidle-cover { display: block; width: 100%; aspect-ratio: 225 / 320; object-fit: cover; filter: blur(1px) saturate(1.1); transform: scale(1.04); }
+.anidle-cover { display: block; width: 100%; aspect-ratio: 225 / 320; object-fit: cover; filter: blur(4px) saturate(1.1); transform: scale(1.04); }
+/* Clue media: no long-press menu (mobile "open image"), selection, or dragging; App.tsx blocks the right-click menu. */
+.anidle-cover, .clue-media { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; }
 .anidle-synopsis { margin: 0; font-size: 14px; line-height: 1.6; max-height: 220px; overflow-y: auto; white-space: pre-line; }
 .anidle-chars { display: flex; gap: 12px; }
 .anidle-chars figure { margin: 0; display: grid; gap: 4px; justify-items: center; text-align: center; font-size: 13px; font-weight: 650; }
@@ -544,8 +545,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 .clip-body { flex: 1; display: grid; gap: 6px; min-width: 0; }
 .seek { width: 100%; padding: 0; accent-color: var(--accent); background: transparent; border: 0; box-shadow: none; cursor: pointer; }
 .seek:focus { box-shadow: none; }
-/* Clue clips and posters are blurred in the file (pipeline `clips` / `media`); 1px only smooths their upscaling. */
-.clue-media { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--ink); filter: blur(1px) saturate(1.1); transform: scale(1.04); transition: filter .5s; }
+.clue-media { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--ink); filter: blur(4px) saturate(1.1); transform: scale(1.04); transition: filter .5s; }
 .clue-media.cover { aspect-ratio: 225 / 320; }
 .clue-cover { display: block; width: 100%; max-width: 220px; margin: 0 auto; overflow: hidden; border: var(--outline); border-radius: 110px 110px 14px 14px; box-shadow: 6px 6px 0 var(--dp-color-accent-secondary); }
 .clue-pair { display: flex; justify-content: center; align-items: center; gap: 16px; }
