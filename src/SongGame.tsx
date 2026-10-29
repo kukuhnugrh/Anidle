@@ -13,6 +13,10 @@ import { ShareButton, songShareText } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 type Clue = SongState['rounds'][number]['clue'];
+type SongInfo = NonNullable<SongState['rounds'][number]['answer']>['song'];
+
+/** “OP2 · “Title” · Artist · from <season>”: the song a round played, and its entry when that is not the show's own. */
+const songLine = (s: SongInfo) => [s.label, s.title && `“${s.title}”`, s.artist, s.entryTitle && `from ${s.entryTitle}`].filter(Boolean).join(' · ');
 
 /** Gives up on a song that has not downloaded in this long (full songs are ~3–4 MB, AnimeThemes takes ~5 s to start). */
 const SONG_TIMEOUT_MS = 45_000;
@@ -335,9 +339,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             </div>
             <h3>{round.answer.title}</h3>
             {round.answer.titleEn && <div className="answer-en">{round.answer.titleEn}</div>}
-            <div className="song">
-              {[round.answer.song.label, round.answer.song.title && `“${round.answer.song.title}”`, round.answer.song.artist].filter(Boolean).join(' · ')}
-            </div>
+            <div className="song">{songLine(round.answer.song)}</div>
             <div className="muted answer-meta">
               {round.answer.year ?? ''}
               <span className={`difficulty ${round.answer.difficulty}`}>{round.answer.difficulty}</span>
@@ -385,7 +387,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
               ? [
                   {
                     answer: r.answer,
-                    detail: [r.answer.song.label, r.answer.song.title && `“${r.answer.song.title}”`, r.answer.song.artist].filter(Boolean).join(' · ') || null,
+                    detail: songLine(r.answer.song),
                     guess: r.guess,
                     solved: r.solved,
                     gaveUp: r.gaveUp,

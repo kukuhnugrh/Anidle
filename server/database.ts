@@ -2,10 +2,10 @@ import { CANONICAL_SQL, difficultyOf, type GenreType } from '../shared/catalog.j
 import { maskSynopsis } from '../shared/anidle.js';
 import { characterDifficultyOf, displayName } from '../shared/characters.js';
 import { DB_PAGE_SIZE, type DbDetail, type DbFacets, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSong, type DbSort } from '../shared/database.js';
-import { MODE_MEDIA, MODES } from '../shared/modes.js';
+import { isSongMode, MODE_MEDIA, MODES, SONG_KIND, type ThemeKind } from '../shared/modes.js';
 import { titleHint } from '../shared/normalize.js';
 import { all, one } from './db.js';
-import { DIFFICULTY_SQL } from './game.js';
+import { difficultySql, USABLE_THEME_SQL } from './game.js';
 import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
 
 const ORDER_BY: Record<DbSort, string> = {
@@ -41,7 +41,7 @@ function where(f: DbFilters): { sql: string; args: Array<string | number> } {
     parts.push('a.source = ?');
     args.push(f.source);
   }
-  if (f.difficulty) parts.push(`(${DIFFICULTY_SQL[f.difficulty]})`);
+  if (f.difficulty) parts.push(`(${difficultySql(f.difficulty)})`);
   return { sql: parts.join(' AND '), args };
 }
 
@@ -115,14 +115,18 @@ interface DetailRow extends Row {
   synopsis: string | null;
 }
 
-interface MediaRow {
-  kind: string;
-  source_url: string | null;
-  label: string | null;
+interface ThemeRow {
+  id: number;
+  kind: ThemeKind;
+  label: string;
   song_title: string | null;
   artist: string | null;
+  audio_url: string;
+  video_url: string;
   clip_key: string | null;
-  video_url: string | null;
+  entry_id: number;
+  entry_title: string;
+  entry_members: number | null;
 }
 
 /**
@@ -140,14 +144,20 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
   );
   if (!row) return null;
   const malId = Number(row.mal_id);
-  const [genres, merged, media, characters, screenshots, appearances] = await Promise.all([
+  const [genres, merged, media, themes, characters, screenshots, appearances] = await Promise.all([
     genresOf([malId]),
     all<{ mal_id: number; title: string; media_type: string | null; year: number | null; num_episodes: number | null }>(
       `SELECT mal_id, title, media_type, year, num_episodes FROM anime
        WHERE (mal_id = ? OR canonical_id = ?) AND excluded IS NULL ORDER BY start_date IS NULL, start_date, mal_id`,
       [malId, malId],
     ),
-    all<MediaRow>("SELECT kind, source_url, label, song_title, artist, clip_key, video_url FROM anime_media WHERE mal_id = ? AND status = 'ok'", [malId]),
+    all<{ kind: string }>("SELECT kind FROM anime_media WHERE mal_id = ? AND status = 'ok'", [malId]),
+    all<ThemeRow>(
+      `SELECT t.id, t.kind, t.label, t.song_title, t.artist, t.audio_url, t.video_url, t.clip_key, e.mal_id AS entry_id, e.title AS entry_title, e.members AS entry_members
+       FROM ${USABLE_THEME_SQL} AND (e.mal_id = ? OR e.canonical_id = ?)
+       ORDER BY e.start_date IS NULL, e.start_date, e.mal_id, t.seq, t.label`,
+      [malId, malId],
+    ),
     all<{ char_id: number; name: string; nicknames: string; role: string | null; favorites: number | null; r2_key: string }>(
       'SELECT char_id, name, nicknames, role, favorites, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot',
       [malId],
@@ -163,13 +173,22 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
   ]);
   const alsoIn = Map.groupBy(appearances, (a) => Number(a.char_id));
   const synonyms = JSON.parse(row.synonyms) as string[];
-  const ok = new Map(media.map((m) => [m.kind, m]));
-  const song = (kind: 'op' | 'ed'): DbSong | null => {
-    const m = ok.get(kind);
-    // The clue's video: the 240p R2 clip when step `clips` made one, else the theme's AnimeThemes video (the game streams it).
-    const clip = m?.clip_key ? mediaUrl(m.clip_key) : m?.video_url || null;
-    return m?.source_url ? { label: m.label, title: m.song_title, artist: m.artist, audio: m.source_url, clip } : null;
-  };
+  const ok = new Set(media.map((m) => m.kind));
+  const songs = (kind: ThemeKind): DbSong[] =>
+    themes
+      .filter((t) => t.kind === kind)
+      .map((t) => ({
+        id: Number(t.id),
+        label: t.label,
+        title: t.song_title,
+        artist: t.artist,
+        entry: { malId: Number(t.entry_id), title: t.entry_title },
+        difficulty: difficultyOf(num(t.entry_members)),
+        audio: t.audio_url,
+        // The clue's video: the 240p R2 clip when steps clips/daily made one, else the theme's AnimeThemes video (the game streams it).
+        clip: t.clip_key ? mediaUrl(t.clip_key) : t.video_url || null,
+      }));
+  const songsByKind = { op: songs('op'), ed: songs('ed') };
   return {
     ...toItem(row, genres),
     titleJa: row.title_ja,
@@ -179,8 +198,8 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
     episodes: num(row.num_episodes),
     synopsis: row.synopsis || null,
     merged: merged.map((e) => ({ malId: Number(e.mal_id), title: e.title, mediaType: e.media_type, year: num(e.year), episodes: num(e.num_episodes) })),
-    modes: MODES.filter((m) => MODE_MEDIA[m] === null || ok.has(MODE_MEDIA[m])),
-    songs: { op: song('op'), ed: song('ed') },
+    modes: MODES.filter((m) => (isSongMode(m) ? songsByKind[SONG_KIND[m]].length > 0 : MODE_MEDIA[m] === null || ok.has(MODE_MEDIA[m]))),
+    songs: songsByKind,
     characters: ok.has('chars')
       ? characters.map((c) => ({
           id: Number(c.char_id),

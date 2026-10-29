@@ -106,7 +106,7 @@ anime(mal_id PK, title, title_en, title_ja, synonyms JSON, media_type, year, sea
       score, members, source, studios JSON, franchise_id, cover_key, nsfw, updated_at)
 genre(id PK, name, type)                       -- genres | explicit_genres | themes | demographics
 anime_genre(mal_id, genre_id)
-theme_song(id PK, mal_id, kind OP|ED, seq, title, artist, audio_key, status ok|broken)
+anime_theme(id PK, mal_id, kind op|ed, seq, label, song_title, artist, audio_url, video_url, clip_key, status ok|rejected)
 character(id PK, mal_id, name, role, favorites, image_key, status)
 player(username PK, mal_user_id, avatar, allowed, refresh_token_enc, token_expires_at, last_sync_at)
 completed(username, mal_id, finished_at, PK(username, mal_id))
@@ -215,14 +215,15 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
 - Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu tombol Guess per ronde (kolom kosong = salah, ronde selesai).
-- Difficulty Character diambil dari favorit MAL karakternya sendiri, bukan dari animenya: easy ≥ 5.000, medium 500–4.999, hard 100–499 (contoh Naruto: Naruto 88 rb, Neji 3,8 rb, Iruka 362). Ronde 1/2/3 = karakter easy/medium/hard dari pool anime biasa; per show disimpan maksimal 3 karakter per difficulty. Karakter utama saja terlalu gampang bagi yang sudah nonton.
+- Difficulty Character diambil dari favorit MAL karakternya sendiri, bukan dari animenya: easy ≥ 5.000, medium 500–4.999, hard 100–499 (contoh Naruto: Naruto 88 rb, Neji 3,8 rb, Iruka 362). Ronde 1/2/3 = karakter easy/medium/hard dari pool anime biasa; per show disimpan semua karakter ≥ 100 favorit dari semua entri show itu (dulu maksimal 3 per difficulty dari entri kanonik saja). Karakter utama saja terlalu gampang bagi yang sudah nonton.
 - Season/movie/OVA/remake (`alternative_version`) satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
 - Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium). Pengecualian: Character, yang ronde 1/2/3-nya easy/medium/hard menurut karakter.
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde, clue = video OP/ED blur tanpa suara yang mengikuti lagu (klip 240p di R2 untuk show easy + medium, selebihnya video terkecil AnimeThemes lewat proxy; cover blur kalau video gagal).
+- Opening/Ending memakai **semua** OP/ED dari **semua entri MAL** show itu (tabel `anime_theme`, bukan lagi OP1/ED1 entri kanonik di `anime_media`). Difficulty lagu = member MAL entri asal lagu itu (bukan show-nya): tiap ronde memilih show yang punya lagu dengan difficulty ronde itu, lalu salah satu lagu tersebut; lagunya disimpan di `puzzle_round.theme_id`. Jawaban, admin (tolak/pulihkan per lagu), dan halaman detail Database menampilkan lagu beserta entri asalnya.
 - Clue di-blur di file-nya (poster 48 px, klip 96p) sempat dicoba lalu dibatalkan (terlalu blur dan kecil). Tetap blur CSS 4 px di atas file asli; klik kanan/drag/long-press di clue diblokir supaya tidak bisa "open in new tab" (best effort, developer tools tetap bisa).
 - Masuk dengan MAL: callback memakai `accountId` di cookie OAuth (`null` = tamu → masuk). Akun baru dari MAL punya `password_hash` kosong (tidak pernah cocok), jadi login password ditolak dan unlink MAL diblokir supaya akunnya tidak terkunci.
 - Blur clue dikurangi (terlalu susah): video/poster OP/ED 16 → 4 px, screenshot Anidle 9 → 3 px.
-- Character: kolom anime menerima show mana pun tempat karakter muncul (tabel `character_show`, semua karakter ≥ 100 favorit per show), bukan hanya show yang ditanya, karena karakter populer muncul di banyak seri (Rin Toosaka: Fate/Zero, Fate/Extra, Prisma☆Illya, …).
+- Character: kolom anime menerima show mana pun tempat karakter muncul (tabel `character_show`, semua karakter ≥ 100 favorit per entri), bukan hanya show yang ditanya, karena karakter populer muncul di banyak seri (Rin Toosaka: Fate/Zero, Fate/Extra, Prisma☆Illya, …).
 
 ## 14. Risiko
 

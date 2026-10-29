@@ -703,8 +703,14 @@ input:focus-visible, select:focus-visible { outline: none; }
 .show-card { padding: 18px 20px; }
 .show-panel { display: grid; gap: 16px; }
 .show-panel .anidle-clues { margin: 0; }
-.show-song-title { margin-top: 4px; }
 .show-panel audio { width: 100%; max-width: 640px; }
+.show-songs { list-style: none; margin: 0; padding: 0; display: grid; }
+.show-song { display: grid; gap: 6px; padding: 12px 0; border-top: var(--dp-border-detail-width) dashed var(--dp-color-rule-muted); }
+.show-song:first-child { padding-top: 0; border-top: 0; }
+.show-song-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.show-song-title { min-width: 0; overflow-wrap: anywhere; }
+.show-song-play { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.show-song-play audio { flex: 1 1 260px; height: 36px; }
 .show-clue-pair { justify-content: flex-start; margin-top: 8px; }
 .show-clue-pair .clue-frame { margin: 0; }
 .show-clue-pair .clue-media { cursor: default; }

@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MEDIA_KINDS as KINDS, MEDIA_STATUSES as STATUSES, type MediaKind } from '../shared/modes';
+import type { ReviewKind } from '../server/admin';
+import { MEDIA_KINDS, MEDIA_STATUSES as STATUSES, type MediaKind, type ThemeKind } from '../shared/modes';
 import { api, errorMessage, type AdminPage as AdminData } from './api';
 import { fmtNumber } from './format';
 
-const KIND_LABELS: Record<MediaKind, string> = { cover: 'Cover', op: 'Opening', ed: 'Ending', chars: 'Character', shots: 'Screenshot' };
+const SONG_KINDS: readonly ThemeKind[] = ['op', 'ed'];
+/** Filter and count rows: media kinds, and the songs of each kind. */
+const KINDS: readonly ReviewKind[] = ['cover', 'op', 'ed', 'chars', 'shots'];
+const KIND_LABELS: Record<ReviewKind, string> = { cover: 'Cover', op: 'Opening', ed: 'Ending', chars: 'Character', shots: 'Screenshot' };
 
 type Item = AdminData['items'][number];
 
 function MediaPreview({ item, kind }: { item: Item; kind: MediaKind }) {
   const cell = item.media[kind];
   if (!cell || cell.status === 'missing') return null;
-  if (kind === 'op' || kind === 'ed') return cell.url ? <audio controls preload="none" src={cell.url} /> : null;
   if (kind === 'cover') return cell.url ? <img className="admin-thumb" src={cell.url} alt="" loading="lazy" /> : null;
   const urls = kind === 'chars' ? item.characters.map((c) => c.url) : item.screenshots;
   return (
@@ -24,7 +27,7 @@ function MediaPreview({ item, kind }: { item: Item; kind: MediaKind }) {
 
 export function AdminPage() {
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<MediaKind | ''>('');
+  const [kind, setKind] = useState<ReviewKind | ''>('');
   const [status, setStatus] = useState<(typeof STATUSES)[number] | ''>('');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<AdminData | null>(null);
@@ -51,10 +54,10 @@ export function AdminPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  const act = async (item: Item, k: MediaKind, action: 'reject' | 'restore') => {
-    setBusy(`${item.malId}:${k}`);
+  const act = async (key: string, request: () => Promise<unknown>) => {
+    setBusy(key);
     try {
-      await api.setMediaStatus(item.malId, k, action);
+      await request();
       load();
     } catch (err) {
       setError(errorMessage(err));
@@ -174,7 +177,7 @@ export function AdminPage() {
               </div>
             </div>
             <div className="admin-media">
-              {KINDS.map((k) => {
+              {MEDIA_KINDS.map((k) => {
                 const cell = item.media[k];
                 return (
                   <div key={k} className="admin-row">
@@ -183,26 +186,50 @@ export function AdminPage() {
                       {cell?.status ?? 'none'}
                     </span>
                     <div className="admin-preview">
-                      {cell?.song && (
-                        <span className="small muted">
-                          {cell.label} · {cell.song}
-                        </span>
-                      )}
                       <MediaPreview item={item} kind={k} />
                       {cell?.error && cell.status !== 'ok' && <span className="small muted">{cell.error}</span>}
                     </div>
                     {cell?.status === 'ok' && (
-                      <button className="ghost small danger" disabled={busy !== null} onClick={() => act(item, k, 'reject')}>
+                      <button className="ghost small danger" disabled={busy !== null} onClick={() => act(`${item.malId}:${k}`, () => api.setMediaStatus(item.malId, k, 'reject'))}>
                         Reject
                       </button>
                     )}
                     {cell?.status === 'rejected' && (
-                      <button className="ghost small" disabled={busy !== null} onClick={() => act(item, k, 'restore')}>
+                      <button className="ghost small" disabled={busy !== null} onClick={() => act(`${item.malId}:${k}`, () => api.setMediaStatus(item.malId, k, 'restore'))}>
                         Restore
                       </button>
                     )}
                   </div>
                 );
+              })}
+              {SONG_KINDS.map((k) => {
+                const songs = item.themes.filter((t) => t.kind === k);
+                if (!songs.length)
+                  return (
+                    <div key={k} className="admin-row">
+                      <span className="admin-kind">{KIND_LABELS[k]}</span>
+                      <span className="admin-status none">none</span>
+                    </div>
+                  );
+                return songs.map((t) => (
+                  <div key={t.id} className="admin-row">
+                    <span className="admin-kind">{KIND_LABELS[k]}</span>
+                    <span className={`admin-status ${t.status}`}>{t.status}</span>
+                    <div className="admin-preview">
+                      <span className="small muted">{[t.label, t.title && `“${t.title}”`, t.artist, t.entry && `from ${t.entry.title}`].filter(Boolean).join(' · ')}</span>
+                      <audio controls preload="none" src={t.audio} />
+                    </div>
+                    {t.status === 'ok' ? (
+                      <button className="ghost small danger" disabled={busy !== null} onClick={() => act(`theme:${t.id}`, () => api.setThemeStatus(t.id, 'reject'))}>
+                        Reject
+                      </button>
+                    ) : (
+                      <button className="ghost small" disabled={busy !== null} onClick={() => act(`theme:${t.id}`, () => api.setThemeStatus(t.id, 'restore'))}>
+                        Restore
+                      </button>
+                    )}
+                  </div>
+                ));
               })}
             </div>
           </article>

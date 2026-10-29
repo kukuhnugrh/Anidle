@@ -12,7 +12,7 @@ export type CharacterField = 'name' | 'anime';
  */
 export const CHARACTER_EASY_MIN_FAVORITES = 5_000;
 export const CHARACTER_MEDIUM_MIN_FAVORITES = 500;
-/** Below this almost nobody knows the character: never stored or asked. */
+/** Below this almost nobody knows the character: never stored or asked. Every character of a show at or above it is kept. */
 export const CHARACTER_MIN_FAVORITES = 100;
 
 export function characterDifficultyOf(favorites: number): Difficulty {
@@ -20,9 +20,6 @@ export function characterDifficultyOf(favorites: number): Difficulty {
   if (favorites >= CHARACTER_MEDIUM_MIN_FAVORITES) return 'medium';
   return 'hard';
 }
-
-/** The pipeline keeps up to this many characters per difficulty per show (the best known of each). */
-export const CHARACTERS_PER_DIFFICULTY = 3;
 
 /** Character difficulty asked in each round: easy, medium, hard. */
 export const CHARACTER_ROUND_DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard'];

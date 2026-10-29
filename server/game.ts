@@ -15,7 +15,22 @@ import {
   type Pool,
 } from '../shared/catalog.js';
 import { CHARACTER_MIN_FAVORITES, CHARACTER_ROUND_DIFFICULTIES, characterDifficultyOf, displayName } from '../shared/characters.js';
-import { CHARACTERS_PER_ROUND, FIRST_DAILY_DATE, isRoundMode, isSongMode, MODE_MEDIA, MODES, ROUND_COUNT, roundDifficulties, shiftDate, todayUtc7, type MediaKind, type Mode } from '../shared/modes.js';
+import {
+  CHARACTERS_PER_ROUND,
+  FIRST_DAILY_DATE,
+  isRoundMode,
+  isSongMode,
+  MODE_MEDIA,
+  MODES,
+  ROUND_COUNT,
+  roundDifficulties,
+  shiftDate,
+  SONG_KIND,
+  todayUtc7,
+  type MediaKind,
+  type Mode,
+  type ThemeKind,
+} from '../shared/modes.js';
 import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
 import { seedOf } from './crypto.js';
@@ -37,20 +52,35 @@ export interface PoolSpec {
   malUsername: string | null;
   /** Any MAL genre id (genre, theme, demographic); applies to every pool. */
   genreId?: number;
-  /** Empty = every difficulty. */
+  /** Empty = every difficulty: the show's, or with `song` the song's own entry's. */
   difficulties: readonly Difficulty[];
-  /** Only titles whose media of this kind is in R2 (every mode but Anidle). */
+  /** Only titles whose media of this kind is ok (Screenshot, Character). */
   media?: MediaKind;
+  /** Song modes: only shows with a usable song of this kind whose entry is of one of `difficulties`. */
+  song?: ThemeKind;
   /** Only these MAL media types (Character mode: TV, so movies and specials don't repeat a show's cast). */
   mediaTypes?: readonly string[];
 }
 
-/** Difficulty condition on alias `a` (thresholds from shared/catalog.ts). */
-export const DIFFICULTY_SQL: Record<Difficulty, string> = {
-  easy: `a.members >= ${EASY_MIN_MEMBERS}`,
-  medium: `a.members >= ${MEDIUM_MIN_MEMBERS} AND a.members < ${EASY_MIN_MEMBERS}`,
-  hard: `(a.members < ${MEDIUM_MIN_MEMBERS} OR a.members IS NULL)`,
-};
+/** Difficulty condition on the members of alias `alias` (thresholds from shared/catalog.ts). */
+export function difficultySql(difficulty: Difficulty, alias = 'a'): string {
+  switch (difficulty) {
+    case 'easy':
+      return `${alias}.members >= ${EASY_MIN_MEMBERS}`;
+    case 'medium':
+      return `${alias}.members >= ${MEDIUM_MIN_MEMBERS} AND ${alias}.members < ${EASY_MIN_MEMBERS}`;
+    case 'hard':
+      return `(${alias}.members < ${MEDIUM_MIN_MEMBERS} OR ${alias}.members IS NULL)`;
+  }
+}
+
+const anyDifficultySql = (difficulties: readonly Difficulty[], alias: string) => `(${difficulties.map((d) => `(${difficultySql(d, alias)})`).join(' OR ')})`;
+
+/**
+ * FROM … WHERE of the songs that can be asked (alias t, its MAL entry e): ok, from an entry that is not
+ * excluded. A song's show is COALESCE(e.canonical_id, e.mal_id); its difficulty is its entry's members.
+ */
+export const USABLE_THEME_SQL = `anime_theme t JOIN anime e ON e.mal_id = t.mal_id WHERE t.status = 'ok' AND e.excluded IS NULL`;
 
 /**
  * SQL (on aliases `a` = the canonical entry and `col` = some table's mal_id) for "col is an entry of
@@ -94,7 +124,11 @@ function poolWhere(spec: PoolSpec): { sql: string; args: Array<string | number> 
     parts.push('EXISTS (SELECT 1 FROM anime_genre g WHERE g.mal_id = a.mal_id AND g.genre_id = ?)');
     args.push(spec.genreId);
   }
-  if (spec.difficulties.length) parts.push(`(${spec.difficulties.map((d) => `(${DIFFICULTY_SQL[d]})`).join(' OR ')})`);
+  if (spec.song) {
+    const ofDifficulty = spec.difficulties.length ? ` AND ${anyDifficultySql(spec.difficulties, 'e')}` : '';
+    parts.push(`EXISTS (SELECT 1 FROM ${USABLE_THEME_SQL} AND t.kind = ? AND ${ofShow('e.mal_id')}${ofDifficulty})`);
+    args.push(spec.song);
+  } else if (spec.difficulties.length) parts.push(anyDifficultySql(spec.difficulties, 'a'));
   if (spec.media) {
     parts.push(`EXISTS (SELECT 1 FROM anime_media m WHERE m.mal_id = a.mal_id AND m.kind = ? AND m.status = 'ok')`);
     args.push(spec.media);
@@ -133,7 +167,8 @@ export function poolSpec(pool: Pool, account: Account | null, mode: Mode, filter
     malUsername: account?.malUsername ?? null,
     genreId: filters.genreId,
     difficulties: filters.difficulties ?? [],
-    media: MODE_MEDIA[mode] ?? undefined,
+    media: isSongMode(mode) ? undefined : (MODE_MEDIA[mode] ?? undefined),
+    song: isSongMode(mode) ? SONG_KIND[mode] : undefined,
     mediaTypes: mode === 'character' ? ['tv'] : undefined,
   };
 }
@@ -304,15 +339,39 @@ async function characterDifficultiesByShow(): Promise<Map<number, Set<Difficulty
   return out;
 }
 
+/** A new puzzle's round: its titles, and in song modes the song it plays (an anime_theme id). */
+export interface DrawnRound {
+  malIds: number[];
+  themeId: number | null;
+}
+
+/**
+ * One usable song of `kind` from show `malId` whose entry is of one of `difficulties` (empty = any),
+ * chosen by `pick` among them in id order (deterministic for a daily seed).
+ */
+async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly Difficulty[], pick: (size: number) => number): Promise<number> {
+  const themes = (
+    await all<{ id: number; members: number | null }>(`SELECT t.id, e.members FROM ${USABLE_THEME_SQL} AND t.kind = ? AND (e.mal_id = ? OR e.canonical_id = ?) ORDER BY t.id`, [
+      kind,
+      malId,
+      malId,
+    ])
+  ).filter((t) => !difficulties.length || difficulties.includes(difficultyOf(t.members == null ? null : Number(t.members))));
+  if (!themes.length) throw new HttpError(500, 'A show has no song left to play.');
+  return Number(themes[pick(themes.length)]!.id);
+}
+
 /**
  * The answers of a new puzzle per round, all from different franchises. Each round draws from its
  * roundDifficulties() slice of the pool (round 1 easy, then medium); a slice that is too small (media
- * still being copied) falls back to the whole pool. Character mode instead keeps the whole pool for
- * every round and asks for a character of CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by
- * the character's own popularity), so only shows with such a character qualify. Titles in `avoid`
- * (recent daily answers) are only reused when nothing else is left.
+ * still being copied) falls back to the whole pool. Song modes stage by the song's own entry instead of
+ * the show: the round's show has a song of that difficulty, and that song is drawn among them. Character
+ * mode instead keeps the whole pool for every round and asks for a character of
+ * CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by the character's own popularity), so only
+ * shows with such a character qualify. Titles in `avoid` (recent daily answers) are only reused when
+ * nothing else is left.
  */
-export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<number[][]> {
+export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<DrawnRound[]> {
   const { rounds, perRound } = SHAPE[mode];
   const pools = new Map<string, Promise<PoolTitle[]>>();
   const titlesOf = (difficulties: readonly Difficulty[]) => {
@@ -322,41 +381,49 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
   };
   const characters = mode === 'character' ? await characterDifficultiesByShow() : null;
   const used = new Set<number>();
-  const out: number[][] = [];
+  const out: DrawnRound[] = [];
   for (let round = 0; round < rounds; round++) {
     const staged = rounds > 1 && !characters ? roundDifficulties(spec.difficulties, round) : spec.difficulties;
     const tries = staged === spec.difficulties ? [staged] : [staged, spec.difficulties];
     const wanted = CHARACTER_ROUND_DIFFICULTIES[round]!;
     const roundDraw = (n: number, size: number) => draw(round, n, size);
     let picked: PoolTitle[] | null = null;
+    let pickedFrom = staged;
     for (const difficulties of tries) {
       const titles = await titlesOf(difficulties);
       const pool = characters ? titles.filter((t) => characters.get(t.malId)?.has(wanted)) : titles;
       picked = pickTitles(pool.filter((t) => !avoid.has(t.malId)), perRound, roundDraw, used) ?? pickTitles(pool, perRound, roundDraw, used);
+      pickedFrom = difficulties;
       if (picked) break;
     }
     if (!picked) throw new HttpError(404, 'This pool is too small for this mode.');
     for (const t of picked) used.add(t.franchise);
-    out.push(picked.map((t) => t.malId));
+    // Draw index past the title draws (n < 50), so the song choice is its own random number.
+    const themeId = spec.song ? await drawTheme(picked[0]!.malId, spec.song, pickedFrom, (size) => draw(round, 500, size)) : null;
+    out.push({ malIds: picked.map((t) => t.malId), themeId });
   }
   return out;
 }
 
 /**
- * Rows that store a new puzzle's answers: puzzle_round for one-title rounds (song, staged), puzzle_character
- * for Character, whose character per show is drawn among its characters of the round's difficulty.
+ * Rows that store a new puzzle's answers: puzzle_round for one-title rounds (song, staged; song rounds
+ * with their song), puzzle_character for Character, whose character per show is drawn among its
+ * characters of the round's difficulty.
  */
-async function answerInserts(puzzleId: string, mode: Mode, answers: number[][], draw: Draw) {
+async function answerInserts(puzzleId: string, mode: Mode, answers: DrawnRound[], draw: Draw) {
   if (isRoundMode(mode) || isSongMode(mode))
-    return answers.map(([malId], round) => ({ sql: 'INSERT OR IGNORE INTO puzzle_round (puzzle_id, round, mal_id) VALUES (?, ?, ?)', args: [puzzleId, round, malId!] }));
+    return answers.map(({ malIds: [malId], themeId }, round) => ({
+      sql: 'INSERT OR IGNORE INTO puzzle_round (puzzle_id, round, mal_id, theme_id) VALUES (?, ?, ?, ?)',
+      args: [puzzleId, round, malId!, themeId],
+    }));
   if (mode !== 'character') return [];
-  const ids = answers.flat();
+  const ids = answers.flatMap((r) => r.malIds);
   const chars = await all<{ mal_id: number; char_id: number; favorites: number }>(
     `SELECT mal_id, char_id, favorites FROM anime_character WHERE favorites >= ? AND mal_id IN (${ids.map(() => '?').join(',')}) ORDER BY favorites DESC`,
     [CHARACTER_MIN_FAVORITES, ...ids],
   );
   const byShow = Map.groupBy(chars, (c) => Number(c.mal_id));
-  return answers.flatMap((titles, round) =>
+  return answers.flatMap(({ malIds: titles }, round) =>
     titles.map((malId, slot) => {
       const known = byShow.get(malId) ?? [];
       const fitting = known.filter((c) => characterDifficultyOf(Number(c.favorites)) === CHARACTER_ROUND_DIFFICULTIES[round]);
@@ -404,7 +471,7 @@ export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> 
 
   // Concurrent first requests race here; UNIQUE(date, mode) keeps exactly one puzzle, and both
   // requests drew the same answers, so the answer rows go to whichever puzzle row won.
-  await run('INSERT OR IGNORE INTO puzzle (id, date, mode, pool, answer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), date, mode, 'semua', answers[0]![0]!, nowIso()]);
+  await run('INSERT OR IGNORE INTO puzzle (id, date, mode, pool, answer_id, created_at) VALUES (?, ?, ?, ?, ?, ?)', [randomUUID(), date, mode, 'semua', answers[0]!.malIds[0]!, nowIso()]);
   const row = (await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]))!;
   const inserts = await answerInserts(row.id, mode, answers, seeded);
   if (inserts.length) await db().batch(inserts, 'write');
@@ -413,7 +480,7 @@ export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> 
 
 export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
   const answers = await drawRounds(mode, spec, randomDraw);
-  const row: PuzzleRow = { id: randomUUID(), date: null, mode, pool: spec.pool, answer_id: answers[0]![0]!, created_by: playerKey, options: JSON.stringify(options) };
+  const row: PuzzleRow = { id: randomUUID(), date: null, mode, pool: spec.pool, answer_id: answers[0]!.malIds[0]!, created_by: playerKey, options: JSON.stringify(options) };
   await db().batch(
     [
       {
@@ -429,7 +496,8 @@ export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: Puzzl
 
 /**
  * Puts another title from the same pool and round difficulty into `round` of an unlimited puzzle that
- * stores one title per round (song and staged modes). The caller checks the round is untouched.
+ * stores one title per round (song and staged modes); song modes also draw that title's song, and the
+ * old song's R2 copy no longer applies. The caller checks the round is untouched.
  */
 export async function swapRoundTitle(puzzle: PuzzleRow, account: Account | null, round: number): Promise<void> {
   if (!Number.isInteger(round) || round < 0 || round >= ROUND_COUNT) throw new HttpError(400, 'Unknown round.');
@@ -438,12 +506,14 @@ export async function swapRoundTitle(puzzle: PuzzleRow, account: Account | null,
   const taken = new Set(current.map((r) => Number(r.mal_id)));
   const franchises = new Set([...(await loadAnidle([...taken])).values()].map((a) => a.franchiseId ?? -a.malId));
   const spec = poolSpec(puzzle.pool, account, puzzle.mode, options);
-  const titles = (await poolTitles({ ...spec, difficulties: roundDifficulties(spec.difficulties, round) })).filter((t) => !taken.has(t.malId));
+  const difficulties = roundDifficulties(spec.difficulties, round);
+  const titles = (await poolTitles({ ...spec, difficulties })).filter((t) => !taken.has(t.malId));
   const replacement = pickTitles(titles, 1, (_n, size) => Math.floor(Math.random() * size), franchises)?.[0];
   if (!replacement) throw new HttpError(404, 'No other title left in this pool.');
+  const themeId = spec.song ? await drawTheme(replacement.malId, spec.song, difficulties, (size) => Math.floor(Math.random() * size)) : null;
   await db().batch(
     [
-      { sql: 'UPDATE puzzle_round SET mal_id = ? WHERE puzzle_id = ? AND round = ?', args: [replacement.malId, puzzle.id, round] },
+      { sql: 'UPDATE puzzle_round SET mal_id = ?, theme_id = ?, audio_key = NULL WHERE puzzle_id = ? AND round = ?', args: [replacement.malId, themeId, puzzle.id, round] },
       ...(round === 0 ? [{ sql: 'UPDATE puzzle SET answer_id = ? WHERE id = ?', args: [replacement.malId, puzzle.id] }] : []),
     ],
     'write',

@@ -1,15 +1,16 @@
 import { isCorrect } from '../shared/anidle.js';
-import type { Difficulty, Pool } from '../shared/catalog.js';
-import { MODE_MEDIA, ROUND_COUNT, ROUND_MAX_POINTS, SONG_CLUE_SHARE, type SongMode } from '../shared/modes.js';
+import { difficultyOf, type Difficulty, type Pool } from '../shared/catalog.js';
+import { ROUND_COUNT, ROUND_MAX_POINTS, SONG_CLUE_SHARE, SONG_KIND, type SongMode } from '../shared/modes.js';
 import { opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
 import { mediaUrl } from './media.js';
 
-// Opening / Ending: ROUND_COUNT rounds of one title. The whole song plays (streamed from AnimeThemes
-// through /api/media, so the file name never reaches the browser); the player gets one guess, and may
-// first open a blurred clue (the opening's or ending's own video) for half the points.
+// Opening / Ending: ROUND_COUNT rounds of one title. Each round plays one song (puzzle_round.theme_id)
+// of any MAL entry of the show; the whole song plays (streamed from AnimeThemes through /api/media, so
+// the file name never reaches the browser); the player gets one guess, and may first open a blurred clue
+// (the opening's or ending's own video) for half the points.
 // play.guesses holds StoredSong[] per round: g = guessed mal_id (0 = gave up, null = not yet), c = clue opened.
 
 interface StoredSong {
@@ -19,9 +20,11 @@ interface StoredSong {
 
 export interface SongInfo {
   /** AnimeThemes slug, e.g. OP1 */
-  label: string | null;
+  label: string;
   title: string | null;
   artist: string | null;
+  /** The MAL entry the song belongs to, when it is not the show's own entry (e.g. a later season). */
+  entryTitle: string | null;
 }
 
 export interface SongRoundState {
@@ -37,7 +40,7 @@ export interface SongRoundState {
     /** Only once opened: the cover, shown blurred (Ending: beside the video; both: when the video does not load). */
     cover: string | null;
   };
-  /** The answer's difficulty: shown from the start, like the round's label. */
+  /** The song's difficulty (from its own entry's members): shown from the start, like the round's label. */
   difficulty: Difficulty;
   guess: { malId: number; title: string } | null;
   gaveUp: boolean;
@@ -63,34 +66,55 @@ export interface SongState {
 }
 
 export interface SongSource {
+  /** The show (the answer). */
   malId: number;
+  /** The song played (anime_theme.id). */
+  themeId: number;
   audioUrl: string;
   /** The daily step's copy of the full song on R2 (puzzle_round.audio_key), when there is one. */
   audioKey: string | null;
-  /** The theme's smallest video on AnimeThemes (older rows: derived from the audio URL). */
+  /** The theme's smallest video on AnimeThemes (none known: derived from the audio URL). */
   videoUrl: string;
-  /** The 240p clue clip on R2 (pipeline step `clips`), when there is one. */
+  /** The 240p clue clip on R2 (pipeline steps `clips`/`daily`), when there is one. */
   clipKey: string | null;
   song: SongInfo;
+  /** From the members of the song's own entry. */
+  difficulty: Difficulty;
 }
 
-/** The round titles of a song puzzle with their AnimeThemes source, in round order. */
+/** The rounds of a song puzzle with the song each plays, in round order. */
 export async function songSources(puzzleId: string, mode: SongMode): Promise<SongSource[]> {
-  const rows = await all<{ mal_id: number; audio_key: string | null; source_url: string | null; video_url: string | null; clip_key: string | null; label: string | null; song_title: string | null; artist: string | null }>(
-    `SELECT r.mal_id, r.audio_key, m.source_url, m.video_url, m.clip_key, m.label, m.song_title, m.artist
-     FROM puzzle_round r LEFT JOIN anime_media m ON m.mal_id = r.mal_id AND m.kind = ?
+  const rows = await all<{
+    mal_id: number;
+    audio_key: string | null;
+    theme_id: number | null;
+    audio_url: string | null;
+    video_url: string | null;
+    clip_key: string | null;
+    label: string | null;
+    song_title: string | null;
+    artist: string | null;
+    entry_id: number | null;
+    entry_title: string | null;
+    entry_members: number | null;
+  }>(
+    `SELECT r.mal_id, r.audio_key, t.id AS theme_id, t.audio_url, t.video_url, t.clip_key, t.label, t.song_title, t.artist,
+            e.mal_id AS entry_id, e.title AS entry_title, e.members AS entry_members
+     FROM puzzle_round r LEFT JOIN anime_theme t ON t.id = r.theme_id AND t.kind = ? LEFT JOIN anime e ON e.mal_id = t.mal_id
      WHERE r.puzzle_id = ? ORDER BY r.round`,
-    [MODE_MEDIA[mode]!, puzzleId],
+    [SONG_KIND[mode], puzzleId],
   );
-  if (rows.length !== ROUND_COUNT || rows.some((r) => !r.source_url)) throw new HttpError(500, 'Puzzle data is incomplete.');
+  if (rows.length !== ROUND_COUNT || rows.some((r) => r.theme_id == null || r.entry_id == null)) throw new HttpError(500, 'Puzzle data is incomplete.');
   return rows.map((r) => ({
     malId: Number(r.mal_id),
-    audioUrl: r.source_url!,
+    themeId: Number(r.theme_id),
+    audioUrl: r.audio_url!,
     audioKey: r.audio_key,
     // AnimeThemes extracts each audio file from a video of the same name: a.…/X.ogg ↔ v.…/X.webm.
-    videoUrl: r.video_url || r.source_url!.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm'),
+    videoUrl: r.video_url || r.audio_url!.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm'),
     clipKey: r.clip_key || null,
-    song: { label: r.label, title: r.song_title, artist: r.artist },
+    song: { label: r.label!, title: r.song_title, artist: r.artist, entryTitle: Number(r.entry_id) === Number(r.mal_id) ? null : r.entry_title },
+    difficulty: difficultyOf(r.entry_members == null ? null : Number(r.entry_members)),
   }));
 }
 
@@ -109,7 +133,7 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
   const anime = await loadAnidle([...sources.map((s) => s.malId), ...stored.flatMap((s) => (s.g ? [s.g] : []))]);
   // v changes when a round is replaced, so a cached copy of the old song is never played for the new one.
   const media = (round: number, kind: 'audio' | 'video') =>
-    `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}&v=${opaqueTag(`${puzzle.id}:${round}:${sources[round]!.malId}`)}`;
+    `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}&v=${opaqueTag(`${puzzle.id}:${round}:${sources[round]!.malId}:${sources[round]!.themeId}`)}`;
   const rounds = sources.map((s, i): SongRoundState => {
     const answer = anime.get(s.malId);
     if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
@@ -117,10 +141,10 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
     const guessed = played.g ? anime.get(played.g) : undefined;
     const solved = guessed !== undefined && isCorrect(answer, guessed);
     const finished = played.g !== null;
-    const info = answerInfo(answer);
+    const info = { ...answerInfo(answer), difficulty: s.difficulty };
     return {
       audio: s.audioKey ? mediaUrl(s.audioKey) : media(i, 'audio'),
-      difficulty: info.difficulty,
+      difficulty: s.difficulty,
       clue: {
         opened: played.c,
         url: played.c || finished ? (s.clipKey ? mediaUrl(s.clipKey) : media(i, 'video')) : null,

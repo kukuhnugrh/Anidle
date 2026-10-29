@@ -24,9 +24,15 @@ export type RoundMode = 'screenshot';
 
 export const MODE_LABELS: Record<Mode, string> = { anidle: 'Anidle', opening: 'Opening', ending: 'Ending', character: 'Character', screenshot: 'Guess the Anime' };
 
-/** anime_media.kind: media the pipeline found or copied to R2 for a title (op/ed: the AnimeThemes source). */
-export const MEDIA_KINDS = ['cover', 'op', 'ed', 'chars', 'shots'] as const;
+/** anime_media.kind: media the pipeline copied to R2 for a title. Songs live in anime_theme (SONG_KIND). */
+export const MEDIA_KINDS = ['cover', 'chars', 'shots'] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
+
+/** anime_theme.kind: an opening or an ending of one MAL entry. */
+export type ThemeKind = 'op' | 'ed';
+
+/** The songs a song mode plays: a title qualifies when one of its entries has an ok theme of this kind. */
+export const SONG_KIND: Record<SongMode, ThemeKind> = { opening: 'op', ending: 'ed' };
 
 /** anime_media.status. Pools use ok only; rejected = turned down by an admin. */
 export const MEDIA_STATUSES = ['ok', 'missing', 'broken', 'rejected'] as const;
@@ -35,8 +41,8 @@ export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 export const isRoundMode = (mode: Mode): mode is RoundMode => mode === 'screenshot';
 export const isSongMode = (mode: Mode): mode is SongMode => mode === 'opening' || mode === 'ending';
 
-/** What a title needs to be asked in a mode (Anidle needs nothing). */
-export const MODE_MEDIA: Record<Mode, Exclude<MediaKind, 'cover'> | null> = { anidle: null, opening: 'op', ending: 'ed', screenshot: 'shots', character: 'chars' };
+/** What a title needs to be asked in the other modes (Anidle needs nothing); song modes need a theme of SONG_KIND. */
+export const MODE_MEDIA: Record<Exclude<Mode, SongMode>, Exclude<MediaKind, 'cover'> | null> = { anidle: null, screenshot: 'shots', character: 'chars' };
 
 export const ROUND_COUNT = 3;
 

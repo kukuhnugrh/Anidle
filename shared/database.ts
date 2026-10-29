@@ -1,6 +1,6 @@
 // Contract of the anime database browser (/api/anime, /api/anime/facets, /api/anime/detail), shared by server and UI.
 import type { Difficulty, GenreType } from './catalog';
-import type { Mode } from './modes';
+import type { Mode, ThemeKind } from './modes';
 
 export const DB_SORTS = {
   popularity: 'Popularity (most members)',
@@ -72,12 +72,18 @@ export interface DbEntry {
   episodes: number | null;
 }
 
-/** The OP or ED the Opening/Ending modes play for a show. */
+/** An OP or ED the Opening/Ending modes can play for a show (from any of its MAL entries). */
 export interface DbSong {
+  /** AnimeThemes theme id. */
+  id: number;
   /** AnimeThemes slug, e.g. OP1. */
-  label: string | null;
+  label: string;
   title: string | null;
   artist: string | null;
+  /** The MAL entry the song belongs to. */
+  entry: { malId: number; title: string };
+  /** The round's difficulty when this song plays (from its entry's MAL members). */
+  difficulty: Difficulty;
   /** The full song (AnimeThemes). */
   audio: string;
   /** The clue's video (shown blurred and muted): the 240p clip on R2, else the theme's AnimeThemes video. */
@@ -123,7 +129,8 @@ export interface DbDetail extends DbItem {
   merged: DbEntry[];
   /** Modes this show can be asked in (it has the media they need). */
   modes: Mode[];
-  songs: { op: DbSong | null; ed: DbSong | null };
+  /** Every song the game can play, by entry start date then sequence. */
+  songs: Record<ThemeKind, DbSong[]>;
   characters: DbCharacter[];
   /** Guess the Anime's frames from the opening, in the order they are shown. */
   screenshots: string[];

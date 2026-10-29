@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS daily_reroll (
   n     INTEGER NOT NULL
 );
 
--- Rounds of multi-round modes (opening, ending). puzzle.answer_id repeats round 0.
+-- Rounds of multi-round modes (opening, ending, screenshot). puzzle.answer_id repeats round 0.
+-- Song rounds also store the song played (theme_id, added in pipeline/migrate.ts).
 CREATE TABLE IF NOT EXISTS puzzle_round (
   puzzle_id  TEXT NOT NULL,
   round      INTEGER NOT NULL,
@@ -111,23 +112,39 @@ CREATE TABLE IF NOT EXISTS puzzle_character (
 );
 
 -- Media copied to R2 by the pipeline step `media`. One row per title and kind; modes that need a kind
--- only use titles whose row is ok.
+-- only use titles whose row is ok. Songs live in anime_theme.
 CREATE TABLE IF NOT EXISTS anime_media (
   mal_id      INTEGER NOT NULL,
-  kind        TEXT NOT NULL,   -- cover | op | ed | chars (anime_character) | shots (anime_screenshot)
+  kind        TEXT NOT NULL,   -- cover | chars (anime_character) | shots (anime_screenshot)
   status      TEXT NOT NULL,   -- ok | missing (no source) | broken (failed processing/validation) | rejected (by an admin)
   r2_key      TEXT,            -- object key under MEDIA_BASE_URL, content-hashed
   source_url  TEXT,
-  label       TEXT,            -- AnimeThemes slug, e.g. OP1
-  song_title  TEXT,
-  artist      TEXT,
   error       TEXT,
   checked_at  TEXT NOT NULL,
   PRIMARY KEY (mal_id, kind)
 );
 CREATE INDEX IF NOT EXISTS anime_media_usable ON anime_media (kind, status);
 
--- Karakter portraits (pipeline step `characters`), shown slot 0 first. A title is usable when its
+-- Every OP/ED of every MAL entry (pipeline step `media`, from AnimeThemes). The show is the entry's
+-- canonical_id; a song's difficulty comes from its entry's members. Rejected (admin) = never asked.
+CREATE TABLE IF NOT EXISTS anime_theme (
+  id          INTEGER PRIMARY KEY,         -- AnimeThemes animetheme id
+  mal_id      INTEGER NOT NULL,            -- the MAL entry the song belongs to
+  kind        TEXT NOT NULL,               -- op | ed
+  seq         INTEGER NOT NULL,            -- AnimeThemes sequence (OP1 = 1; unnumbered = 1)
+  label       TEXT NOT NULL,               -- slug, e.g. OP1, ED2-TV
+  song_title  TEXT,
+  artist      TEXT,
+  audio_url   TEXT NOT NULL,
+  video_url   TEXT NOT NULL DEFAULT '',    -- the entry's smallest video ('' = none)
+  clip_key    TEXT,                        -- 240p muted clue clip on R2 (steps clips/daily); '' = could not be made
+  status      TEXT NOT NULL DEFAULT 'ok',  -- ok | rejected (admin) | missing (AnimeThemes no longer lists it; kept for old rounds)
+  checked_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS anime_theme_entry ON anime_theme (mal_id, kind);
+
+-- Karakter portraits (pipeline step `characters`): every character with >= CHARACTER_MIN_FAVORITES from
+-- every MAL entry of the show, stored under the show id, slot 0 = best known. A title is usable when its
 -- anime_media row of kind 'chars' is ok.
 CREATE TABLE IF NOT EXISTS anime_character (
   mal_id     INTEGER NOT NULL,
@@ -139,6 +156,8 @@ CREATE TABLE IF NOT EXISTS anime_character (
   r2_key     TEXT NOT NULL,
   PRIMARY KEY (mal_id, slot)
 );
+-- Portrait/nickname reuse across shows, nickname updates and the name autocomplete all look up by char_id.
+CREATE INDEX IF NOT EXISTS anime_character_char ON anime_character (char_id);
 
 -- Every show a character appears in (characters with ≥ CHARACTER_MIN_FAVORITES, pipeline step
 -- `characters`, not only the ones kept as portraits): Character mode accepts any of them as the anime.

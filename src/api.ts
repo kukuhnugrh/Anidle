@@ -113,6 +113,7 @@ export const api = {
   history: () => call<History>('/api/history'),
   adminMedia: (query: string) => call<AdminPage>(`/api/admin/media?${query}`),
   setMediaStatus: (malId: number, kind: string, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { malId, kind, action } }),
+  setThemeStatus: (themeId: number, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { themeId, action } }),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
   animeDetail: (id: number) => call<DbDetail>(`/api/anime/detail?id=${id}`),
 };

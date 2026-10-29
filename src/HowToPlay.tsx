@@ -11,8 +11,9 @@ const clueAfter = (kind: (typeof ANIDLE_CLUES)[number]['kind']) => ANIDLE_CLUES.
 
 const songRules = (song: 'opening' | 'ending'): ReactNode[] => [
   <>
-    {ROUND_COUNT} rounds, each the {song} of a different anime. Press play: the whole song plays and you can seek.
+    {ROUND_COUNT} rounds, each one {song} of a different anime: any of its {song}s, from any season, movie or OVA. Press play: the whole song plays and you can seek.
   </>,
+  <>The round's difficulty is the song's own: how popular the season or movie it comes from is.</>,
   <>Type a title, pick it from the list, then press Guess. You get one guess per round, and any season, movie or remake of the same series counts.</>,
   <>
     Stuck? <b>Show clue</b> plays its music video, blurred and muted, along with the song{song === 'ending' ? ', next to the blurred poster' : ''}. It halves the round's points.

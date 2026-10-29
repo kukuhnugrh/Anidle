@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ANIDLE_CLUES } from '../shared/anidle';
 import type { DbDetail, DbSong } from '../shared/database';
-import { MODE_LABELS, MODES, type Mode } from '../shared/modes';
+import { isSongMode, MODE_LABELS, MODES, SONG_KIND, type Mode } from '../shared/modes';
 import { api, errorMessage } from './api';
 import { fmtNumber, pretty } from './format';
 
@@ -23,36 +23,66 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** Ending shows the blurred poster beside the clip; both modes fall back to it when there is no clip. */
-function SongPanel({ song, poster, withCover }: { song: DbSong | null; poster: string | null; withCover: boolean }) {
-  if (!song) return <p className="muted">No song found for this show, so this mode never asks it.</p>;
+function SongClue({ song, poster, withCover }: { song: DbSong; poster: string | null; withCover: boolean }) {
+  return (
+    <div className="clue-pair show-clue-pair">
+      {song.clip ? (
+        <div className="clue-frame">
+          <video className="clue-media" src={song.clip} muted loop playsInline controls controlsList="nodownload" disablePictureInPicture preload="metadata" />
+        </div>
+      ) : (
+        <p className="muted small">No clue clip: the clue is the blurred poster.</p>
+      )}
+      {(withCover || !song.clip) && poster && (
+        <span className="clue-cover">
+          <img className="clue-media cover" src={poster} alt="" />
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Every song a mode can play for the show; one clue video at a time, opened on demand. */
+function SongPanel({ songs, d, withCover }: { songs: DbSong[]; d: DbDetail; withCover: boolean }) {
+  const [clue, setClue] = useState<number | null>(null);
+  if (!songs.length) return <p className="muted">No song found for this show, so this mode never asks it.</p>;
+  const merged = d.merged.length > 1;
   return (
     <div className="show-panel">
-      <div>
-        <span className="field-label">The song (played in full)</span>
-        <div className="show-song-title">
-          <b>{song.title ?? 'Unknown title'}</b>
-          {song.label && <span className="muted small"> · {song.label}</span>}
-        </div>
-        {song.artist && <div className="muted small">{song.artist}</div>}
-      </div>
-      <audio controls preload="none" src={song.audio} />
-      <div>
-        <span className="field-label">The clue (halves the round's points)</span>
-        <div className="clue-pair show-clue-pair">
-          {song.clip ? (
-            <div className="clue-frame">
-              <video className="clue-media" src={song.clip} muted loop playsInline controls controlsList="nodownload" disablePictureInPicture preload="metadata" />
+      <p className="muted small">
+        Each round plays one of these songs in full. Its difficulty comes from its own entry's MAL members; the clue (the song's video, blurred) halves the round's points.
+      </p>
+      <ol className="show-songs">
+        {songs.map((s) => (
+          <li key={s.id} className="show-song">
+            <div className="show-song-head">
+              <div className="show-song-title">
+                <b>{s.title ?? 'Unknown title'}</b>
+                <span className="muted small"> · {s.label}</span>
+              </div>
+              <span className={`difficulty ${s.difficulty}`}>{s.difficulty}</span>
             </div>
-          ) : (
-            <p className="muted small">No clue clip yet: the clue is the blurred poster.</p>
-          )}
-          {(withCover || !song.clip) && poster && (
-            <span className="clue-cover">
-              <img className="clue-media cover" src={poster} alt="" />
-            </span>
-          )}
-        </div>
-      </div>
+            {(s.artist || merged) && (
+              <div className="muted small">
+                {s.artist}
+                {s.artist && merged && ' · '}
+                {merged && (
+                  <a href={malHref(s.entry.malId)} target="_blank" rel="noreferrer">
+                    {s.entry.title}
+                  </a>
+                )}
+              </div>
+            )}
+            <div className="show-song-play">
+              <audio controls preload="none" src={s.audio} />
+              <button className="ghost small" onClick={() => setClue(clue === s.id ? null : s.id)}>
+                {clue === s.id ? 'Hide clue' : 'Show clue'}
+              </button>
+            </div>
+            {clue === s.id && <SongClue song={s} poster={d.clues.poster} withCover={withCover} />}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -213,7 +243,11 @@ export function AnimeDetail({ id }: { id: number }) {
 
   const d = detail;
   const tabs: Array<{ id: Tab; label: string; note: string }> = [
-    ...MODES.map((m) => ({ id: m, label: MODE_LABELS[m], note: d.modes.includes(m) ? 'asked' : 'not asked' })),
+    ...MODES.map((m) => ({
+      id: m,
+      label: MODE_LABELS[m],
+      note: !d.modes.includes(m) ? 'not asked' : isSongMode(m) ? `${d.songs[SONG_KIND[m]].length} ${d.songs[SONG_KIND[m]].length === 1 ? 'song' : 'songs'}` : 'asked',
+    })),
     { id: 'about', label: 'About', note: `${d.merged.length} ${d.merged.length === 1 ? 'entry' : 'entries'}` },
   ];
   return (
@@ -278,8 +312,8 @@ export function AnimeDetail({ id }: { id: number }) {
 
       <section className="card show-card" role="tabpanel">
         {tab === 'anidle' && <AnidlePanel d={d} />}
-        {tab === 'opening' && <SongPanel song={d.songs.op} poster={d.clues.poster} withCover={false} />}
-        {tab === 'ending' && <SongPanel song={d.songs.ed} poster={d.clues.poster} withCover />}
+        {tab === 'opening' && <SongPanel key="op" songs={d.songs.op} d={d} withCover={false} />}
+        {tab === 'ending' && <SongPanel key="ed" songs={d.songs.ed} d={d} withCover />}
         {tab === 'character' && <CharacterPanel d={d} />}
         {tab === 'screenshot' && <ScreenshotPanel d={d} />}
         {tab === 'about' && <AboutPanel d={d} />}
