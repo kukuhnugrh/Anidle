@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, groupSkips, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
-import { characterDifficultyOf, isRomaji } from './characters';
+import { aliasOf, characterAliases, characterDifficultyOf, isRomaji, sameCharacterName } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
 import { roundDifficulties } from './modes';
@@ -92,6 +92,33 @@ describe('isRomaji', () => {
     expect(isRomaji('宮村 伊澄')).toBe(false);
     expect(isRomaji('Nazunacchi ナズナ')).toBe(false);
     expect(isRomaji('박은하')).toBe(false);
+  });
+});
+
+describe('sameCharacterName', () => {
+  it("matches MAL's family-first names to AniList's in any order, with or without a middle initial", () => {
+    expect(sameCharacterName('Todoroki, Enji', 'Enji Todoroki')).toBe(true);
+    expect(sameCharacterName('Monkey D., Luffy', 'Luffy Monkey')).toBe(true);
+    expect(sameCharacterName('Bentham', 'Bentham')).toBe(true);
+  });
+
+  it('never lets a single word claim a longer name, and keeps different people apart', () => {
+    expect(sameCharacterName('Monkey D., Luffy', 'Luffy')).toBe(false);
+    expect(sameCharacterName('Todoroki, Shouto', 'Enji Todoroki')).toBe(false);
+    expect(sameCharacterName('Rin', 'Rin Tohsaka')).toBe(false);
+  });
+});
+
+describe('aliasOf / characterAliases', () => {
+  it("drops AniList's native-script part and refuses names that are not romaji", () => {
+    expect(aliasOf('Bon Clay (ボンクーレイ)')).toBe('Bon Clay');
+    expect(aliasOf('Mr. 2')).toBe('Mr. 2');
+    expect(aliasOf('ボンちゃん')).toBeNull();
+  });
+
+  it('merges MAL nicknames and AniList aliases once each, without repeating the name itself', () => {
+    expect(characterAliases('["Mr. 2 Bon Kurei"]', '["Mr. 2","Bon Clay","mr. 2"]', 'Bentham')).toEqual(['Mr. 2 Bon Kurei', 'Mr. 2', 'Bon Clay']);
+    expect(characterAliases('[]', '["Enji Todoroki","Endeavor"]', 'Todoroki, Enji')).toEqual(['Endeavor']);
   });
 });
 

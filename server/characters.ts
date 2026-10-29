@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import { CANONICAL_SQL, DIFFICULTIES, type Difficulty, type Pool } from '../shared/catalog.js';
-import { CHARACTER_FIELDS_PER_ROUND, characterDifficultyOf, displayName, type CharacterField } from '../shared/characters.js';
+import { CHARACTER_FIELDS_PER_ROUND, characterAliases, characterDifficultyOf, displayName, type CharacterField } from '../shared/characters.js';
 import { ROUND_COUNT, ROUND_MAX_POINTS } from '../shared/modes.js';
 import type { CharacterEntry } from '../shared/normalize.js';
 import { all } from './db.js';
@@ -66,13 +66,14 @@ interface SlotRow {
   char_id: number;
   name: string;
   nicknames: string;
+  aliases: string;
   favorites: number | null;
   r2_key: string;
 }
 
 async function loadSlots(puzzleId: string): Promise<SlotRow[][]> {
   const rows = await all<SlotRow>(
-    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.favorites, c.r2_key
+    `SELECT p.round, p.slot, p.mal_id, p.char_id, c.name, c.nicknames, c.aliases, c.favorites, c.r2_key
      FROM puzzle_character p JOIN anime_character c ON c.mal_id = p.mal_id AND c.char_id = p.char_id
      WHERE p.puzzle_id = ? ORDER BY p.round, p.slot`,
     [puzzleId],
@@ -141,7 +142,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
         answer: done
           ? {
               name: displayName(s.name),
-              aliases: JSON.parse(s.nicknames) as string[],
+              aliases: characterAliases(s.nicknames, s.aliases, s.name),
               anime: info,
               otherShows: shows.filter((row) => Number(row.show) !== info.malId).map((row) => ({ malId: Number(row.show), title: row.title })),
             }
@@ -226,8 +227,8 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
  * characters sharing a name (several "Rin"): they cannot be told apart without giving the anime away.
  */
 export async function characterEntries(): Promise<CharacterEntry[]> {
-  const rows = await all<{ char_id: number; name: string; nicknames: string }>(
-    `SELECT c.char_id, MIN(c.name) AS name, MAX(c.nicknames) AS nicknames
+  const rows = await all<{ char_id: number; name: string; nicknames: string; aliases: string }>(
+    `SELECT c.char_id, MIN(c.name) AS name, MAX(c.nicknames) AS nicknames, MAX(c.aliases) AS aliases
      FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
      WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY c.char_id ORDER BY MAX(a.members) DESC`,
   );
@@ -236,7 +237,7 @@ export async function characterEntries(): Promise<CharacterEntry[]> {
   for (const r of rows) {
     const shown = displayName(r.name);
     const entry = byName.get(shown.toLowerCase()) ?? { id: Number(r.char_id), names: [shown] };
-    for (const n of JSON.parse(r.nicknames) as string[]) if (!entry.names.includes(n)) entry.names.push(n);
+    for (const n of characterAliases(r.nicknames, r.aliases, r.name)) if (!entry.names.includes(n)) entry.names.push(n);
     byName.set(shown.toLowerCase(), entry);
   }
   return [...byName.values()];

@@ -1,6 +1,6 @@
 import { CANONICAL_SQL, difficultyOf, type GenreType } from '../shared/catalog.js';
 import { maskSynopsis } from '../shared/anidle.js';
-import { characterDifficultyOf, displayName } from '../shared/characters.js';
+import { characterAliases, characterDifficultyOf, displayName } from '../shared/characters.js';
 import { DB_PAGE_SIZE, type DbDetail, type DbFacets, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSong, type DbSort } from '../shared/database.js';
 import { isSongMode, MODE_MEDIA, MODES, SONG_KIND, type ThemeKind } from '../shared/modes.js';
 import { titleHint } from '../shared/normalize.js';
@@ -158,8 +158,8 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
        ORDER BY e.start_date IS NULL, e.start_date, e.mal_id, t.seq, t.label`,
       [malId, malId],
     ),
-    all<{ char_id: number; name: string; nicknames: string; role: string | null; favorites: number | null; r2_key: string }>(
-      'SELECT char_id, name, nicknames, role, favorites, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot',
+    all<{ char_id: number; name: string; nicknames: string; aliases: string; role: string | null; favorites: number | null; r2_key: string }>(
+      'SELECT char_id, name, nicknames, aliases, role, favorites, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot',
       [malId],
     ),
     all<{ r2_key: string }>('SELECT r2_key FROM anime_screenshot WHERE mal_id = ? ORDER BY slot', [malId]),
@@ -204,7 +204,7 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
       ? characters.map((c) => ({
           id: Number(c.char_id),
           name: displayName(c.name),
-          nicknames: JSON.parse(c.nicknames) as string[],
+          nicknames: characterAliases(c.nicknames, c.aliases, c.name),
           role: c.role,
           favorites: num(c.favorites),
           difficulty: characterDifficultyOf(Number(c.favorites ?? 0)),

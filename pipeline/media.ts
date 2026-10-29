@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
-import { CHARACTER_MIN_FAVORITES, isRomaji } from '../shared/characters.js';
+import { aliasOf, CHARACTER_MIN_FAVORITES, isRomaji, sameCharacterName } from '../shared/characters.js';
 import { SCREENSHOTS_PER_TITLE, shiftDate, todayUtc7, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { dailyPuzzle } from '../server/game.js';
@@ -13,6 +13,7 @@ import { songSources } from '../server/songs.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { deleteObject, putObject } from './r2.js';
 import { entryThemes, firstTheme, type ThemeSource } from './sources/animeThemes.js';
+import { anilistCharacters } from './sources/anilist.js';
 import { animeCharacters, characterDetail, type JikanCharacter } from './sources/jikanEdge.js';
 
 const COVER_WIDTH = 400;
@@ -390,6 +391,79 @@ export async function stepNicknames(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   log('nicknames:', counts);
+}
+
+/** AniList pages (50 characters, best known first) read per MAL entry before moving to the next one. */
+const ALIAS_PAGES_PER_ENTRY = 4;
+/** Per show at most this many AniList requests: the last few unmatched names are rarely found further on. */
+const ALIAS_REQUESTS_PER_SHOW = 8;
+
+/**
+ * AniList's alternative names of every stored character (Bentham: "Mr. 2", "Bon Clay"; Enji Todoroki:
+ * "Endeavor"), without the spoiler ones and kana/kanji, so the name autocomplete finds them too. Per
+ * show, most popular first: AniList's cast of the show's entries (the show's own first, then the most
+ * popular) is matched to its stored characters by name (sameCharacterName; a name two of them share is
+ * left alone), until all are found. Shows already asked are skipped unless --refresh.
+ */
+export async function stepAliases(refreshAll: boolean, limit: number) {
+  const shows = await all<{ mal_id: number }>(
+    `SELECT a.mal_id FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND (? OR a.aliases_at IS NULL)
+       AND EXISTS (SELECT 1 FROM anime_character c WHERE c.mal_id = a.mal_id) ORDER BY a.members DESC`,
+    [refreshAll ? 1 : 0],
+  );
+  const entries = Map.groupBy(
+    await all<{ mal_id: number; show: number }>('SELECT mal_id, COALESCE(canonical_id, mal_id) AS show FROM anime WHERE excluded IS NULL ORDER BY members DESC'),
+    (e) => Number(e.show),
+  );
+  const queue = shows.map((s) => Number(s.mal_id)).slice(0, limit).reverse();
+  const total = queue.length;
+  log(`aliases: ${total} judul`);
+  const counts = { shows: 0, characters: 0, skipped: 0 };
+  let done = 0;
+  const workers = Array.from({ length: 2 }, async () => {
+    for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+      try {
+        const pending = new Map(
+          (await all<{ char_id: number; name: string }>('SELECT char_id, name FROM anime_character WHERE mal_id = ?', [id])).map((c) => [Number(c.char_id), c.name]),
+        );
+        const found = new Map<number, string[]>();
+        const order = [id, ...(entries.get(id) ?? []).map((e) => Number(e.mal_id)).filter((e) => e !== id)];
+        let requests = 0;
+        for (const entry of order) {
+          for (let page = 1; page <= ALIAS_PAGES_PER_ENTRY && pending.size && requests < ALIAS_REQUESTS_PER_SHOW; page++) {
+            requests++;
+            const { characters, more } = await anilistCharacters(entry, page);
+            for (const c of characters) {
+              if (!c.full) continue;
+              const matches = [...pending].filter(([, name]) => sameCharacterName(name, c.full!));
+              if (matches.length !== 1) continue;
+              const [charId] = matches[0]!;
+              pending.delete(charId);
+              found.set(charId, [...new Set(c.alternative.map(aliasOf).filter((a): a is string => a !== null))]);
+            }
+            if (!more) break;
+          }
+          if (!pending.size || requests >= ALIAS_REQUESTS_PER_SHOW) break;
+        }
+        await db().batch(
+          [
+            ...[...found].map(([charId, aliases]) => ({ sql: 'UPDATE anime_character SET aliases = ? WHERE char_id = ?', args: [JSON.stringify(aliases), charId] })),
+            { sql: 'UPDATE anime SET aliases_at = ? WHERE mal_id = ?', args: [nowIso(), id] },
+          ],
+          'write',
+        );
+        counts.shows++;
+        counts.characters += found.size;
+      } catch (err) {
+        // Network or AniList trouble: nothing is marked, so the next run asks for this show again.
+        counts.skipped++;
+        log(`aliases: ${id} dilewati (${errorText(err)})`);
+      }
+      if (++done % 50 === 0) log(`aliases: ${done}/${total}`, counts);
+    }
+  });
+  await Promise.all(workers);
+  log('aliases:', counts);
 }
 
 /**

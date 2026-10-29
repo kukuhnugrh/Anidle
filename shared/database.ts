@@ -94,7 +94,7 @@ export interface DbSong {
 export interface DbCharacter {
   id: number;
   name: string;
-  /** Romaji nicknames, also accepted as the name. */
+  /** Romaji aliases (MAL nicknames + AniList alternative names, no spoilers), also accepted as the name. */
   nicknames: string[];
   role: string | null;
   favorites: number | null;

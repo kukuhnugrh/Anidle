@@ -7,7 +7,7 @@ import { poolUsers } from '../server/env.js';
 import { animeDetail, animeSynopsis, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { Limiter } from './limiter.js';
-import { stepCharacters, stepClips, stepDaily, stepMedia, stepNicknames, stepScreenshots } from './media.js';
+import { stepAliases, stepCharacters, stepClips, stepDaily, stepMedia, stepNicknames, stepScreenshots } from './media.js';
 import { migrate } from './migrate.js';
 import { animeGenres } from './sources/jikanEdge.js';
 
@@ -298,7 +298,7 @@ async function writeActionsSummary(row: Record<string, number>) {
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'screenshots', 'clips', 'daily'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'daily'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -325,6 +325,7 @@ for (const step of steps) {
   if (step === 'characters') await stepCharacters(flag('refresh'), limit);
   if (step === 'synopsis') await stepSynopsis(limit);
   if (step === 'nicknames') await stepNicknames(flag('refresh'), limit);
+  if (step === 'aliases') await stepAliases(flag('refresh'), limit);
   if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
   if (step === 'clips') await stepClips(flag('refresh'), limit);
   if (step === 'daily') await stepDaily();

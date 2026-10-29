@@ -12,12 +12,14 @@ import { requireEnv } from '../server/env.js';
 const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // JSON { genreId?, difficulties? }: the filters an unlimited puzzle was made with, for replacing a round.
   puzzle: { options: 'TEXT' },
-  // Character mode accepts romaji nicknames; details_at = when they were fetched.
-  anime_character: { nicknames: "TEXT NOT NULL DEFAULT '[]'", details_at: 'TEXT' },
+  // Character mode accepts romaji nicknames (MAL, step `nicknames`; details_at = when fetched) and
+  // aliases (AniList alternative names without spoilers, step `aliases`).
+  anime_character: { nicknames: "TEXT NOT NULL DEFAULT '[]'", details_at: 'TEXT', aliases: "TEXT NOT NULL DEFAULT '[]'" },
   // The franchise's most popular entry (pipeline step `franchise`); NULL until computed = itself.
   // synopsis: Anidle's second clue (MAL text; '' = MAL has none).
   // themes_at: when AnimeThemes was last asked for this entry's OP/ED (step `media`; NULL = never).
-  anime: { canonical_id: 'INTEGER', synopsis: 'TEXT', themes_at: 'TEXT' },
+  // aliases_at: when AniList was last asked for this show's character aliases (step `aliases`; NULL = never).
+  anime: { canonical_id: 'INTEGER', synopsis: 'TEXT', themes_at: 'TEXT', aliases_at: 'TEXT' },
   // A daily Opening/Ending round's full song copied to R2 by step `daily` (NULL = stream from AnimeThemes).
   // theme_id: the anime_theme a song-mode round plays (NULL for other modes).
   puzzle_round: { audio_key: 'TEXT', theme_id: 'INTEGER' },
