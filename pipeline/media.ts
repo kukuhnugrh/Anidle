@@ -9,18 +9,26 @@ import { CHARACTER_MIN_FAVORITES, CHARACTERS_PER_DIFFICULTY, characterDifficulty
 import { MODE_MEDIA, SCREENSHOTS_PER_TITLE, shiftDate, todayUtc7, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { dailyPuzzle } from '../server/game.js';
+import { CLUE_CLIP_DIR, mediaUrl } from '../server/media.js';
 import { songSources } from '../server/songs.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { deleteObject, putObject } from './r2.js';
 import { firstThemes, type ThemeSource } from './sources/animeThemes.js';
 import { animeCharacters, characterDetail } from './sources/jikanEdge.js';
 
-const COVER_WIDTH = 400;
+const COVER_FILTER = "scale='min(400,iw)':-2";
+/**
+ * The clue poster (Anidle, Ending): this small and blurred already, because CSS blur alone hides
+ * nothing from "open image in new tab". The UI's own blur smooths the upscaling.
+ */
+const BLUR_FILTER = 'scale=48:-2,gblur=sigma=1';
 const PORTRAIT_WIDTH = 300;
 /** Titles whose source was missing or broken are looked at again after this long. */
 const RECHECK_DAYS = 30;
 
 const malCdn = new Limiter('mal-cdn', [{ ms: 1000, max: 5 }]);
+/** Our own R2 copies (public CDN), read to make blurred posters for covers copied before those existed. */
+const mediaCdn = new Limiter('media-cdn', [{ ms: 1000, max: 10 }]);
 
 const log = (...args: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...args);
 
@@ -75,23 +83,29 @@ function download(limiter: Limiter, url: string): Promise<Uint8Array<ArrayBuffer
   });
 }
 
-/** Any MAL CDN image → WebP at most `width` wide, stored under v1/<dir>/<content hash>.webp. */
-async function processImage(url: string, dir: string, width: number): Promise<string> {
-  const source = await download(malCdn, url);
+/** `source` image → WebP through the ffmpeg filter `vf`, stored under v1/<dir>/<content hash>.webp. */
+async function storeWebp(source: Uint8Array, dir: string, vf: string, minBytes = 1_000): Promise<string> {
   // image2pipe, not the webp muxer: that one patches the RIFF size by seeking back, which a pipe
   // cannot do, and browsers reject the resulting size-0 header.
-  const { out } = await ffmpeg(['-i', 'pipe:0', '-vf', `scale='min(${width},iw)':-2`, '-c:v', 'libwebp', '-quality', '82', '-f', 'image2pipe', 'pipe:1'], source);
+  const { out } = await ffmpeg(['-i', 'pipe:0', '-vf', vf, '-c:v', 'libwebp', '-quality', '82', '-f', 'image2pipe', 'pipe:1'], source);
   const riffSize = out.length >= 12 ? new DataView(out.buffer).getUint32(4, true) : 0;
-  if (out.length < 1_000 || riffSize !== out.length - 8) throw new MediaError(`gambar rusak (${out.length} B, RIFF ${riffSize})`);
+  if (out.length < minBytes || riffSize !== out.length - 8) throw new MediaError(`gambar rusak (${out.length} B, RIFF ${riffSize})`);
   const key = contentKey(dir, out, 'webp');
   await putObject(key, out, 'image/webp');
   return key;
+}
+
+/** Any MAL CDN image → WebP at most `width` wide, stored under v1/<dir>/<content hash>.webp. */
+async function processImage(url: string, dir: string, width: number): Promise<string> {
+  return storeWebp(await download(malCdn, url), dir, `scale='min(${width},iw)':-2`);
 }
 
 interface MediaRow {
   mal_id: number;
   kind: MediaKind;
   status: 'ok' | 'missing' | 'broken' | 'rejected';
+  r2_key: string | null;
+  blur_key: string | null;
   source_url: string | null;
   video_url: string | null;
   checked_at: string;
@@ -105,11 +119,15 @@ const isDue = (row: MediaRow | undefined, refreshAll: boolean, stale: string) =>
   refreshAll || !row || ((row.status === 'missing' || row.status === 'broken') && row.checked_at < stale);
 
 /** A clip made for an earlier source of the same theme is dropped when the source changes. */
-async function save(malId: number, kind: MediaKind, row: { status: MediaRow['status']; key?: string | null; source?: string | null; theme?: ThemeSource | null; error?: string | null }) {
+async function save(
+  malId: number,
+  kind: MediaKind,
+  row: { status: MediaRow['status']; key?: string | null; blur?: string | null; source?: string | null; theme?: ThemeSource | null; error?: string | null },
+) {
   await run(
-    `INSERT INTO anime_media (mal_id, kind, status, r2_key, source_url, label, song_title, artist, video_url, error, checked_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (mal_id, kind) DO UPDATE SET status = excluded.status, r2_key = excluded.r2_key, source_url = excluded.source_url,
+    `INSERT INTO anime_media (mal_id, kind, status, r2_key, blur_key, source_url, label, song_title, artist, video_url, error, checked_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (mal_id, kind) DO UPDATE SET status = excluded.status, r2_key = excluded.r2_key, blur_key = excluded.blur_key, source_url = excluded.source_url,
        label = excluded.label, song_title = excluded.song_title, artist = excluded.artist, video_url = excluded.video_url, error = excluded.error,
        checked_at = excluded.checked_at, clip_key = CASE WHEN anime_media.source_url IS excluded.source_url THEN anime_media.clip_key END`,
     [
@@ -117,6 +135,7 @@ async function save(malId: number, kind: MediaKind, row: { status: MediaRow['sta
       kind,
       row.status,
       row.key ?? null,
+      row.blur ?? null,
       row.source ?? null,
       row.theme?.label ?? null,
       row.theme?.title ?? null,
@@ -137,13 +156,14 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 const isSourceFault = (err: unknown) => err instanceof MediaError || (err instanceof UpstreamError && err.status >= 400 && err.status < 500 && err.status !== 429);
 
 /**
- * Per playable show (canonical entry), most popular first: copies the cover to R2 and records the first OP and first ED
- * on AnimeThemes (audio URL + song info; the game streams them). Re-runs skip what is already ok;
- * missing/broken sources are retried after RECHECK_DAYS, or always with --refresh.
+ * Per playable show (canonical entry), most popular first: copies the cover to R2 (plus its small
+ * blurred clue version) and records the first OP and first ED on AnimeThemes (audio URL + song info;
+ * the game streams them). Re-runs skip what is already ok, except an ok cover still without its blurred
+ * version, made from the R2 copy; missing/broken sources are retried after RECHECK_DAYS, or always with --refresh.
  */
 export async function stepMedia(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number; cover_src: string | null }>(`SELECT mal_id, cover_src FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
-  const rows = await all<MediaRow>('SELECT mal_id, kind, status, source_url, video_url, checked_at FROM anime_media');
+  const rows = await all<MediaRow>('SELECT mal_id, kind, status, r2_key, blur_key, source_url, video_url, checked_at FROM anime_media');
   const byKey = new Map(rows.map((r) => [`${r.mal_id}:${r.kind}`, r]));
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const due = (row: MediaRow | undefined) => isDue(row, refreshAll, stale);
@@ -151,15 +171,23 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
   const needsVideo = (row: MediaRow | undefined) => row?.status === 'ok' && row.video_url == null;
 
   const jobs = anime
-    .map((a) => ({
-      id: Number(a.mal_id),
-      coverSrc: a.cover_src,
-      cover: refreshAll || due(byKey.get(`${a.mal_id}:cover`)) || byKey.get(`${a.mal_id}:cover`)?.source_url !== a.cover_src,
-      themes: [`${a.mal_id}:op`, `${a.mal_id}:ed`].some((key) => due(byKey.get(key)) || needsVideo(byKey.get(key))),
-    }))
-    .filter((j) => j.cover || j.themes)
+    .map((a) => {
+      const coverRow = byKey.get(`${a.mal_id}:cover`);
+      const cover = refreshAll || due(coverRow) || coverRow?.source_url !== a.cover_src;
+      return {
+        id: Number(a.mal_id),
+        coverSrc: a.cover_src,
+        cover,
+        // Copied before blurred posters existed: blur the R2 copy instead of fetching MAL again.
+        blurFrom: !cover && coverRow?.status === 'ok' && coverRow.r2_key && !coverRow.blur_key ? coverRow.r2_key : null,
+        themes: [`${a.mal_id}:op`, `${a.mal_id}:ed`].some((key) => due(byKey.get(key)) || needsVideo(byKey.get(key))),
+      };
+    })
+    .filter((j) => j.cover || j.blurFrom || j.themes)
     .slice(0, limit);
-  log(`media: ${jobs.length} judul (cover ${jobs.filter((j) => j.cover).length}, OP/ED ${jobs.filter((j) => j.themes).length})`);
+  log(
+    `media: ${jobs.length} judul (cover ${jobs.filter((j) => j.cover).length}, blur ${jobs.filter((j) => j.blurFrom).length}, OP/ED ${jobs.filter((j) => j.themes).length})`,
+  );
 
   const counts: Record<string, number> = {};
   const count = (kind: MediaKind, status: string) => (counts[`${kind} ${status}`] = (counts[`${kind} ${status}`] ?? 0) + 1);
@@ -173,13 +201,20 @@ export async function stepMedia(refreshAll: boolean, limit: number) {
           if (!job.coverSrc) await save(job.id, 'cover', { status: 'missing' });
           else
             try {
-              await save(job.id, 'cover', { status: 'ok', key: await processImage(job.coverSrc, 'cover', COVER_WIDTH), source: job.coverSrc });
+              const source = await download(malCdn, job.coverSrc);
+              const key = await storeWebp(source, 'cover', COVER_FILTER);
+              await save(job.id, 'cover', { status: 'ok', key, blur: await storeWebp(source, 'blur', BLUR_FILTER, 100), source: job.coverSrc });
               count('cover', 'ok');
             } catch (err) {
               if (!isSourceFault(err)) throw err;
               await save(job.id, 'cover', { status: 'broken', source: job.coverSrc, error: errorText(err) });
               count('cover', 'broken');
             }
+        }
+        if (job.blurFrom) {
+          const blur = await storeWebp(await download(mediaCdn, mediaUrl(job.blurFrom)), 'blur', BLUR_FILTER, 100);
+          await run("UPDATE anime_media SET blur_key = ? WHERE mal_id = ? AND kind = 'cover'", [blur, job.id]);
+          count('cover', 'blurred');
         }
         if (job.themes) {
           const themes = await firstThemes(job.id);
@@ -455,11 +490,16 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
   log('screenshots:', counts);
 }
 
-const CLIP_HEIGHT = 240;
+/**
+ * Clue clips are blurred in the file itself, tiny (96 px high) and muted: CSS blur alone would leave
+ * the sharp video one "open video in new tab" away. The UI's own blur smooths the upscaling.
+ */
+const CLIP_FILTER = 'scale=-2:96,gblur=sigma=1,fps=24';
 
 /**
- * One theme's clue clip: encoded from `videoUrl`, uploaded, and recorded as its clip_key ('' when the
- * encoder's result is unusable, so it is streamed instead). Throws when the host is in trouble, so the
+ * One theme's clue clip: encoded from `videoUrl` (the theme's video, or an older sharp clip on R2),
+ * uploaded under v1/<CLUE_CLIP_DIR>/, and recorded as its clip_key ('' when the encoder's result is
+ * unusable: the clue is then the blurred cover alone). Throws when the host is in trouble, so the
  * theme is tried again on a later run. `file` is a scratch path (mp4 needs a seekable output).
  */
 export async function makeClip(malId: number, kind: MediaKind, videoUrl: string, file: string): Promise<'ok' | 'failed'> {
@@ -469,7 +509,7 @@ export async function makeClip(malId: number, kind: MediaKind, videoUrl: string,
     try {
       result = await ffmpeg([
         '-rw_timeout', '60000000', '-i', videoUrl, '-an',
-        '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
+        '-vf', CLIP_FILTER, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
         // +faststart puts the index first, so the browser can start right away.
         '-movflags', '+faststart', '-y', file,
       ]);
@@ -480,32 +520,32 @@ export async function makeClip(malId: number, kind: MediaKind, videoUrl: string,
   }
   const out = new Uint8Array(await readFile(file));
   // ffmpeg exits non-zero for a 5xx from the host as well (thrown above); only a clean but bad result marks the theme.
-  if (out.length < 50_000 || result.seconds < 20) {
+  if (out.length < 10_000 || result.seconds < 20) {
     await run("UPDATE anime_media SET clip_key = '' WHERE mal_id = ? AND kind = ?", [malId, kind]);
     log(`clips: ${malId} ${kind} klip terlalu pendek (${out.length} B, ${result.seconds} dtk)`);
     return 'failed';
   }
-  const key = contentKey('clip', out, 'mp4');
+  const key = contentKey(CLUE_CLIP_DIR, out, 'mp4');
   await putObject(key, out, 'video/mp4');
   await run('UPDATE anime_media SET clip_key = ? WHERE mal_id = ? AND kind = ?', [key, malId, kind]);
   return 'ok';
 }
 
 /**
- * The OP/ED clue as a small clip: the theme's video re-encoded to 240p H.264 without sound (the song
- * keeps playing and the clip follows it), ~1.5 MB instead of 30–60 MB, at v1/clip/<hash>.mp4. It is
- * shown blurred, so the low resolution does not show. R2's free 10 GB sets the scope: easy + medium
- * shows (the daily pool) only; other titles stream video_url through /api/media as before. A video
- * the encoder rejects gets clip_key '' (streamed instead), retried with --refresh.
+ * The OP/ED clue as a small pre-blurred clip (CLIP_FILTER, a few hundred KB) at v1/clue/<hash>.mp4, for
+ * every playable show, most popular first. Sharp clips from before (v1/clip/) go first: re-encoded from
+ * their R2 copy (seconds, not the minutes a full AnimeThemes video takes) and then deleted. A video the
+ * encoder rejects gets clip_key '' (clue = the blurred cover), retried with --refresh.
  */
 export async function stepClips(refreshAll: boolean, limit: number) {
   const queue = (
-    await all<{ mal_id: number; kind: MediaKind; video_url: string }>(
-      `SELECT m.mal_id, m.kind, m.video_url FROM anime_media m JOIN anime a ON a.mal_id = m.mal_id
-       WHERE m.kind IN ('op', 'ed') AND m.status = 'ok' AND m.video_url <> '' AND (? OR m.clip_key IS NULL)
-         AND a.excluded IS NULL AND ${CANONICAL_SQL} AND a.members >= ?
-       ORDER BY a.members DESC, m.kind DESC`,
-      [refreshAll ? 1 : 0, MEDIUM_MIN_MEMBERS],
+    await all<{ mal_id: number; kind: MediaKind; video_url: string; clip_key: string | null }>(
+      `SELECT m.mal_id, m.kind, m.video_url, m.clip_key FROM anime_media m JOIN anime a ON a.mal_id = m.mal_id
+       WHERE m.kind IN ('op', 'ed') AND m.status = 'ok'
+         AND (m.clip_key LIKE 'v1/clip/%' OR (m.video_url <> '' AND (? OR m.clip_key IS NULL)))
+         AND a.excluded IS NULL AND ${CANONICAL_SQL}
+       ORDER BY m.clip_key LIKE 'v1/clip/%' DESC, a.members DESC, m.kind DESC`,
+      [refreshAll ? 1 : 0],
     )
   )
     .slice(0, limit)
@@ -520,7 +560,17 @@ export async function stepClips(refreshAll: boolean, limit: number) {
     const file = path.join(dir, `clip-${w}.mp4`);
     for (let row = queue.pop(); row; row = queue.pop()) {
       try {
-        counts[await makeClip(Number(row.mal_id), row.kind, row.video_url, file)]++;
+        const id = Number(row.mal_id);
+        const sharp = row.clip_key?.startsWith('v1/clip/') ? row.clip_key : null;
+        // The bucket is shared by every database (local, Turso): another run may have deleted the sharp copy already.
+        const copy = sharp && (await fetch(mediaUrl(sharp), { method: 'HEAD' })).ok ? mediaUrl(sharp) : null;
+        const source = copy ?? row.video_url;
+        if (source) counts[await makeClip(id, row.kind, source, file)]++;
+        else {
+          await run("UPDATE anime_media SET clip_key = '' WHERE mal_id = ? AND kind = ?", [id, row.kind]);
+          counts.failed++;
+        }
+        if (sharp) await deleteObject(sharp);
       } catch (err) {
         counts.skipped++;
         log(`clips: ${row.mal_id} ${row.kind} ${errorText(err)}`);

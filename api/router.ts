@@ -1,6 +1,7 @@
 // The only Vercel Function. Vercel Hobby allows 12 functions per deployment, so every /api/* path is
 // rewritten here (vercel.json) and dispatched to a handler in routes/. Locally, vite.config.ts does the same.
 import * as adminMedia from '../routes/admin/media.js';
+import * as animeDetail from '../routes/anime/detail.js';
 import * as animeFacets from '../routes/anime/facets.js';
 import * as anime from '../routes/anime/index.js';
 import * as authLogin from '../routes/auth/login.js';
@@ -29,6 +30,7 @@ type RouteModule = { GET?: Handler; POST?: Handler };
 const ROUTES: Record<string, RouteModule> = {
   'admin/media': adminMedia,
   anime,
+  'anime/detail': animeDetail,
   'anime/facets': animeFacets,
   'auth/login': authLogin,
   'auth/register': authRegister,

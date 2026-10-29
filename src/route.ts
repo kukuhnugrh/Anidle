@@ -4,10 +4,12 @@ export type Route =
   | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' }
   /** `date` = an earlier day from the archive; null = today. */
   | { view: 'daily'; mode: Mode; date: string | null }
-  | { view: 'play'; id: string };
+  | { view: 'play'; id: string }
+  /** One show of the database (`/database/<mal_id>`). */
+  | { view: 'anime'; id: number };
 export type View = Route['view'];
 
-const PATHS: Record<string, Exclude<View, 'play' | 'daily'>> = {
+const PATHS: Record<string, Exclude<View, 'play' | 'daily' | 'anime'>> = {
   '': 'home',
   unlimited: 'unlimited',
   database: 'database',
@@ -30,6 +32,8 @@ export const dailyHref = (mode: Mode, date: string | null = null) => `${mode ===
 export function readRoute(): Route {
   const path = location.pathname.replace(/^\/+|\/+$/g, '');
   if (path.startsWith('play/')) return { view: 'play', id: path.slice('play/'.length) };
+  const anime = /^database\/(\d+)$/.exec(path);
+  if (anime) return { view: 'anime', id: Number(anime[1]) };
   const date = archiveDate(new URLSearchParams(location.search).get('date'));
   if (path === 'daily') return { view: 'daily', mode: 'anidle', date };
   if (path.startsWith('daily/')) {

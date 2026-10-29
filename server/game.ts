@@ -22,7 +22,7 @@ import { seedOf } from './crypto.js';
 import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
 import { HttpError } from './http.js';
-import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
+import { COVER_BLUR_KEY_SQL, COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
 
 export function parseMode(value: unknown): Mode {
   if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
@@ -182,18 +182,22 @@ interface AnimeRow {
   franchise_id: number | null;
   cover_src: string | null;
   cover_key: string | null;
+  blur_key: string | null;
   members: number | null;
 }
 
-/** titleEn: MAL's English title, when it differs from the romaji one. */
-export type LoadedAnime = AnidleAnime & { titleEn: string | null; cover: string | null; members: number | null };
+/**
+ * titleEn: MAL's English title, when it differs from the romaji one. coverBlur: the pre-blurred clue
+ * poster; clues send only that one, the sharp cover only goes out with the answer.
+ */
+export type LoadedAnime = AnidleAnime & { titleEn: string | null; cover: string | null; coverBlur: string | null; members: number | null };
 
 export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime>> {
   if (!ids.length) return new Map();
   const marks = ids.map(() => '?').join(',');
   const rows = await all<AnimeRow>(
     `SELECT a.mal_id, a.title, a.title_en, a.year, a.score, a.source, a.studios, a.franchise_id, a.cover_src,
-            ${COVER_KEY_SQL} AS cover_key, a.members
+            ${COVER_KEY_SQL} AS cover_key, ${COVER_BLUR_KEY_SQL} AS blur_key, a.members
      FROM anime a WHERE a.mal_id IN (${marks})`,
     ids,
   );
@@ -215,6 +219,7 @@ export async function loadAnidle(ids: number[]): Promise<Map<number, LoadedAnime
       tags: [],
       franchiseId: r.franchise_id == null ? null : Number(r.franchise_id),
       cover: coverOf(r.cover_key, r.cover_src),
+      coverBlur: r.blur_key ? mediaUrl(r.blur_key) : null,
       members: r.members == null ? null : Number(r.members),
     });
   }
@@ -483,7 +488,7 @@ export async function assertPlayable(malId: number) {
 
 /** Keyed by AnidleClueKind, so a clue is present exactly when it is unlocked. */
 export interface AnidleClues {
-  /** The anime's poster (blurred in the UI). */
+  /** The anime's poster, pre-blurred (LoadedAnime.coverBlur): the sharp one would show through "open image". */
   cover: string | null;
   /** MAL synopsis with the title masked (null when MAL has none). */
   synopsis: string | null;
@@ -554,7 +559,7 @@ export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise
     solved,
     finished,
     score: play?.score ?? null,
-    clues: await anidleClues(answer.malId, unlocked, answer.cover),
+    clues: await anidleClues(answer.malId, unlocked, answer.coverBlur),
     answer: finished ? answerInfo(answer) : null,
   };
 }

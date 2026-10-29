@@ -6,7 +6,7 @@ import type { RoundState } from '../server/rounds';
 import type { SongState } from '../server/songs';
 import type { History, Leaderboard, TodayScore } from '../server/stats';
 import type { Difficulty, Pool } from '../shared/catalog';
-import type { DbFacets, DbPage } from '../shared/database';
+import type { DbDetail, DbFacets, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
 import type { CharacterEntry, TitleEntry } from '../shared/normalize';
 
@@ -114,4 +114,5 @@ export const api = {
   adminMedia: (query: string) => call<AdminPage>(`/api/admin/media?${query}`),
   setMediaStatus: (malId: number, kind: string, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { malId, kind, action } }),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
+  animeDetail: (id: number) => call<DbDetail>(`/api/anime/detail?id=${id}`),
 };

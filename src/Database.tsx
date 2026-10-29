@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DIFFICULTIES, DIFFICULTY_LABELS, type Difficulty, type GenreType } from '../shared/catalog';
 import { DB_SORTS, type DbFacets, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSort } from '../shared/database';
+import { DB_LIST_KEY } from './AnimeDetail';
 import { api, errorMessage } from './api';
 import { fmtNumber, pretty } from './format';
 
@@ -74,6 +75,7 @@ export function Database() {
   useEffect(() => {
     const query = toQuery(filters);
     history.replaceState(null, '', `/database${query ? `?${query}` : ''}`);
+    sessionStorage.setItem(DB_LIST_KEY, query ? `?${query}` : '');
     let cancelled = false;
     setLoading(true);
     api
@@ -139,7 +141,7 @@ export function Database() {
       <header className="page-head">
         <span className="eyebrow">Browse</span>
         <h1>Anime database</h1>
-        <p className="muted">Every title that can show up in Anidle. Click a genre, tag, or studio on a card to filter.</p>
+        <p className="muted">Every title that can show up in Anidle. Open a card for its songs, characters, and screenshots; click a genre, tag, or studio to filter.</p>
       </header>
 
       <section className="card db-filters">
@@ -231,12 +233,12 @@ type CardActions = { onGenre: (g: DbGenre) => void; onStudio: (name: string) => 
 function DbCard({ item, onGenre, onStudio, onSource }: { item: DbItem } & CardActions) {
   return (
     <article className="db-card">
-      <a className="db-cover" href={`https://myanimelist.net/anime/${item.malId}`} target="_blank" rel="noreferrer" title="Open on MAL">
+      <a className="db-cover" href={`/database/${item.malId}`} title="Details">
         {item.cover ? <img src={item.cover} alt="" loading="lazy" /> : <span className="muted small">no image</span>}
         <span className={`difficulty ${item.difficulty}`}>{item.difficulty}</span>
       </a>
       <div className="db-body">
-        <a className="db-title" href={`https://myanimelist.net/anime/${item.malId}`} target="_blank" rel="noreferrer">
+        <a className="db-title" href={`/database/${item.malId}`}>
           {item.title}
         </a>
         {item.titleEn && item.titleEn !== item.title && <div className="muted small">{item.titleEn}</div>}

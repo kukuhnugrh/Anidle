@@ -57,8 +57,8 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
 /** Only for ADMIN_USERS (the server checks again on every admin request). */
 const ADMIN_SECTION: (typeof NAV)[number] = { title: 'Admin', items: [{ id: 'admin', href: '/admin', label: 'Review media', Icon: ShieldIcon }] };
 
-/** An unlimited puzzle in progress belongs to the Unlimited entry. */
-const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view);
+/** An unlimited puzzle in progress belongs to the Unlimited entry, a show's detail page to Database. */
+const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view === 'anime' ? 'database' : route.view);
 
 export function Brand() {
   return (

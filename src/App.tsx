@@ -8,6 +8,7 @@ import { RoundGame } from './RoundGame';
 import { SongGame } from './SongGame';
 import { AuthPage } from './AuthPage';
 import { AdminPage } from './AdminPage';
+import { AnimeDetail } from './AnimeDetail';
 import { Database } from './Database';
 import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
@@ -141,6 +142,7 @@ export function App() {
           )}
           {route.view === 'unlimited' && <Unlimited account={account} />}
           {route.view === 'database' && <Database />}
+          {route.view === 'anime' && <AnimeDetail key={route.id} id={route.id} />}
           {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
           {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
           {route.view === 'history' && <HistoryPage account={account} />}

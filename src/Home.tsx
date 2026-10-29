@@ -78,7 +78,7 @@ export function Home({ account }: { account: Account | null }) {
   }, 0);
 
   return (
-    <div className="stack">
+    <div className="stack home">
       <section className="hero">
         <div className="hero-body">
           <span className="eyebrow">{date ? 'From the archive' : 'Daily puzzle'} · {fmtDate(shown)}</span>
@@ -88,6 +88,12 @@ export function Home({ account }: { account: Account | null }) {
               ? "The same five puzzles everyone had that day. Replays are just for fun: they don't count for the leaderboard or your streak."
               : 'Five modes, the same puzzle set for everyone. Daily puzzles are always easy or medium titles, so they make a good warm-up.'}
           </p>
+          <div className="day-bar">
+            <DatePicker date={shown} onChange={(d) => setDate(d === todayUtc7() ? null : d)} />
+            <span className="muted">
+              {date ? fmtDate(date) : 'Today'}: <b>{fmtNumber(dayScore)}</b> / {fmtNumber(DAILY_MAX_POINTS)} pts
+            </span>
+          </div>
         </div>
         <div className="hero-art">
           {/* Decorative shapes only; the countdown ticket on top is the content. */}
@@ -113,13 +119,6 @@ export function Home({ account }: { account: Account | null }) {
           </div>
         </div>
       </section>
-
-      <div className="day-bar">
-        <DatePicker date={shown} onChange={(d) => setDate(d === todayUtc7() ? null : d)} />
-        <span className="muted">
-          {date ? fmtDate(date) : 'Today'}: <b>{fmtNumber(dayScore)}</b> / {fmtNumber(DAILY_MAX_POINTS)} pts
-        </span>
-      </div>
 
       <section className="book">
         <h2 className="book-tab">Daily puzzles</h2>

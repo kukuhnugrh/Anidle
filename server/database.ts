@@ -1,8 +1,10 @@
 import { CANONICAL_SQL, difficultyOf, type GenreType } from '../shared/catalog.js';
-import { DB_PAGE_SIZE, type DbFacets, type DbFilters, type DbItem, type DbPage, type DbSort } from '../shared/database.js';
+import { characterDifficultyOf, displayName } from '../shared/characters.js';
+import { DB_PAGE_SIZE, type DbDetail, type DbFacets, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSong, type DbSort } from '../shared/database.js';
+import { MODE_MEDIA, MODES } from '../shared/modes.js';
 import { all, one } from './db.js';
 import { DIFFICULTY_SQL } from './game.js';
-import { COVER_KEY_SQL, coverOf } from './media.js';
+import { COVER_KEY_SQL, coverOf, isClueClip, mediaUrl } from './media.js';
 
 const ORDER_BY: Record<DbSort, string> = {
   popularity: 'a.members IS NULL, a.members DESC',
@@ -58,26 +60,22 @@ interface Row {
 
 const num = (v: number | null) => (v == null ? null : Number(v));
 
-export async function listAnime(f: DbFilters): Promise<DbPage> {
-  const w = where(f);
-  const total = Number((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM anime a WHERE ${w.sql}`, w.args))?.n ?? 0);
-  const rows = await all<Row>(
-    `SELECT a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.year, a.score, a.members, p.rank, a.source, a.studios,
-            (SELECT COUNT(*) FROM anime x WHERE x.canonical_id = a.mal_id AND x.excluded IS NULL) AS entries
-     FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
-     WHERE ${w.sql} ORDER BY ${ORDER_BY[f.sort]}, a.mal_id LIMIT ? OFFSET ?`,
-    [...w.args, DB_PAGE_SIZE, (f.page - 1) * DB_PAGE_SIZE],
+/** Card fields of a show; `entries` counts the MAL entries merged into it. */
+const ITEM_SQL = `a.mal_id, a.title, a.title_en, a.cover_src, ${COVER_KEY_SQL} AS cover_key, a.year, a.score, a.members, p.rank, a.source, a.studios,
+  (SELECT COUNT(*) FROM anime x WHERE x.canonical_id = a.mal_id AND x.excluded IS NULL) AS entries`;
+
+async function genresOf(ids: number[]): Promise<Map<number, DbGenre[]>> {
+  if (!ids.length) return new Map();
+  const rows = await all<{ mal_id: number; id: number; name: string; type: GenreType }>(
+    `SELECT ag.mal_id, g.id, g.name, g.type FROM anime_genre ag JOIN genre g ON g.id = ag.genre_id
+     WHERE ag.mal_id IN (${ids.map(() => '?').join(',')}) ORDER BY g.name`,
+    ids,
   );
-  const ids = rows.map((r) => Number(r.mal_id));
-  const genreRows = ids.length
-    ? await all<{ mal_id: number; id: number; name: string; type: GenreType }>(
-        `SELECT ag.mal_id, g.id, g.name, g.type FROM anime_genre ag JOIN genre g ON g.id = ag.genre_id
-         WHERE ag.mal_id IN (${ids.map(() => '?').join(',')}) ORDER BY g.name`,
-        ids,
-      )
-    : [];
-  const genresOf = Map.groupBy(genreRows, (g) => Number(g.mal_id));
-  const items: DbItem[] = rows.map((r) => ({
+  return new Map([...Map.groupBy(rows, (g) => Number(g.mal_id))].map(([malId, gs]) => [malId, gs.map((g) => ({ id: Number(g.id), name: g.name, type: g.type }))]));
+}
+
+function toItem(r: Row, genres: Map<number, DbGenre[]>): DbItem {
+  return {
     malId: Number(r.mal_id),
     title: r.title,
     titleEn: r.title_en,
@@ -90,9 +88,97 @@ export async function listAnime(f: DbFilters): Promise<DbPage> {
     difficulty: difficultyOf(num(r.members)),
     source: r.source,
     studios: JSON.parse(r.studios) as string[],
-    genres: (genresOf.get(Number(r.mal_id)) ?? []).map((g) => ({ id: Number(g.id), name: g.name, type: g.type })),
-  }));
-  return { items, total, page: f.page, pageSize: DB_PAGE_SIZE };
+    genres: genres.get(Number(r.mal_id)) ?? [],
+  };
+}
+
+export async function listAnime(f: DbFilters): Promise<DbPage> {
+  const w = where(f);
+  const total = Number((await one<{ n: number }>(`SELECT COUNT(*) AS n FROM anime a WHERE ${w.sql}`, w.args))?.n ?? 0);
+  const rows = await all<Row>(
+    `SELECT ${ITEM_SQL} FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
+     WHERE ${w.sql} ORDER BY ${ORDER_BY[f.sort]}, a.mal_id LIMIT ? OFFSET ?`,
+    [...w.args, DB_PAGE_SIZE, (f.page - 1) * DB_PAGE_SIZE],
+  );
+  const genres = await genresOf(rows.map((r) => Number(r.mal_id)));
+  return { items: rows.map((r) => toItem(r, genres)), total, page: f.page, pageSize: DB_PAGE_SIZE };
+}
+
+interface DetailRow extends Row {
+  title_ja: string | null;
+  synonyms: string;
+  media_type: string | null;
+  season: string | null;
+  num_episodes: number | null;
+  synopsis: string | null;
+}
+
+interface MediaRow {
+  kind: string;
+  source_url: string | null;
+  label: string | null;
+  song_title: string | null;
+  artist: string | null;
+  clip_key: string | null;
+}
+
+/**
+ * One show with everything the game uses for it: merged entries, songs, characters, screenshots. Any
+ * entry's id resolves to its show; null when that is not a playable show. Only media the game may use
+ * (status ok) is listed.
+ */
+export async function animeDetail(id: number): Promise<DbDetail | null> {
+  const row = await one<DetailRow>(
+    `SELECT ${ITEM_SQL}, a.title_ja, a.synonyms, a.media_type, a.season, a.num_episodes, a.synopsis
+     FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
+     WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND a.mal_id = (SELECT COALESCE(x.canonical_id, x.mal_id) FROM anime x WHERE x.mal_id = ?)`,
+    [id],
+  );
+  if (!row) return null;
+  const malId = Number(row.mal_id);
+  const [genres, merged, media, characters, screenshots] = await Promise.all([
+    genresOf([malId]),
+    all<{ mal_id: number; title: string; media_type: string | null; year: number | null; num_episodes: number | null }>(
+      `SELECT mal_id, title, media_type, year, num_episodes FROM anime
+       WHERE (mal_id = ? OR canonical_id = ?) AND excluded IS NULL ORDER BY start_date IS NULL, start_date, mal_id`,
+      [malId, malId],
+    ),
+    all<MediaRow>("SELECT kind, source_url, label, song_title, artist, clip_key FROM anime_media WHERE mal_id = ? AND status = 'ok'", [malId]),
+    all<{ char_id: number; name: string; nicknames: string; role: string | null; favorites: number | null; r2_key: string }>(
+      'SELECT char_id, name, nicknames, role, favorites, r2_key FROM anime_character WHERE mal_id = ? ORDER BY slot',
+      [malId],
+    ),
+    all<{ r2_key: string }>('SELECT r2_key FROM anime_screenshot WHERE mal_id = ? ORDER BY slot', [malId]),
+  ]);
+  const ok = new Map(media.map((m) => [m.kind, m]));
+  const song = (kind: 'op' | 'ed'): DbSong | null => {
+    const m = ok.get(kind);
+    return m?.source_url ? { label: m.label, title: m.song_title, artist: m.artist, audio: m.source_url, clip: isClueClip(m.clip_key) ? mediaUrl(m.clip_key) : null } : null;
+  };
+  return {
+    ...toItem(row, genres),
+    titleJa: row.title_ja,
+    synonyms: JSON.parse(row.synonyms) as string[],
+    mediaType: row.media_type,
+    season: row.season,
+    episodes: num(row.num_episodes),
+    synopsis: row.synopsis || null,
+    merged: merged.map((e) => ({ malId: Number(e.mal_id), title: e.title, mediaType: e.media_type, year: num(e.year), episodes: num(e.num_episodes) })),
+    modes: MODES.filter((m) => MODE_MEDIA[m] === null || ok.has(MODE_MEDIA[m])),
+    songs: { op: song('op'), ed: song('ed') },
+    characters: ok.has('chars')
+      ? characters.map((c) => ({
+          id: Number(c.char_id),
+          name: displayName(c.name),
+          nicknames: JSON.parse(c.nicknames) as string[],
+          role: c.role,
+          favorites: num(c.favorites),
+          difficulty: characterDifficultyOf(Number(c.favorites ?? 0)),
+          portrait: mediaUrl(c.r2_key),
+        }))
+      : [],
+    screenshots: ok.has('shots') ? screenshots.map((s) => mediaUrl(s.r2_key)) : [],
+  };
 }
 
 /** Filter options with how many shows each has. */

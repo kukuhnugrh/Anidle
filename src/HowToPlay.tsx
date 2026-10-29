@@ -13,7 +13,7 @@ const songRules = (song: 'opening' | 'ending'): ReactNode[] => [
   <>
     {ROUND_COUNT} rounds, each the {song} of a different anime. Press play: the whole song plays and you can seek.
   </>,
-  <>Type a title, pick it from the list, then press Guess. You get one guess per round, and any season or movie of the same series counts.</>,
+  <>Type a title, pick it from the list, then press Guess. You get one guess per round, and any season, movie or remake of the same series counts.</>,
   <>
     Stuck? <b>Show clue</b> plays its music video, blurred and muted, along with the song{song === 'ending' ? ', next to the blurred poster' : ''}. It halves the round's points.
   </>,
@@ -30,7 +30,7 @@ const songScoring = (
 const HOW_TO: Record<Mode, { rules: ReactNode[]; scoring: ReactNode }> = {
   anidle: {
     rules: [
-      <>Guess the anime in {ANIDLE_MAX_GUESSES} tries. Type a title, pick it from the list, then press Guess (or Enter). Any season or movie of the same series counts.</>,
+      <>Guess the anime in {ANIDLE_MAX_GUESSES} tries. Type a title, pick it from the list, then press Guess (or Enter). Any season, movie or remake of the same series counts.</>,
       <>
         Every guess is compared with the answer. <b>Year</b> and <b>Score</b> show ↑ or ↓ toward the answer. <b>Source</b>, <b>Studio</b>, <b>Genre</b> and <b>Tags</b> show{' '}
         <span className="tag ok">match</span> <span className="tag partial">partial</span> <span className="tag bad">different</span>.
@@ -56,7 +56,7 @@ const HOW_TO: Record<Mode, { rules: ReactNode[]; scoring: ReactNode }> = {
     rules: [
       <>{ROUND_COUNT} rounds, each a screenshot from the opening of a different anime.</>,
       <>Need help? Unlock clues in order: a second screenshot, a third, then the title's first letters (N_____). Opened screenshots stay viewable.</>,
-      <>Type a title, pick it from the list, then press Guess. One guess per round; any season or movie of the same series counts.</>,
+      <>Type a title, pick it from the list, then press Guess. One guess per round; any season, movie or remake of the same series counts.</>,
       <>Give up shows the answer and scores 0.</>,
     ],
     scoring: (

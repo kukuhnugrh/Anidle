@@ -75,7 +75,7 @@ Playground `D:\Personal Project\MAL-WebAPI` dipakai untuk uji coba query sebelum
   - `bareng`: completed semua teman yang aktif,
   - `saya`: completed akun MAL milik pemain (butuh MAL terhubung; begitu juga `teman` dan `bareng`),
   - `populer`: hanya ranking populer MAL.
-- **Franchise**: dihitung dari relasi MAL `prequel`/`sequel`/`side_story`/`parent_story`/`summary`/`full_story` (graph terhubung → `franchise_id`). Entri paling populer = entri kanonik (`canonical_id`), satu show per franchise. Dipakai untuk aturan jawaban (lihat §8).
+- **Franchise**: dihitung dari relasi MAL `prequel`/`sequel`/`side_story`/`parent_story`/`summary`/`full_story`/`alternative_version` (graph terhubung → `franchise_id`; remake seperti Kino no Tabi 2003/2017 ikut satu franchise). Entri paling populer = entri kanonik (`canonical_id`), satu show per franchise. Dipakai untuk aturan jawaban (lihat §8).
 
 ## 6. Media
 
@@ -216,9 +216,10 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
 - Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu tombol Guess per ronde (kolom kosong = salah, ronde selesai).
 - Difficulty Character diambil dari favorit MAL karakternya sendiri, bukan dari animenya: easy ≥ 5.000, medium 500–4.999, hard 100–499 (contoh Naruto: Naruto 88 rb, Neji 3,8 rb, Iruka 362). Ronde 1/2/3 = karakter easy/medium/hard dari pool anime biasa; per show disimpan maksimal 3 karakter per difficulty. Karakter utama saja terlalu gampang bagi yang sudah nonton.
-- Season/movie/OVA satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
+- Season/movie/OVA/remake (`alternative_version`) satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
 - Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium). Pengecualian: Character, yang ronde 1/2/3-nya easy/medium/hard menurut karakter.
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde, clue = video OP/ED blur tanpa suara yang mengikuti lagu (klip 240p di R2 untuk show easy + medium, selebihnya video terkecil AnimeThemes lewat proxy; cover blur kalau video gagal).
+- Clue poster (Anidle, Ending) dan video OP/ED di-blur **di file-nya** (poster 48 px + blur di `v1/blur/`, klip 96p + blur di `v1/clue/`, CSS tinggal 1 px untuk menghaluskan): blur CSS saja bisa dilewati dengan "open image/video in new tab". Video sumber tidak lagi di-stream (`/api/media` hanya audio); klip dibuat untuk semua show, show tanpa klip memakai poster blur.
 - Masuk dengan MAL: callback memakai `accountId` di cookie OAuth (`null` = tamu → masuk). Akun baru dari MAL punya `password_hash` kosong (tidak pernah cocok), jadi login password ditolak dan unlink MAL diblokir supaya akunnya tidak terkunci.
 - Blur clue dikurangi (terlalu susah): video/poster OP/ED 16 → 4 px, screenshot Anidle 9 → 3 px.
 - Character: kolom anime menerima show mana pun tempat karakter muncul (tabel `character_show`, semua karakter ≥ 100 favorit per show), bukan hanya show yang ditanya, karena karakter populer muncul di banyak seri (Rin Toosaka: Fate/Zero, Fate/Extra, Prisma☆Illya, …).

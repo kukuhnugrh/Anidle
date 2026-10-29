@@ -211,10 +211,10 @@ async function stepSynopsis(limit: number) {
 }
 
 /**
- * Groups a show's seasons, OVAs, movies, recaps and side stories into one franchise, and marks its
- * canonical entry: the most popular playable one (most MAL members). Only canonical entries are asked,
- * listed and guessed; their member count sets the franchise's difficulty. Spin-offs, alternative
- * versions/settings and shared-character links stay separate shows.
+ * Groups a show's seasons, OVAs, movies, recaps, side stories and alternative versions (remakes) into
+ * one franchise, and marks its canonical entry: the most popular playable one (most MAL members). Only
+ * canonical entries are asked, listed and guessed; their member count sets the franchise's difficulty.
+ * Spin-offs, alternative settings and shared-character links stay separate shows.
  */
 async function stepFranchise() {
   const edges = await all<{ mal_id: number; related_id: number }>(
