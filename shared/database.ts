@@ -84,17 +84,31 @@ export interface DbSong {
   clip: string | null;
 }
 
-/** A character Character mode (and Anidle's last clue) can show for a show. */
+/** A character Character mode can ask for a show. */
 export interface DbCharacter {
   id: number;
   name: string;
-  /** Romaji nicknames, also accepted as answers. */
+  /** Romaji nicknames, also accepted as the name. */
   nicknames: string[];
   role: string | null;
   favorites: number | null;
   /** Character mode's difficulty for this character (from its own MAL favorites). */
   difficulty: Difficulty;
   portrait: string;
+  /** Other shows Character mode also accepts as this character's anime (they appear there too). */
+  alsoIn: Array<{ malId: number; title: string }>;
+}
+
+/** The clues as the game shows them. */
+export interface DbClues {
+  /** The pre-blurred poster: Anidle's first clue, Ending's beside the video, both modes' fallback when the video fails. */
+  poster: string | null;
+  /** Anidle's second clue: the MAL synopsis with the title masked. */
+  synopsis: string | null;
+  /** Anidle's last clue: its two best-known characters. */
+  characters: Array<{ name: string; portrait: string }>;
+  /** Guess the Anime's title hint: each word's first letter. */
+  titleHint: { title: string; english: string | null };
 }
 
 /** Everything about one show the game uses: GET /api/anime/detail?id= (any entry's id resolves to its show). */
@@ -113,4 +127,5 @@ export interface DbDetail extends DbItem {
   characters: DbCharacter[];
   /** Guess the Anime's frames from the opening, in the order they are shown. */
   screenshots: string[];
+  clues: DbClues;
 }

@@ -687,29 +687,34 @@ input:focus-visible, select:focus-visible { outline: none; }
 .db-chips button.chip:hover:not(:disabled) { background: var(--dp-color-accent-warm); transform: none; box-shadow: var(--shadow-sm); }
 .db-paging { display: flex; justify-content: center; align-items: center; gap: 16px; }
 
-/* One show's page (/database/<id>): everything the game uses for it. */
-.anime-detail h2 { margin: 0; }
-.ad-top { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; }
-.ad-cover { width: 200px; border-radius: 100px 100px 14px 14px; border: var(--outline); box-shadow: 6px 6px 0 var(--dp-color-accent-secondary); }
-.ad-facts { display: grid; gap: 12px; min-width: 0; }
-.ad-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px 16px; margin: 0; }
+/* One show's page (/database/<id>): its facts, then one tab per mode with what that mode uses. */
+.anime-detail { gap: 14px; }
+.ad-top { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 22px; align-items: start; }
+.ad-cover { width: 120px; border-radius: 60px 60px 12px 12px; border: var(--outline); box-shadow: 5px 5px 0 var(--dp-color-accent-secondary); }
+.ad-facts { display: grid; gap: 10px; min-width: 0; }
+.ad-facts .page-head { margin: 0; gap: 2px; }
+.ad-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 16px; margin: 6px 0 0; }
 .ad-stats dt { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 .ad-stats dd { margin: 2px 0 0; font-weight: 650; }
-.ad-modes { display: grid; gap: 6px; }
-.ad-synopsis { margin: 8px 0 0; white-space: pre-line; line-height: 1.6; }
-.ad-section { gap: 12px; }
-.ad-songs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.ad-song { display: grid; gap: 8px; align-content: start; padding: 16px 18px; }
-.ad-song audio { width: 100%; }
-.ad-clip { margin: 0; display: grid; gap: 4px; }
-.ad-clip .clue-media { border-radius: var(--radius-sm); border: var(--detail); cursor: default; }
+.ad-tabs { flex-wrap: wrap; }
+.ad-card { padding: 18px 20px; }
+.ad-panel { display: grid; gap: 16px; }
+.ad-panel .anidle-clues { margin: 0; }
+.ad-song-title { margin-top: 4px; }
+.ad-panel audio { width: 100%; max-width: 640px; }
+.ad-clue-pair { justify-content: flex-start; margin-top: 8px; }
+.ad-clue-pair .clue-frame { margin: 0; }
+.ad-clue-pair .clue-media { cursor: default; }
+.ad-synopsis { margin: 6px 0 0; white-space: pre-line; line-height: 1.6; }
 .ad-chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
 .ad-char { margin: 0; display: grid; gap: 8px; align-content: start; }
 .ad-char img { width: 100%; aspect-ratio: 225 / 350; object-fit: cover; border-radius: 75px 75px 12px 12px; border: var(--outline); box-shadow: 4px 4px 0 var(--accent); }
 .ad-char figcaption { display: grid; gap: 3px; justify-items: start; }
 .ad-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.ad-shots figure { margin: 0; display: grid; gap: 4px; }
 .ad-shots img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); border: var(--outline); }
-.ad-entries { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.ad-hint { margin-top: 4px; font-family: var(--dp-typography-display); font-size: 20px; font-weight: 800; letter-spacing: .08em; }
+.ad-entries { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 
 /* Light accent fills keep dark text in night mode too (the page ink turns light there). */
 .tag.ok, .tag.partial, .tag.bad, .help-button, .help-rules li::before, .nav-score, .book-tab, .mode-status.won,
@@ -776,8 +781,10 @@ input:focus-visible, select:focus-visible { outline: none; }
   .result { flex-direction: column; align-items: flex-start; border-radius: 24px; }
   .db-search { grid-column: auto; }
   .db-grid { grid-template-columns: 1fr; }
-  .ad-top, .ad-songs { grid-template-columns: 1fr; }
-  .ad-cover { width: 160px; justify-self: center; }
+  .ad-top { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
+  .ad-cover { width: 96px; }
+  .ad-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ad-tabs .round-tab { flex: 1 1 30%; }
   .pip { width: 12px; }
   .shot { border-radius: var(--radius); box-shadow: 5px 5px 0 var(--dp-color-accent-warm), 5px 5px 0 3px var(--line); }
   .final { box-shadow: 6px 6px 0 var(--accent); }

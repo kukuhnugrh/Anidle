@@ -1,10 +1,12 @@
 import { CANONICAL_SQL, difficultyOf, type GenreType } from '../shared/catalog.js';
+import { maskSynopsis } from '../shared/anidle.js';
 import { characterDifficultyOf, displayName } from '../shared/characters.js';
 import { DB_PAGE_SIZE, type DbDetail, type DbFacets, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSong, type DbSort } from '../shared/database.js';
 import { MODE_MEDIA, MODES } from '../shared/modes.js';
+import { titleHint } from '../shared/normalize.js';
 import { all, one } from './db.js';
 import { DIFFICULTY_SQL } from './game.js';
-import { COVER_KEY_SQL, coverOf, isClueClip, mediaUrl } from './media.js';
+import { COVER_BLUR_KEY_SQL, COVER_KEY_SQL, coverOf, isClueClip, mediaUrl } from './media.js';
 
 const ORDER_BY: Record<DbSort, string> = {
   popularity: 'a.members IS NULL, a.members DESC',
@@ -111,6 +113,7 @@ interface DetailRow extends Row {
   season: string | null;
   num_episodes: number | null;
   synopsis: string | null;
+  blur_key: string | null;
 }
 
 interface MediaRow {
@@ -123,20 +126,21 @@ interface MediaRow {
 }
 
 /**
- * One show with everything the game uses for it: merged entries, songs, characters, screenshots. Any
- * entry's id resolves to its show; null when that is not a playable show. Only media the game may use
- * (status ok) is listed.
+ * One show with everything the game uses for it: Anidle's attributes and clues, songs and clue clips,
+ * Character mode's characters (with the other shows accepted for them), Guess the Anime's screenshots
+ * and title hint, merged entries. Any entry's id resolves to its show; null when that is not a playable
+ * show. Only media the game may use (status ok) is listed; clues are built with the game's own helpers.
  */
 export async function animeDetail(id: number): Promise<DbDetail | null> {
   const row = await one<DetailRow>(
-    `SELECT ${ITEM_SQL}, a.title_ja, a.synonyms, a.media_type, a.season, a.num_episodes, a.synopsis
+    `SELECT ${ITEM_SQL}, a.title_ja, a.synonyms, a.media_type, a.season, a.num_episodes, a.synopsis, ${COVER_BLUR_KEY_SQL} AS blur_key
      FROM anime a LEFT JOIN popular p ON p.mal_id = a.mal_id
      WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND a.mal_id = (SELECT COALESCE(x.canonical_id, x.mal_id) FROM anime x WHERE x.mal_id = ?)`,
     [id],
   );
   if (!row) return null;
   const malId = Number(row.mal_id);
-  const [genres, merged, media, characters, screenshots] = await Promise.all([
+  const [genres, merged, media, characters, screenshots, appearances] = await Promise.all([
     genresOf([malId]),
     all<{ mal_id: number; title: string; media_type: string | null; year: number | null; num_episodes: number | null }>(
       `SELECT mal_id, title, media_type, year, num_episodes FROM anime
@@ -149,7 +153,16 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
       [malId],
     ),
     all<{ r2_key: string }>('SELECT r2_key FROM anime_screenshot WHERE mal_id = ? ORDER BY slot', [malId]),
+    // Same as Character mode's check (server/characters.ts): any show the character appears in is accepted.
+    all<{ char_id: number; show: number; title: string }>(
+      `SELECT DISTINCT cs.char_id, s.mal_id AS show, s.title FROM character_show cs
+       JOIN anime a ON a.mal_id = cs.mal_id JOIN anime s ON s.mal_id = COALESCE(a.canonical_id, a.mal_id)
+       WHERE s.excluded IS NULL AND s.mal_id <> ? AND cs.char_id IN (SELECT char_id FROM anime_character WHERE mal_id = ?) ORDER BY s.members DESC`,
+      [malId, malId],
+    ),
   ]);
+  const alsoIn = Map.groupBy(appearances, (a) => Number(a.char_id));
+  const synonyms = JSON.parse(row.synonyms) as string[];
   const ok = new Map(media.map((m) => [m.kind, m]));
   const song = (kind: 'op' | 'ed'): DbSong | null => {
     const m = ok.get(kind);
@@ -158,7 +171,7 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
   return {
     ...toItem(row, genres),
     titleJa: row.title_ja,
-    synonyms: JSON.parse(row.synonyms) as string[],
+    synonyms,
     mediaType: row.media_type,
     season: row.season,
     episodes: num(row.num_episodes),
@@ -175,9 +188,20 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
           favorites: num(c.favorites),
           difficulty: characterDifficultyOf(Number(c.favorites ?? 0)),
           portrait: mediaUrl(c.r2_key),
+          alsoIn: (alsoIn.get(Number(c.char_id)) ?? []).map((s) => ({ malId: Number(s.show), title: s.title })),
         }))
       : [],
     screenshots: ok.has('shots') ? screenshots.map((s) => mediaUrl(s.r2_key)) : [],
+    clues: {
+      poster: row.blur_key ? mediaUrl(row.blur_key) : null,
+      synopsis: row.synopsis ? maskSynopsis(row.synopsis, [row.title, row.title_en, row.title_ja, ...synonyms].filter((n): n is string => Boolean(n))) : null,
+      // Anidle's last clue reads the two best-known stored characters (server/game.ts anidleClues).
+      characters: characters
+        .toSorted((a, b) => Number(b.favorites ?? 0) - Number(a.favorites ?? 0))
+        .slice(0, 2)
+        .map((c) => ({ name: displayName(c.name), portrait: mediaUrl(c.r2_key) })),
+      titleHint: { title: titleHint(row.title), english: row.title_en && row.title_en !== row.title ? titleHint(row.title_en) : null },
+    },
   };
 }
 
