@@ -21,7 +21,7 @@ permissions:
 jobs:
   daily:
     runs-on: ubuntu-latest
-    # Usually a few minutes; slow AnimeThemes downloads (up to 5 min per song, see stepDaily) need the headroom.
+    # Usually a few minutes; a slow AnimeThemes day (songs at ~5–30 KB/s, clips cut off at 10 min each, see stepDaily) needs the headroom.
     timeout-minutes: 60
     env:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}

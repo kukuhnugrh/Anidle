@@ -35,11 +35,21 @@ interface FfmpegResult {
   log: string;
 }
 
-/** Runs ffmpeg with `input` on stdin (or a URL in args) and returns stdout plus the encoded length. */
-function ffmpeg(args: string[], input?: Uint8Array): Promise<FfmpegResult> {
+/**
+ * Runs ffmpeg with `input` on stdin (or a URL in args) and returns stdout plus the encoded length.
+ * With `timeoutMs` it is killed past that long (a slow host makes a whole-video read take an hour).
+ */
+function ffmpeg(args: string[], input?: Uint8Array, timeoutMs?: number): Promise<FfmpegResult> {
   if (!ffmpegPath) throw new Error('ffmpeg-static tidak punya binary untuk platform ini.');
   const { promise, resolve, reject } = Promise.withResolvers<FfmpegResult>();
   const child = spawn(ffmpegPath, ['-hide_banner', '-nostdin', '-loglevel', 'info', ...args], { stdio: ['pipe', 'pipe', 'pipe'] });
+  let timedOut = false;
+  const timer = timeoutMs
+    ? setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, timeoutMs)
+    : undefined;
   const chunks: Buffer[] = [];
   let size = 0;
   let err = '';
@@ -50,6 +60,9 @@ function ffmpeg(args: string[], input?: Uint8Array): Promise<FfmpegResult> {
   child.stderr.on('data', (b: Buffer) => (err = (err + b.toString()).slice(-4000)));
   child.on('error', reject);
   child.on('close', (code) => {
+    clearTimeout(timer);
+    // Not a MediaError: callers retry those (host hiccups), a timeout would only repeat.
+    if (timedOut) return reject(new Error(`ffmpeg dihentikan setelah ${timeoutMs! / 1000} dtk (host lambat)`));
     if (code !== 0) return reject(new MediaError(`ffmpeg ${code}: ${err.trim().split('\n').at(-1)}`));
     const out = new Uint8Array(size);
     let at = 0;
@@ -67,12 +80,36 @@ function ffmpeg(args: string[], input?: Uint8Array): Promise<FfmpegResult> {
 
 const contentKey = (dir: string, body: Uint8Array, ext: string) => `v1/${dir}/${createHash('sha256').update(body).digest('hex').slice(0, 24)}.${ext}`;
 
-/** GET through `limiter`, which retries network errors (timeouts too), 429 and 5xx. */
-function download(limiter: Limiter, url: string, timeoutMs = 60_000): Promise<Uint8Array<ArrayBuffer>> {
+/** A download is given up after this long without a byte, however slow (but moving) the file is. */
+const DOWNLOAD_IDLE_MS = 60_000;
+
+/** GET through `limiter`, which retries network errors (a stalled download too), 429 and 5xx. */
+function download(limiter: Limiter, url: string): Promise<Uint8Array<ArrayBuffer>> {
   return limiter.schedule(async () => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) throw new UpstreamError(res.status, `${res.status} ${url}`);
-    return new Uint8Array(await res.arrayBuffer());
+    const abort = new AbortController();
+    const stalled = () => abort.abort(new Error(`tidak ada data selama ${DOWNLOAD_IDLE_MS / 1000} dtk`));
+    let timer = setTimeout(stalled, DOWNLOAD_IDLE_MS);
+    try {
+      const res = await fetch(url, { signal: abort.signal });
+      if (!res.ok) throw new UpstreamError(res.status, `${res.status} ${url}`);
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      for await (const chunk of res.body ?? []) {
+        clearTimeout(timer);
+        timer = setTimeout(stalled, DOWNLOAD_IDLE_MS);
+        chunks.push(chunk);
+        size += chunk.length;
+      }
+      const out = new Uint8Array(size);
+      let at = 0;
+      for (const c of chunks) {
+        out.set(c, at);
+        at += c.length;
+      }
+      return out;
+    } finally {
+      clearTimeout(timer);
+    }
   });
 }
 
@@ -594,17 +631,21 @@ const CLIP_HEIGHT = 240;
  * the encoder's result is unusable, so it is streamed instead). Throws when the host is in trouble, so the
  * theme is tried again on a later run. `file` is a scratch path (mp4 needs a seekable output).
  */
-export async function makeClip(themeId: number, videoUrl: string, file: string): Promise<'ok' | 'failed'> {
+export async function makeClip(themeId: number, videoUrl: string, file: string, timeoutMs?: number): Promise<'ok' | 'failed'> {
   // The video host answers 5xx in bursts when busy: wait and try again (30 s, 60 s, 90 s) before giving up.
   let result: FfmpegResult | null = null;
   for (let attempt = 1; !result; attempt++) {
     try {
-      result = await ffmpeg([
-        '-rw_timeout', '60000000', '-i', videoUrl, '-an',
-        '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
-        // +faststart puts the index first, so the browser can start right away.
-        '-movflags', '+faststart', '-y', file,
-      ]);
+      result = await ffmpeg(
+        [
+          '-rw_timeout', '60000000', '-i', videoUrl, '-an',
+          '-vf', `scale=-2:${CLIP_HEIGHT},fps=24`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '32', '-pix_fmt', 'yuv420p',
+          // +faststart puts the index first, so the browser can start right away.
+          '-movflags', '+faststart', '-y', file,
+        ],
+        undefined,
+        timeoutMs,
+      );
     } catch (err) {
       if (!(err instanceof MediaError) || attempt >= 4) throw err;
       await sleep(30_000 * attempt);
@@ -677,8 +718,11 @@ const SONG_COPY_DAYS = 7;
  */
 const SONG_BITRATE = '112k';
 const songHost = new Limiter('animethemes-files', [{ ms: 1000, max: 2 }]);
-/** A whole song (3–5 MB); AnimeThemes sometimes serves files at only ~30 KB/s, ~170 s for 5 MB. */
-const SONG_DOWNLOAD_MS = 300_000;
+/**
+ * A daily clue clip reads the whole 30–60 MB video; on a day AnimeThemes sends ~10 KB/s that is an hour.
+ * Past this the round keeps streaming its video instead, and the next run tries again.
+ */
+const DAILY_CLIP_MS = 10 * 60_000;
 
 /**
  * Gets the Opening and Ending of today and tomorrow (UTC+7) ready before players arrive, so a late or skipped
@@ -686,35 +730,47 @@ const SONG_DOWNLOAD_MS = 300_000;
  * R2 re-encoded (puzzle_round.audio_key, v1/song/<hash>.m4a, so the file name gives nothing away) and makes any
  * missing clue clip. Players then stream ~1 MB from Cloudflare instead of ~3.5 MB from AnimeThemes. Copies older
  * than SONG_COPY_DAYS are removed (R2's free 10 GB); a round without a copy streams through /api/media.
+ * Every song is copied before any clip is made: a round plays without its clip, not without its song.
  */
 export async function stepDaily() {
   const today = todayUtc7();
   const counts = { songs: 0, clips: 0, kept: 0, failed: 0, removed: 0 };
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-daily-'));
+  const clips = new Map<number, { label: string; videoUrl: string }>();
   for (const date of [today, shiftDate(today, 1)]) {
     for (const mode of ['opening', 'ending'] as const) {
       const puzzle = await dailyPuzzle(mode, date);
       const sources = await songSources(puzzle.id, mode);
       for (const [round, source] of sources.entries()) {
+        const label = `${date} ${mode} ronde ${round + 1} (${source.malId})`;
+        if (!source.clipKey && source.videoUrl) clips.set(source.themeId, { label, videoUrl: source.videoUrl });
+        if (source.audioKey) {
+          counts.kept++;
+          continue;
+        }
         try {
-          if (source.audioKey) counts.kept++;
-          else {
-            const original = await download(songHost, source.audioUrl, SONG_DOWNLOAD_MS);
-            const file = path.join(dir, 'song.m4a');
-            const { seconds } = await ffmpeg(['-i', 'pipe:0', '-vn', '-ac', '2', '-c:a', 'aac', '-b:a', SONG_BITRATE, '-movflags', '+faststart', '-y', file], original);
-            const song = new Uint8Array(await readFile(file));
-            if (song.length < 100_000 || seconds < 20) throw new MediaError(`lagu terlalu pendek (${song.length} B, ${seconds} dtk)`);
-            const key = contentKey('song', song, 'm4a');
-            await putObject(key, song, 'audio/mp4');
-            await run('UPDATE puzzle_round SET audio_key = ? WHERE puzzle_id = ? AND round = ?', [key, puzzle.id, round]);
-            counts.songs++;
-          }
-          if (!source.clipKey && source.videoUrl && (await makeClip(source.themeId, source.videoUrl, path.join(dir, 'clip.mp4'))) === 'ok') counts.clips++;
+          const original = await download(songHost, source.audioUrl);
+          const file = path.join(dir, 'song.m4a');
+          const { seconds } = await ffmpeg(['-i', 'pipe:0', '-vn', '-ac', '2', '-c:a', 'aac', '-b:a', SONG_BITRATE, '-movflags', '+faststart', '-y', file], original);
+          const song = new Uint8Array(await readFile(file));
+          if (song.length < 100_000 || seconds < 20) throw new MediaError(`lagu terlalu pendek (${song.length} B, ${seconds} dtk)`);
+          const key = contentKey('song', song, 'm4a');
+          await putObject(key, song, 'audio/mp4');
+          await run('UPDATE puzzle_round SET audio_key = ? WHERE puzzle_id = ? AND round = ?', [key, puzzle.id, round]);
+          counts.songs++;
         } catch (err) {
           counts.failed++;
-          log(`daily: ${date} ${mode} ronde ${round + 1} (${source.malId}) ${errorText(err)}`);
+          log(`daily: ${label} ${errorText(err)}`);
         }
       }
+    }
+  }
+  for (const [themeId, { label, videoUrl }] of clips) {
+    try {
+      if ((await makeClip(themeId, videoUrl, path.join(dir, 'clip.mp4'), DAILY_CLIP_MS)) === 'ok') counts.clips++;
+    } catch (err) {
+      counts.failed++;
+      log(`daily: ${label} klip: ${errorText(err)}`);
     }
   }
   await rm(dir, { recursive: true, force: true });
