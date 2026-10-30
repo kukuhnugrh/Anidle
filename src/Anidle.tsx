@@ -95,24 +95,27 @@ function GuessRow({ g, n }: { g: Guess; n: number }) {
   );
 }
 
-/** Integer ranges read as inclusive bounds ("2014–2022"); scores stay exclusive ("> 8.58"). */
+/** A range in words: years are inclusive ("2009 or earlier", "between 2013 and 2021"), scores exclusive ("above 7.51"). */
 function rangeText(r: RangeSummary, integer: boolean): string | null {
-  if (r.exact != null) return integer ? String(r.exact) : r.exact.toFixed(2);
-  if (r.above == null && r.below == null) return null;
   if (integer) {
     const lo = r.above == null ? null : r.above + 1;
     const hi = r.below == null ? null : r.below - 1;
-    if (lo != null && hi != null) return lo === hi ? String(lo) : `${lo}–${hi}`;
-    return lo != null ? `≥ ${lo}` : `≤ ${hi}`;
+    if (lo != null && hi != null) return lo === hi ? String(lo) : `between ${lo} and ${hi}`;
+    if (lo != null) return `${lo} or later`;
+    return hi != null ? `${hi} or earlier` : null;
   }
-  const parts = [r.above != null ? `> ${r.above.toFixed(2)}` : null, r.below != null ? `< ${r.below.toFixed(2)}` : null];
-  return parts.filter(Boolean).join(' and ');
+  if (r.above != null && r.below != null) return `between ${r.above.toFixed(2)} and ${r.below.toFixed(2)}`;
+  if (r.above != null) return `above ${r.above.toFixed(2)}`;
+  return r.below != null ? `below ${r.below.toFixed(2)}` : null;
 }
 
-/** A fact about the answer: known (green), partly known (amber: a range, or what it is not), or still open. */
+/**
+ * A fact about the answer: known (green), partly known (amber: a range, some items, or what it is not),
+ * or still open. Green chips are only ever certain values; a range gets an amber chip.
+ */
 type FactState = 'known' | 'partly' | 'open';
 
-function Fact({ label, state, yes, no }: { label: string; state: FactState; yes: string[]; no: string[] }) {
+function Fact({ label, state, yes, range, no }: { label: string; state: FactState; yes: string[]; range?: string | null; no: string[] }) {
   return (
     <div className={`fact ${state}`}>
       <span className="cell-label">{label}</span>
@@ -120,13 +123,14 @@ function Fact({ label, state, yes, no }: { label: string; state: FactState; yes:
         <span className="fact-open">?</span>
       ) : (
         <>
-          {yes.length > 0 && (
+          {(yes.length > 0 || range) && (
             <span className="soft-chips">
               {yes.map((v) => (
                 <span key={v} className="soft-chip hit">
                   {v}
                 </span>
               ))}
+              {range && <span className="soft-chip maybe">{range}</span>}
             </span>
           )}
           {no.length > 0 && <span className="anidle-not">not {no.join(', ')}</span>}
@@ -137,8 +141,9 @@ function Fact({ label, state, yes, no }: { label: string; state: FactState; yes:
 }
 
 const rangeFact = (r: RangeSummary, integer: boolean) => {
-  const text = rangeText(r, integer);
-  return { state: (r.exact != null ? 'known' : text ? 'partly' : 'open') as FactState, yes: text ? [text] : [], no: [] };
+  if (r.exact != null) return { state: 'known' as FactState, yes: [integer ? String(r.exact) : r.exact.toFixed(2)], no: [] };
+  const range = rangeText(r, integer);
+  return { state: (range ? 'partly' : 'open') as FactState, yes: [], range, no: [] };
 };
 const scalarFact = (s: ScalarSummary) =>
   s.known

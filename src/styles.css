@@ -476,6 +476,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .soft-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .soft-chip { padding: 1px 7px; font-size: 12.5px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .soft-chip.hit { font-weight: 700; background: color-mix(in srgb, var(--ok-fill) 38%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok-fill) 75%, transparent); }
+/* A range ("2009 or earlier"): narrows the answer down, so amber like a partial match, never green. */
+.soft-chip.maybe { font-weight: 700; background: color-mix(in srgb, var(--partial-fill) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--partial-fill) 75%, transparent); }
 .anidle-not { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 .anidle-row.correct { background: color-mix(in srgb, var(--ok-fill) 14%, transparent); box-shadow: inset 4px 0 0 var(--ok-fill); }
 .anidle-row.correct .anidle-row-title { color: var(--ok); }
