@@ -18,11 +18,15 @@ export function json(body: unknown, init: ResponseInit = {}, cookies: string[] =
   return new Response(JSON.stringify(body), { ...init, headers });
 }
 
-/** Public JSON the browser may keep but must revalidate (an ETag of the body answers 304 when unchanged). */
+/**
+ * Public JSON the browser must revalidate (an ETag of the body answers 304 when unchanged) but the CDN
+ * keeps for an hour: the lists only change with the pipeline, and every page with a guess box asks for
+ * them, which read the whole anime/character table each time (Turso bills rows read).
+ */
 export function revalidatedJson(req: Request, data: unknown): Response {
   const body = JSON.stringify(data);
   const etag = `"${createHash('sha256').update(body).digest('base64url').slice(0, 16)}"`;
-  const headers = { etag, 'cache-control': 'public, no-cache' };
+  const headers = { etag, 'cache-control': 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400' };
   if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
   return new Response(body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8' } });
 }

@@ -83,17 +83,18 @@ const anyDifficultySql = (difficulties: readonly Difficulty[], alias: string) =>
 export const USABLE_THEME_SQL = `anime_theme t JOIN anime e ON e.mal_id = t.mal_id WHERE t.status = 'ok' AND e.excluded IS NULL`;
 
 /**
- * SQL (on aliases `a` = the canonical entry and `col` = some table's mal_id) for "col is an entry of
- * a's show": a itself or any entry the franchise step pointed at it. A friend who completed season 2
- * has completed the show.
+ * SQL for the set of shows whose entries `from` lists in `col` (alias x = the entry): an entry's show is
+ * COALESCE(canonical_id, mal_id), so a friend who completed season 2 has completed the show. Used as
+ * `a.mal_id IN <set>`: not correlated, so SQLite builds the set once. A per-show EXISTS here walked a
+ * player's whole completed list for each of ~4,000 shows, millions of rows read per pool (Turso bills reads).
  */
-const ofShow = (col: string) => `(${col} = a.mal_id OR ${col} IN (SELECT x.mal_id FROM anime x WHERE x.canonical_id = a.mal_id))`;
+const showsOf = (from: string, col: string, where = '1') => `(SELECT COALESCE(x.canonical_id, x.mal_id) FROM ${from} JOIN anime x ON x.mal_id = ${col} WHERE ${where})`;
 
 /** Which shows a pool contains, before filters. */
 function poolSource({ pool, members, malUsername }: PoolSpec): { sql: string; args: Array<string | number> } {
   const marks = members.map(() => '?').join(',');
-  const byFriend = members.length ? `EXISTS (SELECT 1 FROM completed c WHERE c.username IN (${marks}) AND ${ofShow('c.mal_id')})` : '0';
-  const popular = `EXISTS (SELECT 1 FROM popular p WHERE ${ofShow('p.mal_id')})`;
+  const byFriend = members.length ? `a.mal_id IN ${showsOf('completed c', 'c.mal_id', `c.username IN (${marks})`)}` : '0';
+  const popular = `a.mal_id IN ${showsOf('popular p', 'p.mal_id')}`;
   switch (pool) {
     case 'semua':
       return { sql: `(${byFriend} OR ${popular})`, args: members };
@@ -103,13 +104,14 @@ function poolSource({ pool, members, malUsername }: PoolSpec): { sql: string; ar
       // Completed (any entry of the show) by every member that has a list at all.
       if (!members.length) return { sql: '0', args: [] };
       return {
-        sql: `${byFriend} AND (SELECT COUNT(DISTINCT c.username) FROM completed c WHERE c.username IN (${marks}) AND ${ofShow('c.mal_id')})
-              = (SELECT COUNT(DISTINCT username) FROM completed WHERE username IN (${marks}))`,
-        args: [...members, ...members, ...members],
+        sql: `a.mal_id IN (SELECT COALESCE(x.canonical_id, x.mal_id) AS show FROM completed c JOIN anime x ON x.mal_id = c.mal_id
+              WHERE c.username IN (${marks}) GROUP BY show
+              HAVING COUNT(DISTINCT c.username) = (SELECT COUNT(DISTINCT username) FROM completed WHERE username IN (${marks})))`,
+        args: [...members, ...members],
       };
     case 'saya':
       if (!malUsername) return { sql: '0', args: [] };
-      return { sql: `EXISTS (SELECT 1 FROM completed c WHERE c.username = ? AND ${ofShow('c.mal_id')})`, args: [malUsername] };
+      return { sql: `a.mal_id IN ${showsOf('completed c', 'c.mal_id', 'c.username = ?')}`, args: [malUsername] };
     case 'populer':
       return { sql: popular, args: [] };
   }
@@ -126,7 +128,7 @@ function poolWhere(spec: PoolSpec): { sql: string; args: Array<string | number> 
   }
   if (spec.song) {
     const ofDifficulty = spec.difficulties.length ? ` AND ${anyDifficultySql(spec.difficulties, 'e')}` : '';
-    parts.push(`EXISTS (SELECT 1 FROM ${USABLE_THEME_SQL} AND t.kind = ? AND ${ofShow('e.mal_id')}${ofDifficulty})`);
+    parts.push(`a.mal_id IN (SELECT COALESCE(e.canonical_id, e.mal_id) FROM ${USABLE_THEME_SQL} AND t.kind = ?${ofDifficulty})`);
     args.push(spec.song);
   } else if (spec.difficulties.length) parts.push(anyDifficultySql(spec.difficulties, 'a'));
   if (spec.media) {
