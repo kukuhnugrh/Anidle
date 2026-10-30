@@ -86,6 +86,8 @@ Hasil run Okt 2026 (1 pemain, `Velvetaco`): 621 completed + 3.701 populer → 3.
 
 `.github/workflows/pipeline.yml` menjalankan semua step tiap Selasa 03:00 UTC+7 ke Turso + R2 (bisa juga manual lewat **Run workflow**, dengan pilihan step dan flag), dan `.github/workflows/daily.yml` step `daily` tiap hari 00:05 UTC+7. Antrean `enrich_queue` dari "Sinkron ulang" ikut diproses di step `enrich`. Ringkasan run (jumlah per jenis media + daftar media yang rusak di run itu) muncul di halaman run. Secrets yang dibutuhkan: `MAL_CLIENT_ID`, `MAL_CLIENT_SECRET`, `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `TOKEN_ENC_KEY`, `POOL_USERS`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`.
 
+**Kuota baca Turso**: paket gratis Turso menghitung *rows read* per bulan, dan kalau habis semua read diblokir (situs mati sampai kuota reset; ini terjadi Okt 2026). Query di jalur request harus memakai index atau set yang tidak berkorelasi: pool puzzle memakai `a.mal_id IN (SELECT show …)` (`showsOf` di `server/game.ts`), bukan `EXISTS` per show (yang dulu membaca jutaan baris per puzzle). Daftar autocomplete (`/api/titles`, `/api/characters`) di-cache CDN 1 jam (`revalidatedJson`).
+
 ## Database
 
 Halaman `/database` menampilkan semua judul yang bisa keluar di Anidle (`GET /api/anime`, 48 per halaman; opsi filter dari `GET /api/anime/facets`).
