@@ -20,24 +20,31 @@ const DIRECTION_HINT: Record<Direction, string> = {
   unknown: 'Unknown',
 };
 
-/** match = pale green, partial = pale amber, different/unknown = plain: most cells miss, so misses stay quiet. */
-type Tone = 'ok' | 'partial' | 'none';
+/** match (green ✓), partial (amber ~), wrong (soft red ✗), unknown (plain: MAL has no value). */
+type Tone = 'ok' | 'partial' | 'bad' | 'none';
+const MARK: Record<Tone, string> = { ok: '✓', partial: '~', bad: '✗', none: '' };
+const TONE_TEXT: Record<Tone, string> = { ok: 'match', partial: 'partly', bad: 'wrong', none: 'unknown' };
 
 const BOARD_COLUMNS = ['Year', 'Score', 'Source', 'Studio', 'Genre', 'Tags'] as const;
 
 function Cell({ label, tone, title, children }: { label: string; tone: Tone; title?: string; children: ReactNode }) {
   return (
-    <div className={`anidle-cell ${tone}`} data-label={label} title={title}>
+    <div className={`anidle-cell ${tone}`} data-label={label} title={title ?? `${label}: ${TONE_TEXT[tone]}`}>
+      {MARK[tone] && (
+        <span className={`cell-mark ${tone}`} aria-label={TONE_TEXT[tone]}>
+          {MARK[tone]}
+        </span>
+      )}
       {children}
     </div>
   );
 }
 
 function NumberCell({ label, clue, format }: { label: string; clue: AnidleFeedback['year']; format?: (v: number) => string }) {
+  const tone: Tone = clue.direction === 'equal' ? 'ok' : clue.direction === 'unknown' ? 'none' : 'bad';
   return (
-    <Cell label={label} tone={clue.direction === 'equal' ? 'ok' : 'none'} title={`${label}: ${DIRECTION_HINT[clue.direction]}`}>
+    <Cell label={label} tone={tone} title={`${label}: ${DIRECTION_HINT[clue.direction]}`}>
       {clue.value == null ? '?' : format ? format(clue.value) : clue.value}
-      {clue.direction === 'equal' && <span className="anidle-pill ok">✓</span>}
       {ARROW[clue.direction] && <span className="anidle-pill">{ARROW[clue.direction]}</span>}
     </Cell>
   );
@@ -46,7 +53,7 @@ function NumberCell({ label, clue, format }: { label: string; clue: AnidleFeedba
 /** A list as soft chips; the items the answer shares are filled. */
 function ListCell({ label, clue }: { label: string; clue: ListClue }) {
   return (
-    <Cell label={label} tone={clue.overlap === 'full' ? 'ok' : clue.overlap === 'partial' ? 'partial' : 'none'}>
+    <Cell label={label} tone={clue.overlap === 'full' ? 'ok' : clue.overlap === 'partial' ? 'partial' : 'bad'}>
       {clue.items.length === 0 ? (
         <span className="muted">—</span>
       ) : (
@@ -62,10 +69,13 @@ function ListCell({ label, clue }: { label: string; clue: ListClue }) {
   );
 }
 
-function GuessRow({ g }: { g: Guess }) {
+function GuessRow({ g, n }: { g: Guess; n: number }) {
   return (
     <div className={`anidle-row${g.correct ? ' correct' : ''}`}>
       <div className="anidle-row-title">
+        <span className="try-no" title={`Try ${n}`}>
+          {n}
+        </span>
         {g.cover ? <img className="anidle-thumb" src={g.cover} alt="" loading="lazy" /> : <span className="anidle-thumb" />}
         <span>
           {g.correct ? '✓ ' : ''}
@@ -75,7 +85,7 @@ function GuessRow({ g }: { g: Guess }) {
       </div>
       <NumberCell label="Year" clue={g.year} />
       <NumberCell label="Score" clue={g.score} format={(v) => v.toFixed(2)} />
-      <Cell label="Source" tone={g.source.match ? 'ok' : 'none'}>
+      <Cell label="Source" tone={g.source.match ? 'ok' : g.source.value == null ? 'none' : 'bad'}>
         {pretty(g.source.value)}
       </Cell>
       <ListCell label="Studio" clue={g.studios} />
@@ -99,64 +109,77 @@ function rangeText(r: RangeSummary, integer: boolean): string | null {
   return parts.filter(Boolean).join(' and ');
 }
 
-/** What is known, then what is ruled out (quiet "not …" line). */
-function Known({ yes, no }: { yes: string[]; no: string[] }) {
-  if (!yes.length && !no.length) return <span className="muted">—</span>;
+/** A fact about the answer: known (green), partly known (amber: a range, or what it is not), or still open. */
+type FactState = 'known' | 'partly' | 'open';
+
+function Fact({ label, state, yes, no }: { label: string; state: FactState; yes: string[]; no: string[] }) {
   return (
-    <>
-      {yes.length > 0 && (
-        <span className="soft-chips">
-          {yes.map((v) => (
-            <span key={v} className="soft-chip hit">
-              {v}
+    <div className={`fact ${state}`}>
+      <span className="cell-label">{label}</span>
+      {state === 'open' ? (
+        <span className="fact-open">?</span>
+      ) : (
+        <>
+          {yes.length > 0 && (
+            <span className="soft-chips">
+              {yes.map((v) => (
+                <span key={v} className="soft-chip hit">
+                  {v}
+                </span>
+              ))}
             </span>
-          ))}
-        </span>
+          )}
+          {no.length > 0 && <span className="anidle-not">not {no.join(', ')}</span>}
+        </>
       )}
-      {no.length > 0 && <span className="anidle-not">not {no.join(', ')}</span>}
-    </>
+    </div>
   );
 }
 
-const knownList = (s: ListSummary) => (s.complete && !s.has.length ? { yes: ['none'], no: [] } : { yes: s.has, no: s.complete ? [] : s.not });
-const knownScalar = (s: ScalarSummary) => (s.known ? { yes: [pretty(s.known.value)], no: [] } : { yes: [], no: s.ruledOut.map((v) => pretty(v)) });
+const rangeFact = (r: RangeSummary, integer: boolean) => {
+  const text = rangeText(r, integer);
+  return { state: (r.exact != null ? 'known' : text ? 'partly' : 'open') as FactState, yes: text ? [text] : [], no: [] };
+};
+const scalarFact = (s: ScalarSummary) =>
+  s.known
+    ? { state: 'known' as FactState, yes: [pretty(s.known.value)], no: [] }
+    : { state: (s.ruledOut.length ? 'partly' : 'open') as FactState, yes: [], no: s.ruledOut.map((v) => pretty(v)) };
+const listFact = (s: ListSummary) =>
+  s.complete
+    ? { state: 'known' as FactState, yes: s.has.length ? s.has : ['none'], no: [] }
+    : { state: (s.has.length || s.not.length ? 'partly' : 'open') as FactState, yes: s.has, no: s.not };
 
-/** The board's first row: everything the guesses so far proved about the answer. */
-function KnownRow({ guesses }: { guesses: AnidleFeedback[] }) {
+/** Its own card above the board: everything the guesses so far proved about the answer. */
+function AnswerCard({ guesses }: { guesses: AnidleFeedback[] }) {
   const s = useMemo(() => summarizeAnidle(guesses), [guesses]);
-  const range = (label: string, r: RangeSummary, integer: boolean) => {
-    const text = rangeText(r, integer);
-    return (
-      <Cell label={label} tone="none">
-        <Known yes={text ? [text] : []} no={[]} />
-      </Cell>
-    );
-  };
+  const facts = [
+    { label: 'Year', ...rangeFact(s.year, true) },
+    { label: 'Score', ...rangeFact(s.score, false) },
+    { label: 'Source', ...scalarFact(s.source) },
+    { label: 'Studio', ...listFact(s.studios) },
+    { label: 'Genre', ...listFact(s.genres) },
+    { label: 'Tags', ...listFact(s.tags) },
+  ];
+  const known = facts.filter((f) => f.state === 'known').length;
   return (
-    <div className="anidle-row known">
-      <div className="anidle-row-title">
-        <span className="anidle-thumb mystery" aria-hidden="true">
-          ?
-        </span>
-        <span>
-          Answer <span className="muted small">so far</span>
-        </span>
+    <section className="answer-card">
+      <span className="answer-mystery" aria-hidden="true">
+        ?
+      </span>
+      <div className="answer-body">
+        <div className="answer-head">
+          <h2>The answer so far</h2>
+          <span className="muted small">
+            {known} of {facts.length} pinned down · from {guesses.length} {guesses.length === 1 ? 'guess' : 'guesses'}
+          </span>
+        </div>
+        <div className="answer-facts">
+          {facts.map((f) => (
+            <Fact key={f.label} {...f} />
+          ))}
+        </div>
       </div>
-      {range('Year', s.year, true)}
-      {range('Score', s.score, false)}
-      <Cell label="Source" tone="none">
-        <Known {...knownScalar(s.source)} />
-      </Cell>
-      <Cell label="Studio" tone="none">
-        <Known {...knownList(s.studios)} />
-      </Cell>
-      <Cell label="Genre" tone="none">
-        <Known {...knownList(s.genres)} />
-      </Cell>
-      <Cell label="Tags" tone="none">
-        <Known {...knownList(s.tags)} />
-      </Cell>
-    </div>
+    </section>
   );
 }
 
@@ -303,16 +326,16 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
       )}
       {error && <div className="error-box">{error}</div>}
       <OpenClues puzzle={puzzle} />
+      {titled.length > 0 && !puzzle.solved && <AnswerCard guesses={titled} />}
 
       {puzzle.guesses.length ? (
         <section className="anidle-board">
           <div className="anidle-head" aria-hidden="true">
-            <span>Guess</span>
+            <span>Your guesses</span>
             {BOARD_COLUMNS.map((c) => (
               <span key={c}>{c}</span>
             ))}
           </div>
-          {titled.length > 0 && !puzzle.solved && <KnownRow guesses={titled} />}
           {groupSkips(puzzle.guesses)
             .reverse()
             .map((row, i) =>
@@ -321,11 +344,12 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
                   Skipped {row.skipped} {row.skipped === 1 ? 'try' : 'tries'}
                 </div>
               ) : (
-                <GuessRow key={row.malId} g={row} />
+                <GuessRow key={row.malId} g={row} n={puzzle.guesses.indexOf(row) + 1} />
               ),
             )}
           <div className="anidle-key muted small">
-            <span className="tone-swatch ok" /> match <span className="tone-swatch partial" /> partly <span>↑↓ the answer is higher / lower</span>
+            <span className="cell-mark ok">✓</span> match <span className="cell-mark partial">~</span> partly <span className="cell-mark bad">✗</span> wrong
+            <span>↑↓ the answer is higher / lower</span>
           </div>
         </section>
       ) : (

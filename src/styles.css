@@ -450,13 +450,23 @@ input:focus-visible, select:focus-visible { outline: none; }
 .anidle-row:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .anidle-row-title { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .anidle-thumb { flex: none; width: 34px; aspect-ratio: 225 / 320; object-fit: cover; border-radius: 8px; border: var(--detail); background: var(--ground); }
-.anidle-thumb.mystery {
-  display: grid; place-items: center; font-family: var(--dp-typography-display); font-size: 18px; font-weight: 800; color: var(--accent-ink);
-  background: color-mix(in srgb, var(--accent) 14%, transparent); border: var(--dp-border-detail-width) dashed var(--accent);
+.try-no {
+  flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; font-size: 11.5px; font-weight: 800;
+  font-variant-numeric: tabular-nums; color: var(--muted); border-radius: 999px; background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
-.anidle-cell { min-width: 0; padding: 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
-.anidle-cell.ok { background: color-mix(in srgb, var(--ok-fill) 16%, transparent); box-shadow: inset 3px 0 0 var(--ok-fill); }
-.anidle-cell.partial { background: color-mix(in srgb, var(--partial-fill) 12%, transparent); box-shadow: inset 3px 0 0 var(--partial-fill); }
+/* Every compared cell says how it compares: ✓ match, ~ partly, ✗ wrong (pale red, so a board of misses stays readable). */
+.anidle-cell { position: relative; min-width: 0; padding: 10px 28px 10px 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.anidle-cell.ok { background: color-mix(in srgb, var(--ok-fill) 18%, transparent); box-shadow: inset 3px 0 0 var(--ok-fill); }
+.anidle-cell.partial { background: color-mix(in srgb, var(--partial-fill) 16%, transparent); box-shadow: inset 3px 0 0 var(--partial-fill); }
+.anidle-cell.bad { background: color-mix(in srgb, var(--bad-fill) 8%, transparent); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--bad-fill) 55%, transparent); }
+.cell-mark {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 11px; font-weight: 800; line-height: 1;
+  border-radius: 50%; vertical-align: -3px;
+}
+.anidle-cell > .cell-mark { position: absolute; top: 9px; right: 7px; }
+.cell-mark.ok { color: var(--on-fill); background: var(--ok-fill); }
+.cell-mark.partial { color: var(--on-fill); background: var(--partial-fill); }
+.cell-mark.bad { color: var(--bad); background: color-mix(in srgb, var(--bad-fill) 22%, transparent); }
 /* ↑ / ↓ toward the answer, ✓ when equal */
 .anidle-pill {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px; vertical-align: 1px;
@@ -467,16 +477,31 @@ input:focus-visible, select:focus-visible { outline: none; }
 .soft-chip { padding: 1px 7px; font-size: 12.5px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .soft-chip.hit { font-weight: 700; background: color-mix(in srgb, var(--ok-fill) 38%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok-fill) 75%, transparent); }
 .anidle-not { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
-.anidle-row.known { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 3%, transparent)); box-shadow: inset 4px 0 0 var(--accent); }
-.anidle-row.known .anidle-row-title { color: var(--accent-ink); }
 .anidle-row.correct { background: color-mix(in srgb, var(--ok-fill) 14%, transparent); box-shadow: inset 4px 0 0 var(--ok-fill); }
 .anidle-row.correct .anidle-row-title { color: var(--ok); }
 .anidle-skip-row { padding: 6px 14px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--dp-color-rule-muted); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--ink) 3%, transparent) 6px 12px); }
 .anidle-key { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 14px; }
 .anidle-key > span:last-child { margin-left: 10px; }
-.tone-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; }
-.tone-swatch.ok { background: var(--ok-fill); }
-.tone-swatch.partial { background: var(--partial-fill); }
+
+/* "The answer so far": its own card above the board, a mystery poster and one tile per fact. */
+.answer-card {
+  display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 18px; align-items: start; padding: 16px 18px;
+  background: var(--panel); border: var(--outline); border-radius: var(--radius-broad); box-shadow: var(--shadow-violet);
+}
+.answer-mystery {
+  display: grid; place-items: center; aspect-ratio: 225 / 320; font-family: var(--dp-typography-display); font-size: 40px; font-weight: 800;
+  color: var(--accent-ink); background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: var(--dp-border-outline-width) dashed var(--accent); border-radius: 46px 46px 12px 12px;
+}
+.answer-body { display: grid; gap: 10px; min-width: 0; }
+.answer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 12px; flex-wrap: wrap; }
+.answer-head h2 { margin: 0; font-size: 19px; }
+.answer-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fact { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 8px 10px; font-size: 13.5px; border-radius: var(--radius-sm); border: var(--detail); overflow-wrap: anywhere; }
+.fact.known { background: color-mix(in srgb, var(--ok-fill) 20%, var(--panel)); }
+.fact.partly { background: color-mix(in srgb, var(--partial-fill) 14%, var(--panel)); }
+.fact.open { border-style: dashed; border-color: var(--dp-color-rule-muted); }
+.fact-open { font-family: var(--dp-typography-display); font-size: 18px; font-weight: 800; color: var(--muted); }
 .cell-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .chip { font-size: 12.5px; font-weight: 600; padding: 0 9px; border-radius: 999px; color: var(--ink); background: var(--panel); border: var(--detail); }
@@ -786,7 +811,7 @@ input:focus-visible, select:focus-visible { outline: none; }
   .anidle-head { display: none; }
   .anidle-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .anidle-row-title { grid-column: 1 / -1; padding-bottom: 4px; }
-  .anidle-cell { padding: 6px 10px 8px; }
+  .anidle-cell { padding: 6px 28px 8px 10px; }
   .anidle-cell::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 }
 
@@ -814,6 +839,9 @@ input:focus-visible, select:focus-visible { outline: none; }
   .round-tab { flex: 1; min-width: 0; }
   .anidle-clues, .anidle-clues.open-clues { grid-template-columns: 1fr; }
   .open-clues .anidle-clue.synopsis { grid-column: auto; }
+  .answer-card { grid-template-columns: minmax(0, 1fr); padding: 14px; border-radius: 24px; box-shadow: 6px 6px 0 var(--accent); }
+  .answer-mystery { display: none; }
+  .answer-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .result { flex-direction: column; align-items: flex-start; border-radius: 24px; }
   .db-search { grid-column: auto; }
   .db-grid { grid-template-columns: 1fr; }
