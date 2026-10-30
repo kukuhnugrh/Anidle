@@ -59,7 +59,7 @@ export const SCREENSHOT_CLUES = ['shot', 'shot', 'title'] as const;
 export const MODE_MAX_POINTS = 20_000;
 export const DAILY_MAX_POINTS = MODE_MAX_POINTS * MODES.length;
 
-/** Round modes: round 1 (easy) 30 % of the mode, rounds 2–3 (medium) 35 % each: 6,000 / 7,000 / 7,000. */
+/** Round modes: round 1 (easy) 30 % of the mode, rounds 2 (medium) and 3 (hard) 35 % each: 6,000 / 7,000 / 7,000. */
 export const ROUND_MAX_POINTS: readonly number[] = [(MODE_MAX_POINTS * 3) / 10, (MODE_MAX_POINTS * 7) / 20, (MODE_MAX_POINTS * 7) / 20];
 
 /** Song modes: one guess; right = the round's points, half of them after opening the clue (the blurred music video); a miss scores 0. */
@@ -68,15 +68,18 @@ export const SONG_CLUE_SHARE = 0.5;
 /** Screenshot: one guess; right = the round's points minus this share per clue opened; a miss scores 0. */
 export const SCREENSHOT_CLUE_COST = 0.25;
 
+/** The difficulty of each round of a puzzle drawn from every difficulty (the daily Opening, Ending, Guess the Anime). */
+const ROUND_STAGES: readonly Difficulty[] = ['easy', 'medium', 'hard'];
+
 /**
- * Difficulty of each round of a multi-round puzzle: round 1 easy, the rest medium, when the pool is
- * every difficulty or easy + medium (the daily puzzles). A pool narrowed any other way keeps its
+ * Difficulty of each round of a multi-round puzzle: easy, medium, hard when the pool is every
+ * difficulty; easy, medium, medium for easy + medium. A pool narrowed any other way keeps its
  * difficulties for every round.
  */
 export function roundDifficulties(pool: readonly Difficulty[], round: number): readonly Difficulty[] {
-  const staged = pool.length === 0 || (pool.length === 2 && pool.includes('easy') && pool.includes('medium'));
-  if (!staged) return pool;
-  return round === 0 ? ['easy'] : ['medium'];
+  if (pool.length === 0) return [ROUND_STAGES[Math.min(round, ROUND_STAGES.length - 1)]!];
+  if (pool.length === 2 && pool.includes('easy') && pool.includes('medium')) return round === 0 ? ['easy'] : ['medium'];
+  return pool;
 }
 
 /** Character mode: characters per round, each from a different anime. */

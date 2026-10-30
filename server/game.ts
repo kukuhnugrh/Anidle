@@ -363,7 +363,7 @@ async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly 
 
 /**
  * The answers of a new puzzle per round, all from different franchises. Each round draws from its
- * roundDifficulties() slice of the pool (round 1 easy, then medium); a slice that is too small (media
+ * roundDifficulties() slice of the pool (easy, medium, hard for every difficulty); a slice that is too small (media
  * still being copied) falls back to the whole pool. Song modes stage by the song's own entry instead of
  * the show: the round's show has a song of that difficulty, and that song is drawn among them. Character
  * mode instead keeps the whole pool for every round and asks for a character of
@@ -467,7 +467,9 @@ export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> 
   const day = reroll ? `${date}#${reroll.n}` : date;
   const seeded: Draw = (round, n, size) =>
     Number(seedOf(mode === 'anidle' ? (n ? `${day}:${mode}:${n}` : `${day}:${mode}`) : `${day}:${mode}:${round}:${n}`) % BigInt(size));
-  const answers = await drawRounds(mode, poolSpec('semua', null, mode, { difficulties: DAILY_DIFFICULTIES }), seeded, recent);
+  // Staged modes (Opening, Ending, Guess the Anime) go easy, medium, hard round by round; Anidle and Character stay easy + medium.
+  const difficulties = isRoundMode(mode) || isSongMode(mode) ? [] : DAILY_DIFFICULTIES;
+  const answers = await drawRounds(mode, poolSpec('semua', null, mode, { difficulties }), seeded, recent);
 
   // Concurrent first requests race here; UNIQUE(date, mode) keeps exactly one puzzle, and both
   // requests drew the same answers, so the answer rows go to whichever puzzle row won.

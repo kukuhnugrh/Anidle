@@ -237,8 +237,12 @@ describe('exclusionReason', () => {
 });
 
 describe('roundDifficulties', () => {
-  it('stages easy then medium for the daily pool and for "every difficulty"', () => {
-    for (const pool of [[], ['easy', 'medium'], ['medium', 'easy']] as const) {
+  it('stages easy, medium, hard for "every difficulty" (the daily round modes)', () => {
+    expect([0, 1, 2].map((r) => roundDifficulties([], r))).toEqual([['easy'], ['medium'], ['hard']]);
+  });
+
+  it('stages easy then medium for easy + medium, never hard', () => {
+    for (const pool of [['easy', 'medium'], ['medium', 'easy']] as const) {
       expect([0, 1, 2].map((r) => roundDifficulties(pool, r))).toEqual([['easy'], ['medium'], ['medium']]);
     }
   });

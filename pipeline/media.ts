@@ -513,10 +513,11 @@ async function pickFrame(videoUrl: string, times: number[]): Promise<Frame | nul
  * Screenshot mode: SCREENSHOTS_PER_TITLE frames per show from its first opening's video (the smallest
  * file AnimeThemes has), WebP 960 wide at v1/shot/<hash>.webp. Frames already stored are kept, so a
  * show that had fewer only fetches the rest. Seeking a 1080p video over HTTP costs ~25 s and a few MB
- * per frame, so only easy + medium shows (≥ MEDIUM_MIN_MEMBERS, the daily pool) are processed.
+ * per frame, so shows go most popular first (easy, medium, then hard, which round 3 of the daily needs)
+ * and a run with --limit picks up where the last one stopped.
  */
 export async function stepScreenshots(refreshAll: boolean, limit: number) {
-  const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} AND members >= ? ORDER BY members DESC`, [MEDIUM_MIN_MEMBERS]);
+  const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
   const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'shots'`);
   const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
   const stored = Map.groupBy(await all<{ mal_id: number; slot: number; at_seconds: number }>('SELECT mal_id, slot, at_seconds FROM anime_screenshot ORDER BY slot'), (s) => Number(s.mal_id));

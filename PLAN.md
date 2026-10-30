@@ -5,7 +5,7 @@ Domain: `https://anidle.velvetaco.dev` · Repo GitHub terpisah dari portofolio �
 
 ## 1. Tujuan & prinsip
 
-1. **Pool anime terbatas**: anime di list *completed* MAL teman-teman, dan anime populer di MAL (≥ 50 rb member). Setiap anime punya difficulty dari jumlah member; puzzle harian hanya easy + medium.
+1. **Pool anime terbatas**: anime di list *completed* MAL teman-teman, dan anime populer di MAL (≥ 50 rb member). Setiap anime punya difficulty dari jumlah member; puzzle harian Anidle dan Character hanya easy + medium, mode 3 ronde lainnya easy, medium, hard per ronde.
 2. **Tidak lemot, tidak gagal fetch**: masalah utama aniguessr. Prinsipnya:
    - Saat main **tidak ada request ke MAL / jikan-edge / AnimeThemes**. Semua data dan media sudah disalin ke database & storage sendiri.
    - Media **divalidasi saat pipeline**. Judul yang medianya rusak tidak masuk pool, jadi tidak ada ronde yang tidak bisa dijawab.
@@ -70,7 +70,7 @@ Playground `D:\Personal Project\MAL-WebAPI` dipakai untuk uji coba query sebelum
 - **Filter global**: buang `media_type` `music`, `cm`, `pv`; buang explicit genre Hentai (12) dan Erotica (49). Ecchi tetap boleh.
 - **Difficulty** dari `anime.members`: easy ≥ 500 rb (±540 judul), medium 200–500 rb (±890), hard < 200 rb. Dihitung saat query, jadi ikut berubah setiap enrich memperbarui jumlah member.
 - Pool di mode unlimited (semua bisa difilter genre dan difficulty):
-  - `semua`: completed `POOL_USERS` + populer. Puzzle harian = `semua` dengan difficulty easy + medium,
+  - `semua`: completed `POOL_USERS` + populer. Puzzle harian = `semua` (Anidle/Character: easy + medium; Opening/Ending/Guess the Anime: ronde easy, medium, hard),
   - `teman`: completed minimal 1 teman,
   - `bareng`: completed semua teman yang aktif,
   - `saya`: completed akun MAL milik pemain (butuh MAL terhubung; begitu juga `teman` dan `bareng`),
@@ -187,7 +187,7 @@ db/                  schema.sql + migrations
 | --- | --- | --- |
 | Pool populer | Ranking popularitas MAL sampai `members ≥ 50.000` | Ambang lain |
 | Season 2/3 | Digabung jadi satu show per franchise (entri paling populer, member-nya menentukan difficulty); menebak entri mana pun dari franchise benar | Entri MAL terpisah di pool |
-| Difficulty | easy ≥ 500 rb, medium 200–500 rb, hard < 200 rb member; harian = easy + medium | Ambang lain |
+| Difficulty | easy ≥ 500 rb, medium 200–500 rb, hard < 200 rb member; harian = easy + medium (Opening/Ending/Guess the Anime: ronde 3 hard) | Ambang lain |
 | Konten | Tanpa Hentai/Erotica | Ikutkan dengan toggle |
 | Zona waktu puzzle harian | UTC+7 (di UI ditulis "UTC+7", bukan "WIB") | UTC |
 | Mode pertama | Anidle (tanpa media), lalu Opening/Ending | Opening dulu |
@@ -211,13 +211,13 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Klip: 30 dtk mulai dari bunyi pertama (`silenceremove`), hanya 1,6 MB awal file AnimeThemes yang diunduh.
 - Fallback ronde: klip yang gagal dimuat bisa dicoba lagi; di puzzle unlimited milik sendiri, ronde yang belum ditebak bisa diganti judul lain. Puzzle harian tidak bisa diganti (berlaku untuk semua orang).
 - State OAuth (state + PKCE verifier) disimpan di cookie bertanda tangan, karena serverless tidak punya memori antar request.
-- Screenshot: 3 frame per show (bukan 5), tanpa zoom, mengikuti gaya AniGuessr: screenshot asli, lalu clue dibuka lewat tombol (screenshot 2, screenshot 3, judul `N_____`), satu tebakan, 500 − 125 per clue. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi hanya show easy + medium yang diproses.
+- Screenshot: 3 frame per show (bukan 5), tanpa zoom, mengikuti gaya AniGuessr: screenshot asli, lalu clue dibuka lewat tombol (screenshot 2, screenshot 3, judul `N_____`), satu tebakan, 500 − 125 per clue. Satu seek video 1080p lewat HTTP ±25 dtk dan beberapa MB, jadi show diproses dari yang paling populer (easy + medium dulu, lalu hard untuk ronde 3).
 - Admin = akun Anidle di `ADMIN_USERS`. Menolak media hanya mengubah status (`rejected`), file R2 tetap ada, jadi bisa dipulihkan.
 - UI dan pesan error API dalam bahasa Inggris (dokumen tetap bahasa Indonesia).
 - Mode Character diubah: bukan lagi "tebak anime dari 4 portrait", tapi 4 karakter dari 4 anime berbeda per ronde; nama karakter **dan** animenya dipilih dari autocomplete (bukan teks bebas), satu tombol Guess per ronde (kolom kosong = salah, ronde selesai).
 - Difficulty Character diambil dari favorit MAL karakternya sendiri, bukan dari animenya: easy ≥ 5.000, medium 500–4.999, hard 100–499 (contoh Naruto: Naruto 88 rb, Neji 3,8 rb, Iruka 362). Ronde 1/2/3 = karakter easy/medium/hard dari pool anime biasa; per show disimpan semua karakter ≥ 100 favorit dari semua entri show itu (dulu maksimal 3 per difficulty dari entri kanonik saja). Karakter utama saja terlalu gampang bagi yang sudah nonton.
 - Season/movie/OVA/remake (`alternative_version`) satu franchise digabung jadi satu show (entri kanonik = paling populer; difficulty dari member entri itu). Hanya entri kanonik yang ditanya, ada di autocomplete, dan di halaman Database.
-- Semua mode 3 ronde: ronde 1 easy, ronde 2–3 medium (harian, dan unlimited dengan filter All / Easy + Medium). Pengecualian: Character, yang ronde 1/2/3-nya easy/medium/hard menurut karakter.
+- Semua mode 3 ronde: ronde 1 easy, ronde 2 medium, ronde 3 hard (harian, dan unlimited dengan filter All; filter Easy + Medium: easy, medium, medium). Pengecualian: Character, yang ronde 1/2/3-nya easy/medium/hard menurut karakter.
 - Opening/Ending tidak lagi memakai klip 30 dtk di R2: lagu penuh di-stream dari AnimeThemes lewat proxy `/api/media` (nama file tidak bocor), satu tebakan per ronde, clue = video OP/ED blur tanpa suara yang mengikuti lagu (klip 240p di R2 untuk show easy + medium, selebihnya video terkecil AnimeThemes lewat proxy; cover blur kalau video gagal).
 - Opening/Ending memakai **semua** OP/ED dari **semua entri MAL** show itu (tabel `anime_theme`, bukan lagi OP1/ED1 entri kanonik di `anime_media`). Difficulty lagu = member MAL entri asal lagu itu (bukan show-nya): tiap ronde memilih show yang punya lagu dengan difficulty ronde itu, lalu salah satu lagu tersebut; lagunya disimpan di `puzzle_round.theme_id`. Jawaban, admin (tolak/pulihkan per lagu), dan halaman detail Database menampilkan lagu beserta entri asalnya.
 - Clue di-blur di file-nya (poster 48 px, klip 96p) sempat dicoba lalu dibatalkan (terlalu blur dan kecil). Tetap blur CSS 4 px di atas file asli; klik kanan/drag/long-press di clue diblokir supaya tidak bisa "open in new tab" (best effort, developer tools tetap bisa).

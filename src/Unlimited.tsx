@@ -14,8 +14,8 @@ const MODE_HINTS: Record<Mode, string> = {
 };
 
 const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: Difficulty[] }> = {
-  all: { label: 'All', hint: 'every title', value: [] },
-  'easy+medium': { label: 'Easy + Medium', hint: 'like the daily', value: ['easy', 'medium'] },
+  all: { label: 'All', hint: 'rounds easy → medium → hard', value: [] },
+  'easy+medium': { label: 'Easy + Medium', hint: 'no hard titles', value: ['easy', 'medium'] },
   easy: { label: 'Easy', hint: '≥ 500k members', value: ['easy'] },
   medium: { label: 'Medium', hint: '200k–500k members', value: ['medium'] },
   hard: { label: 'Hard', hint: '< 200k members', value: ['hard'] },
