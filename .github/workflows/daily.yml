@@ -21,7 +21,8 @@ permissions:
 jobs:
   daily:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Usually a few minutes; slow AnimeThemes downloads (up to 5 min per song, see stepDaily) need the headroom.
+    timeout-minutes: 60
     env:
       TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
       TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}

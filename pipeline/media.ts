@@ -67,10 +67,10 @@ function ffmpeg(args: string[], input?: Uint8Array): Promise<FfmpegResult> {
 
 const contentKey = (dir: string, body: Uint8Array, ext: string) => `v1/${dir}/${createHash('sha256').update(body).digest('hex').slice(0, 24)}.${ext}`;
 
-/** GET through `limiter`, which retries network errors, 429 and 5xx. */
-function download(limiter: Limiter, url: string): Promise<Uint8Array<ArrayBuffer>> {
+/** GET through `limiter`, which retries network errors (timeouts too), 429 and 5xx. */
+function download(limiter: Limiter, url: string, timeoutMs = 60_000): Promise<Uint8Array<ArrayBuffer>> {
   return limiter.schedule(async () => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) throw new UpstreamError(res.status, `${res.status} ${url}`);
     return new Uint8Array(await res.arrayBuffer());
   });
@@ -676,6 +676,8 @@ const SONG_COPY_DAYS = 7;
  */
 const SONG_BITRATE = '112k';
 const songHost = new Limiter('animethemes-files', [{ ms: 1000, max: 2 }]);
+/** A whole song (3–5 MB); AnimeThemes sometimes serves files at only ~30 KB/s, ~170 s for 5 MB. */
+const SONG_DOWNLOAD_MS = 300_000;
 
 /**
  * Gets the Opening and Ending of today and tomorrow (UTC+7) ready before players arrive, so a late or skipped
@@ -696,7 +698,7 @@ export async function stepDaily() {
         try {
           if (source.audioKey) counts.kept++;
           else {
-            const original = await download(songHost, source.audioUrl);
+            const original = await download(songHost, source.audioUrl, SONG_DOWNLOAD_MS);
             const file = path.join(dir, 'song.m4a');
             const { seconds } = await ffmpeg(['-i', 'pipe:0', '-vn', '-ac', '2', '-c:a', 'aac', '-b:a', SONG_BITRATE, '-movflags', '+faststart', '-y', file], original);
             const song = new Uint8Array(await readFile(file));
