@@ -40,17 +40,22 @@ function Cell({ label, tone, title, children }: { label: string; tone: Tone; tit
   );
 }
 
+/** Pill colour for one value: green when the answer has it, red when not, plain when MAL has no value. */
+const pillTone = (hit: boolean | null) => (hit === null ? '' : hit ? ' hit' : ' miss');
+
 function NumberCell({ label, clue, format }: { label: string; clue: AnidleFeedback['year']; format?: (v: number) => string }) {
   const tone: Tone = clue.direction === 'equal' ? 'ok' : clue.direction === 'unknown' ? 'none' : 'bad';
   return (
     <Cell label={label} tone={tone} title={`${label}: ${DIRECTION_HINT[clue.direction]}`}>
-      {clue.value == null ? '?' : format ? format(clue.value) : clue.value}
-      {ARROW[clue.direction] && <span className="anidle-pill">{ARROW[clue.direction]}</span>}
+      <span className="anidle-num">
+        {clue.value == null ? '?' : <span className={`soft-chip${pillTone(tone === 'none' ? null : tone === 'ok')}`}>{format ? format(clue.value) : clue.value}</span>}
+        {ARROW[clue.direction] && <span className="anidle-pill">{ARROW[clue.direction]}</span>}
+      </span>
     </Cell>
   );
 }
 
-/** A list as soft chips; the items the answer shares are filled. */
+/** A list as soft chips: the items the answer shares green, the others red. */
 function ListCell({ label, clue }: { label: string; clue: ListClue }) {
   return (
     <Cell label={label} tone={clue.overlap === 'full' ? 'ok' : clue.overlap === 'partial' ? 'partial' : 'bad'}>
@@ -59,7 +64,7 @@ function ListCell({ label, clue }: { label: string; clue: ListClue }) {
       ) : (
         <span className="soft-chips">
           {clue.items.map((item) => (
-            <span key={item.name} className={`soft-chip${item.hit ? ' hit' : ''}`}>
+            <span key={item.name} className={`soft-chip${pillTone(item.hit)}`}>
               {item.name}
             </span>
           ))}
@@ -86,7 +91,7 @@ function GuessRow({ g, n }: { g: Guess; n: number }) {
       <NumberCell label="Year" clue={g.year} />
       <NumberCell label="Score" clue={g.score} format={(v) => v.toFixed(2)} />
       <Cell label="Source" tone={g.source.match ? 'ok' : g.source.value == null ? 'none' : 'bad'}>
-        {pretty(g.source.value)}
+        {g.source.value == null ? pretty(g.source.value) : <span className={`soft-chip${pillTone(g.source.match)}`}>{pretty(g.source.value)}</span>}
       </Cell>
       <ListCell label="Studio" clue={g.studios} />
       <ListCell label="Genre" clue={g.genres} />

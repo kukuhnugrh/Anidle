@@ -447,7 +447,7 @@ input:focus-visible, select:focus-visible { outline: none; }
    then the comparison). Only a match (pale green) or a partial match (pale amber) is tinted. */
 .anidle-board { display: grid; overflow: hidden; background: var(--panel); border: var(--outline); border-radius: var(--radius); box-shadow: var(--shadow); }
 .anidle-head, .anidle-row {
-  display: grid; grid-template-columns: minmax(170px, 1.6fr) 104px 96px minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr);
+  display: grid; grid-template-columns: minmax(170px, 1.6fr) 112px 112px minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr);
 }
 .anidle-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--ground); border-bottom: var(--detail); }
 .anidle-head > span { padding: 9px 10px; }
@@ -460,11 +460,8 @@ input:focus-visible, select:focus-visible { outline: none; }
   flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; font-size: 11.5px; font-weight: 800;
   font-variant-numeric: tabular-nums; color: var(--muted); border-radius: 999px; background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
-/* Every compared cell says how it compares: ✓ match, ~ partly, ✗ wrong (pale red, so a board of misses stays readable). */
+/* Every compared cell says how it compares: ✓ match, ~ partly, ✗ wrong. The cell stays plain; its pills carry the colour. */
 .anidle-cell { position: relative; min-width: 0; padding: 10px 28px 10px 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
-.anidle-cell.ok { background: color-mix(in srgb, var(--ok-fill) 18%, transparent); box-shadow: inset 3px 0 0 var(--ok-fill); }
-.anidle-cell.partial { background: color-mix(in srgb, var(--partial-fill) 16%, transparent); box-shadow: inset 3px 0 0 var(--partial-fill); }
-.anidle-cell.bad { background: color-mix(in srgb, var(--bad-fill) 8%, transparent); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--bad-fill) 55%, transparent); }
 .cell-mark {
   display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 11px; font-weight: 800; line-height: 1;
   border-radius: 50%; vertical-align: -3px;
@@ -482,6 +479,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .soft-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .soft-chip { padding: 1px 7px; font-size: 12.5px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .soft-chip.hit { font-weight: 700; background: color-mix(in srgb, var(--ok-fill) 38%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok-fill) 75%, transparent); }
+.soft-chip.miss { color: var(--bad); background: color-mix(in srgb, var(--bad-fill) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad-fill) 30%, transparent); }
+.anidle-num { white-space: nowrap; }
 /* A range ("2009 or earlier"): narrows the answer down, so amber like a partial match, never green. */
 .soft-chip.maybe { font-weight: 700; background: color-mix(in srgb, var(--partial-fill) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--partial-fill) 75%, transparent); }
 .anidle-not { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
