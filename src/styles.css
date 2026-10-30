@@ -447,7 +447,7 @@ input:focus-visible, select:focus-visible { outline: none; }
    then the comparison). Only a match (pale green) or a partial match (pale amber) is tinted. */
 .anidle-board { display: grid; overflow: hidden; background: var(--panel); border: var(--outline); border-radius: var(--radius); box-shadow: var(--shadow); }
 .anidle-head, .anidle-row {
-  display: grid; grid-template-columns: minmax(170px, 1.6fr) 112px 112px minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr);
+  display: grid; grid-template-columns: minmax(170px, 1.6fr) 96px 96px minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr);
 }
 .anidle-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--ground); border-bottom: var(--detail); }
 .anidle-head > span { padding: 9px 10px; }
@@ -460,16 +460,8 @@ input:focus-visible, select:focus-visible { outline: none; }
   flex: none; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; font-size: 11.5px; font-weight: 800;
   font-variant-numeric: tabular-nums; color: var(--muted); border-radius: 999px; background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
-/* Every compared cell says how it compares: ✓ match, ~ partly, ✗ wrong. The cell stays plain; its pills carry the colour. */
-.anidle-cell { position: relative; min-width: 0; padding: 10px 28px 10px 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
-.cell-mark {
-  display: inline-grid; place-items: center; width: 18px; height: 18px; font-size: 11px; font-weight: 800; line-height: 1;
-  border-radius: 50%; vertical-align: -3px;
-}
-.anidle-cell > .cell-mark { position: absolute; top: 9px; right: 7px; }
-.cell-mark.ok { color: var(--on-fill); background: var(--ok-fill); }
-.cell-mark.partial { color: var(--on-fill); background: var(--partial-fill); }
-.cell-mark.bad { color: var(--bad); background: color-mix(in srgb, var(--bad-fill) 22%, transparent); }
+/* A compared cell stays plain; its pills carry the colour (green in the answer, red not). */
+.anidle-cell { min-width: 0; padding: 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
 /* ↑ / ↓ toward the answer, ✓ when equal */
 .anidle-pill {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px; vertical-align: 1px;
@@ -820,7 +812,7 @@ input:focus-visible, select:focus-visible { outline: none; }
   .anidle-head { display: none; }
   .anidle-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .anidle-row-title { grid-column: 1 / -1; padding-bottom: 4px; }
-  .anidle-cell { padding: 6px 28px 8px 10px; }
+  .anidle-cell { padding: 6px 10px 8px; }
   .anidle-cell::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 }
 

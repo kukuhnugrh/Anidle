@@ -20,21 +20,15 @@ const DIRECTION_HINT: Record<Direction, string> = {
   unknown: 'Unknown',
 };
 
-/** match (green ✓), partial (amber ~), wrong (soft red ✗), unknown (plain: MAL has no value). */
+/** How a cell compares (match, partly, wrong, unknown: MAL has no value); its pills show it, the tooltip says it. */
 type Tone = 'ok' | 'partial' | 'bad' | 'none';
-const MARK: Record<Tone, string> = { ok: '✓', partial: '~', bad: '✗', none: '' };
 const TONE_TEXT: Record<Tone, string> = { ok: 'match', partial: 'partly', bad: 'wrong', none: 'unknown' };
 
 const BOARD_COLUMNS = ['Year', 'Score', 'Source', 'Studio', 'Genre', 'Tags'] as const;
 
 function Cell({ label, tone, title, children }: { label: string; tone: Tone; title?: string; children: ReactNode }) {
   return (
-    <div className={`anidle-cell ${tone}`} data-label={label} title={title ?? `${label}: ${TONE_TEXT[tone]}`}>
-      {MARK[tone] && (
-        <span className={`cell-mark ${tone}`} aria-label={TONE_TEXT[tone]}>
-          {MARK[tone]}
-        </span>
-      )}
+    <div className="anidle-cell" data-label={label} title={title ?? `${label}: ${TONE_TEXT[tone]}`}>
       {children}
     </div>
   );
@@ -358,7 +352,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
               ),
             )}
           <div className="anidle-key muted small">
-            <span className="cell-mark ok">✓</span> match <span className="cell-mark partial">~</span> partly <span className="cell-mark bad">✗</span> wrong
+            <span className="soft-chip hit">in the answer</span> <span className="soft-chip miss">not in the answer</span>
             <span>↑↓ the answer is higher / lower</span>
           </div>
         </section>
