@@ -567,8 +567,8 @@ export interface AnidleState {
   date: string | null;
   pool: Pool;
   maxGuesses: number;
-  /** Every try in order; null = a try used by Skip. */
-  guesses: Array<AnidleFeedback | null>;
+  /** Every try in order; null = a try used by Skip. cover: the guessed anime's poster (a guess, never the answer's). */
+  guesses: Array<(AnidleFeedback & { cover: string | null }) | null>;
   solved: boolean;
   finished: boolean;
   score: number | null;
@@ -609,7 +609,7 @@ export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise
   const guesses = guessIds.flatMap((id) => {
     if (id === SKIPPED) return [null];
     const guess = anime.get(id);
-    return guess ? [compareAnidle(answer, guess)] : [];
+    return guess ? [{ ...compareAnidle(answer, guess), cover: guess.cover }] : [];
   });
   const solved = Boolean(play?.solved);
   const finished = solved || guesses.length >= ANIDLE_MAX_GUESSES;

@@ -88,8 +88,8 @@ export function anidleScore(solved: boolean, guessCount: number): number {
 }
 
 /** Tries in order with each run of skipped ones (null) folded into one { skipped: n } entry. */
-export function groupSkips(tries: ReadonlyArray<AnidleFeedback | null>): Array<AnidleFeedback | { skipped: number }> {
-  const out: Array<AnidleFeedback | { skipped: number }> = [];
+export function groupSkips<T extends AnidleFeedback>(tries: ReadonlyArray<T | null>): Array<T | { skipped: number }> {
+  const out: Array<T | { skipped: number }> = [];
   for (const t of tries) {
     const last = out.at(-1);
     if (t) out.push(t);
