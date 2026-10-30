@@ -5,6 +5,7 @@ import { fmtNumber } from './format';
 import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 import { applyTheme, currentTheme } from './theme';
+import { VolumeControl } from './VolumeControl';
 
 /** Night/day switch; the choice is kept in a cookie (see theme.ts). */
 function ThemeToggle() {
@@ -108,6 +109,7 @@ export function Sidebar({
             </button>
           </span>
         </div>
+        <VolumeControl className="sidebar-volume" />
         <nav className="sidebar-nav">
           {sections.map((section) => (
             <div key={section.title} className="nav-section">

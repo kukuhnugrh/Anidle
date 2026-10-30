@@ -181,3 +181,27 @@ export const UnlockIcon = () => (
     <path d="M8 10.5V7.5a4 4 0 0 1 7.7-1.5" />
   </Icon>
 );
+
+const SPEAKER = 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z';
+
+export const VolumeIcon = () => (
+  <Icon>
+    <path d={SPEAKER} />
+    <path d="M15.5 9a4 4 0 0 1 0 6" />
+    <path d="M18.5 6.5a8 8 0 0 1 0 11" />
+  </Icon>
+);
+
+export const VolumeLowIcon = () => (
+  <Icon>
+    <path d={SPEAKER} />
+    <path d="M15.5 9a4 4 0 0 1 0 6" />
+  </Icon>
+);
+
+export const MuteIcon = () => (
+  <Icon>
+    <path d={SPEAKER} />
+    <path d="M16 9.5l5 5M21 9.5l-5 5" />
+  </Icon>
+);

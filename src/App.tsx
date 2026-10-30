@@ -19,6 +19,8 @@ import { DayBar, UnlimitedBar } from './ModeBar';
 import { go, readRoute } from './route';
 import { Brand, Sidebar } from './Sidebar';
 import { Unlimited } from './Unlimited';
+import { VolumeControl } from './VolumeControl';
+import { syncPageAudio } from './volume';
 
 /** Elements showing a blurred clue (styles.css also turns off long-press menus and selection on them). */
 const PROTECTED_MEDIA = '.clue-media, .clue-cover, .clue-frame, .anidle-cover-frame';
@@ -104,6 +106,8 @@ export function App() {
       removeEventListener('keydown', onKey);
     };
   }, [refreshMe]);
+  // Database and admin song players follow the site-wide volume (the games' players are detached, see volume.ts).
+  useEffect(syncPageAudio, []);
 
   if (account === undefined)
     return (
@@ -136,6 +140,7 @@ export function App() {
             <MenuIcon />
           </button>
           <Brand />
+          <VolumeControl className="mobile-volume" />
         </header>
         <main className="page">
           <ErrorBoundary key={JSON.stringify(route)}>

@@ -258,6 +258,12 @@ input:focus-visible, select:focus-visible { outline: none; }
 
 .mobile-bar { display: none; }
 .backdrop { display: none; }
+.volume { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.volume-toggle { padding: 6px; flex: none; }
+.volume-slider { flex: 1; min-width: 0; }
+.volume-value { flex: none; width: 3ch; text-align: right; font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sidebar-volume { margin: -4px 4px 2px 0; padding: 2px 10px 2px 4px; border: var(--detail); border-radius: var(--radius-sm); background: var(--ground); }
+.mobile-volume { display: none; }
 
 /* ------------------------------------------------------------------ page building blocks */
 .stack { display: grid; gap: 24px; }
@@ -808,6 +814,8 @@ input:focus-visible, select:focus-visible { outline: none; }
   .mobile-bar { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 20; padding: 10px 14px; background: var(--ground); border-bottom: var(--outline); }
   .mobile-bar .brand { font-size: 20px; }
   .mobile-bar .brand-mark { width: 30px; height: 30px; }
+  .sidebar-volume { display: none; }
+  .mobile-volume { display: flex; margin-left: auto; width: min(170px, 46vw); }
   .page { padding: 24px 18px 52px; }
   /* Anidle board: each guess becomes its title over a 3 × 2 grid of labelled cells. */
   .anidle-head { display: none; }

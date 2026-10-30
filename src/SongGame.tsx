@@ -10,6 +10,7 @@ import { HowToPlay } from './HowToPlay';
 import { PauseIcon, PlayIcon } from './icons';
 import { RoundTitle } from './RoundTitle';
 import { ShareButton, songShareText } from './share';
+import { releaseAudio, songAudio } from './volume';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
 type Clue = SongState['rounds'][number]['clue'];
@@ -48,7 +49,7 @@ function useSongs(urls: string[]) {
     fetch(url, { signal: abort.signal })
       .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(String(res.status)))))
       .then(
-        (blob) => update({ url, audio: new Audio(URL.createObjectURL(blob)), status: 'ready' }),
+        (blob) => update({ url, audio: songAudio(URL.createObjectURL(blob)), status: 'ready' }),
         () => update({ url, audio: null, status: 'error' }),
       )
       .finally(() => clearTimeout(timer));
@@ -62,7 +63,7 @@ function useSongs(urls: string[]) {
       started.current[i] = url;
       const old = latest.current[i]?.audio;
       if (old) {
-        old.pause();
+        releaseAudio(old);
         URL.revokeObjectURL(old.src);
       }
       load(i, url);
@@ -71,8 +72,9 @@ function useSongs(urls: string[]) {
   useEffect(
     () => () => {
       for (const s of latest.current) {
-        s.audio?.pause();
-        if (s.audio) URL.revokeObjectURL(s.audio.src);
+        if (!s.audio) continue;
+        releaseAudio(s.audio);
+        URL.revokeObjectURL(s.audio.src);
       }
     },
     [],
