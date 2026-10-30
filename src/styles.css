@@ -170,11 +170,6 @@ input:focus-visible, select:focus-visible { outline: none; }
 .error-box { background: var(--bad-bg); color: var(--bad); }
 .ok-box { background: var(--ok-bg); color: var(--ok); }
 
-.tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 8px; border: var(--detail); }
-.tag.ok { background: var(--ok-fill); }
-.tag.partial { background: var(--partial-fill); }
-.tag.bad { background: var(--bad-fill); }
-
 .spinner { width: 30px; height: 30px; border-radius: 50%; border: 4px solid var(--dp-color-rule-muted); border-top-color: var(--accent); animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .boot, .center { min-height: 60vh; display: grid; place-content: center; justify-items: center; gap: 14px; text-align: center; padding: 24px; }
@@ -208,7 +203,6 @@ input:focus-visible, select:focus-visible { outline: none; }
 .help-rules li:nth-child(4n + 2)::before { background: var(--dp-color-accent-warm); border-radius: 8px; }
 .help-rules li:nth-child(4n + 3)::before { background: var(--dp-color-accent-secondary); border-radius: 15px 15px 5px 5px; }
 .help-rules li:nth-child(4n)::before { background: var(--fill-lavender); }
-.help-rules .tag { font-size: 11.5px; }
 .help-scoring { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--dp-color-selection); border: var(--detail); }
 
 /* ------------------------------------------------------------------ shell */
@@ -402,12 +396,11 @@ input:focus-visible, select:focus-visible { outline: none; }
 .anidle, .round-game, .character-game { display: grid; gap: 18px; }
 .game-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .progress { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
-.pips { display: flex; gap: 5px; }
-.pip { width: 18px; height: 10px; border-radius: 5px; background: var(--panel); border: var(--detail); }
+.pips { display: flex; gap: 4px; }
+.pip { width: 16px; height: 6px; border-radius: 3px; background: var(--dp-color-rule-muted); }
 .pip.used { background: var(--accent); }
 .pip.hit { background: var(--ok-fill); }
 .pip.skipped { background: repeating-linear-gradient(135deg, var(--dp-color-rule-muted) 0 2px, var(--panel) 2px 4px); }
-.legend { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
 .guess-input { position: relative; }
 .guess-row { display: flex; gap: 10px; }
@@ -426,45 +419,54 @@ input:focus-visible, select:focus-visible { outline: none; }
 .suggestions button.active { background: var(--dp-color-selection); border-color: var(--line); }
 .suggestions .none { padding: 10px; }
 
-.guesses { display: grid; gap: 12px; }
-.guess { background: var(--panel); border: var(--outline); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow-sm); animation: rise .25s ease-out; }
-.guess.correct { background: var(--ok-bg); box-shadow: 5px 5px 0 var(--ok-fill), 5px 5px 0 2px var(--line); }
-.guess.skipped { padding: 8px 14px; font-weight: 650; color: var(--muted); background: var(--ground); border-style: dashed; border-color: var(--dp-color-rule-muted); box-shadow: none; }
-.anidle-play { display: grid; gap: 10px; }
-.anidle-skip { display: flex; justify-content: flex-end; }
+.anidle-play { display: grid; gap: 8px; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
-.guess-title { font-family: var(--dp-typography-display); font-size: 17px; font-weight: 750; margin-bottom: 10px; }
-.cells { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.cell { border-radius: var(--radius-sm); padding: 7px 10px; min-height: 56px; display: grid; align-content: start; gap: 2px; border: var(--detail); }
-.cell.ok { background: var(--ok-fill); }
-.cell.partial { background: var(--partial-fill); }
-.cell.bad { background: var(--bad-bg); }
-.cell.unknown { background: var(--ground); border-style: dashed; }
+/* Locked clues as one quiet line; the skip sits at its end. Open clues get their cards below. */
+.clue-strip { display: flex; justify-content: space-between; align-items: center; gap: 8px 14px; flex-wrap: wrap; font-size: 13.5px; }
+.clue-steps { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
+.clue-step { font-weight: 600; }
+.clue-step.open { color: var(--ok); }
+.anidle-clues { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: 12px; }
+/* Open clues keep a card's width (one open clue does not stretch across the page); the synopsis gets two. */
+.anidle-clues.open-clues { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.open-clues .anidle-clue.synopsis { grid-column: span 2; }
+.anidle-clue { display: grid; align-content: start; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--panel); border: var(--detail); }
+
+/* Anidle board: the column labels once, then one compact row per guess. Only a match (pale green) or
+   a partial match (pale amber) is tinted; a miss stays plain, so the board reads calmly. */
+.anidle-board { display: grid; overflow: hidden; background: var(--panel); border: var(--detail); border-radius: var(--radius); }
+.anidle-head, .anidle-row {
+  display: grid; grid-template-columns: minmax(140px, 1.5fr) 96px 86px minmax(0, .9fr) minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1.3fr);
+}
+.anidle-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: var(--dp-border-detail-width) solid var(--dp-color-rule-muted); }
+.anidle-head > span { padding: 8px 10px; }
+.anidle-head > span:first-child { padding-left: 12px; }
+.anidle-row { border-bottom: 1px solid var(--dp-color-rule-muted); animation: rise .25s ease-out; }
+.anidle-row-title { padding: 10px 12px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.anidle-cell { min-width: 0; padding: 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.anidle-cell.ok { background: color-mix(in srgb, var(--ok-fill) 16%, transparent); box-shadow: inset 3px 0 0 var(--ok-fill); }
+.anidle-cell.partial { background: color-mix(in srgb, var(--partial-fill) 12%, transparent); box-shadow: inset 3px 0 0 var(--partial-fill); }
+.anidle-arrow { margin-left: 4px; font-weight: 700; color: var(--muted); }
+.anidle-hit { font-weight: 700; color: var(--ok); }
+.anidle-not { display: block; font-size: 12px; color: var(--muted); }
+.anidle-row.known { background: var(--ground); }
+.anidle-row.known .anidle-row-title { color: var(--accent-ink); }
+.anidle-row.correct { background: color-mix(in srgb, var(--ok-fill) 12%, transparent); }
+.anidle-skip-row { padding: 6px 12px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--dp-color-rule-muted); }
+.anidle-key { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 12px; }
+.anidle-key > span:last-child { margin-left: 10px; }
+.tone-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; }
+.tone-swatch.ok { background: var(--ok-fill); }
+.tone-swatch.partial { background: var(--partial-fill); }
 .cell-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.cell.ok .cell-label, .cell.partial .cell-label { color: rgb(37 48 68 / .75); }
-.cell-value { font-weight: 700; }
-.arrow { font-size: 17px; }
-.cell.bad .arrow { color: var(--bad); }
 .chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .chip { font-size: 12.5px; font-weight: 600; padding: 0 9px; border-radius: 999px; color: var(--ink); background: var(--panel); border: var(--detail); }
 .chip.hit { background: var(--ok-fill); }
-.chip.miss { color: var(--bad); border-color: var(--bad); background: var(--bad-bg); text-decoration: line-through; }
-.chip.range { background: var(--partial-fill); }
 .answer-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .difficulty { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; padding: 1px 9px; border-radius: 999px; border: var(--detail); color: var(--on-fill); }
 .difficulty.easy { background: var(--dp-color-accent-fresh); }
 .difficulty.medium { background: var(--dp-color-accent-warm); }
 .difficulty.hard { background: var(--dp-color-accent-secondary); }
-
-.summary { background: var(--panel); border: var(--outline); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
-.summary-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.summary-head h3 { margin: 0; }
-.summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; }
-.summary-row { display: grid; grid-template-columns: 100px 1fr; gap: 8px; align-items: start; }
-.summary-row .cell-label { padding-top: 3px; }
-.anidle-clues { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: 12px; }
-.anidle-clue { display: grid; align-content: start; gap: 8px; padding: 12px 14px; border-radius: var(--radius); background: var(--panel); border: var(--outline); box-shadow: var(--shadow-sm); }
-.anidle-clue.locked { border-style: dashed; border-color: var(--dp-color-rule-muted); box-shadow: none; background: var(--ground); }
 /* The blurred poster sits in a clipping frame that carries the outline (a border on the image would blur too). */
 .anidle-cover-frame { display: block; width: 100%; max-width: 160px; justify-self: center; overflow: hidden; border: var(--detail); border-radius: 80px 80px 12px 12px; box-shadow: 4px 4px 0 var(--dp-color-accent-secondary); }
 .anidle-cover { display: block; width: 100%; aspect-ratio: 225 / 320; object-fit: cover; filter: blur(4px) saturate(1.1); transform: scale(1.04); }
@@ -726,8 +728,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .show-entries { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 
 /* Light accent fills keep dark text in night mode too (the page ink turns light there). */
-.tag.ok, .tag.partial, .tag.bad, .help-button, .help-rules li::before, .nav-score, .book-tab, .mode-status.won,
-.cell.ok, .cell.partial, .chip.hit, .chip.range, .char-field.ok, .clue-tab.locked:not(:disabled),
+.help-button, .help-rules li::before, .nav-score, .book-tab, .mode-status.won,
+.chip.hit, .char-field.ok, .clue-tab.locked:not(:disabled),
 .board-row.top1 .board-rank, .board-row.top2 .board-rank, .board-row.top3 .board-rank,
 .admin-status.ok, .admin-status.broken, .admin-status.rejected, .db-chips button.chip:hover:not(:disabled) { color: var(--on-fill); }
 .char-field.ok a { color: var(--on-fill-link); }
@@ -761,6 +763,12 @@ input:focus-visible, select:focus-visible { outline: none; }
   .mobile-bar .brand { font-size: 20px; }
   .mobile-bar .brand-mark { width: 30px; height: 30px; }
   .page { padding: 24px 18px 52px; }
+  /* Anidle board: each guess becomes its title over a 3 × 2 grid of labelled cells. */
+  .anidle-head { display: none; }
+  .anidle-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .anidle-row-title { grid-column: 1 / -1; padding-bottom: 4px; }
+  .anidle-cell { padding: 6px 10px 8px; }
+  .anidle-cell::before { content: attr(data-label); display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 }
 
 @media (max-width: 760px) {
@@ -785,8 +793,8 @@ input:focus-visible, select:focus-visible { outline: none; }
   .char-portrait { width: 96px; }
   .round-tabs { width: 100%; }
   .round-tab { flex: 1; min-width: 0; }
-  .cell.list { grid-column: 1 / -1; }
-  .summary-grid, .anidle-clues { grid-template-columns: 1fr; }
+  .anidle-clues, .anidle-clues.open-clues { grid-template-columns: 1fr; }
+  .open-clues .anidle-clue.synopsis { grid-column: auto; }
   .result { flex-direction: column; align-items: flex-start; border-radius: 24px; }
   .db-search { grid-column: auto; }
   .db-grid { grid-template-columns: 1fr; }

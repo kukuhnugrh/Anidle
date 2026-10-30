@@ -33,10 +33,11 @@ const HOW_TO: Record<Mode, { rules: ReactNode[]; scoring: ReactNode }> = {
     rules: [
       <>Guess the anime in {ANIDLE_MAX_GUESSES} tries. Type a title, pick it from the list, then press Guess (or Enter). Any season, movie or remake of the same series counts.</>,
       <>
-        Every guess is compared with the answer. <b>Year</b> and <b>Score</b> show ↑ or ↓ toward the answer. <b>Source</b>, <b>Studio</b>, <b>Genre</b> and <b>Tags</b> show{' '}
-        <span className="tag ok">match</span> <span className="tag partial">partial</span> <span className="tag bad">different</span>.
+        Every guess is a row compared with the answer. <b>Year</b> and <b>Score</b> show ↑ or ↓ toward the answer. <b>Source</b>, <b>Studio</b>, <b>Genre</b> and{' '}
+        <b>Tags</b> are tinted <span className="tone-swatch ok" /> green when they match and <span className="tone-swatch partial" /> amber when they partly match; shared items are in
+        green.
       </>,
-      <>"What you know so far" sums up everything your guesses have ruled in or out.</>,
+      <>The top row, "Answer so far", sums up everything your guesses have ruled in or out.</>,
       <>
         Clues open as your tries add up: after {clueAfter('cover')} tries its blurred poster, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
         {clueAfter('characters')} two of its characters.

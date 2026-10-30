@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { ANIDLE_CLUES, groupSkips, summarizeAnidle, type AnidleClueKind, type AnidleFeedback, type Direction, type ListClue, type ListSummary, type RangeSummary, type ScalarSummary } from '../shared/anidle';
 import { POOL_LABELS } from '../shared/catalog';
 import { api, errorMessage, type AnidleState } from './api';
@@ -16,59 +16,60 @@ const DIRECTION_HINT: Record<Direction, string> = {
   unknown: 'Unknown',
 };
 
-function NumberCell({ label, value, direction, format }: { label: string; value: number | null; direction: Direction; format?: (v: number) => string }) {
-  const state = direction === 'equal' ? 'ok' : direction === 'unknown' ? 'unknown' : 'bad';
+/** match = pale green, partial = pale amber, different/unknown = plain: most cells miss, so misses stay quiet. */
+type Tone = 'ok' | 'partial' | 'none';
+
+const BOARD_COLUMNS = ['Year', 'Score', 'Source', 'Studio', 'Genre', 'Tags'] as const;
+
+function Cell({ label, tone, title, children }: { label: string; tone: Tone; title?: string; children: ReactNode }) {
   return (
-    <div className={`cell ${state}`} title={`${label}: ${DIRECTION_HINT[direction]}`}>
-      <span className="cell-label">{label}</span>
-      <span className="cell-value">
-        {value == null ? '?' : format ? format(value) : value} <b className="arrow">{ARROW[direction]}</b>
-      </span>
+    <div className={`anidle-cell ${tone}`} data-label={label} title={title}>
+      {children}
     </div>
   );
 }
 
-function ScalarCell({ label, value, match }: { label: string; value: string | null; match: boolean }) {
+function NumberCell({ label, clue, format }: { label: string; clue: AnidleFeedback['year']; format?: (v: number) => string }) {
   return (
-    <div className={`cell ${match ? 'ok' : 'bad'}`}>
-      <span className="cell-label">{label}</span>
-      <span className="cell-value">{pretty(value)}</span>
-    </div>
+    <Cell label={label} tone={clue.direction === 'equal' ? 'ok' : 'none'} title={`${label}: ${DIRECTION_HINT[clue.direction]}`}>
+      {clue.value == null ? '?' : format ? format(clue.value) : clue.value}
+      {ARROW[clue.direction] && <span className="anidle-arrow">{ARROW[clue.direction]}</span>}
+    </Cell>
   );
 }
 
+/** A list as plain text; the items the answer shares are marked. */
 function ListCell({ label, clue }: { label: string; clue: ListClue }) {
   return (
-    <div className={`cell ${clue.overlap === 'full' ? 'ok' : clue.overlap === 'partial' ? 'partial' : 'bad'} list`}>
-      <span className="cell-label">{label}</span>
-      <span className="chips">
-        {clue.items.length === 0 && <span className="chip">—</span>}
-        {clue.items.map((item) => (
-          <span key={item.name} className={`chip ${item.hit ? 'hit' : ''}`}>
-            {item.name}
-          </span>
-        ))}
-      </span>
-    </div>
+    <Cell label={label} tone={clue.overlap === 'full' ? 'ok' : clue.overlap === 'partial' ? 'partial' : 'none'}>
+      {clue.items.length === 0
+        ? '—'
+        : clue.items.map((item, i) => (
+            <Fragment key={item.name}>
+              {i > 0 && ', '}
+              {item.hit ? <b className="anidle-hit">{item.name}</b> : item.name}
+            </Fragment>
+          ))}
+    </Cell>
   );
 }
 
 function GuessRow({ g }: { g: AnidleFeedback }) {
   return (
-    <div className={`guess ${g.correct ? 'correct' : ''}`}>
-      <div className="guess-title">
+    <div className={`anidle-row${g.correct ? ' correct' : ''}`}>
+      <div className="anidle-row-title">
         {g.correct ? '✓ ' : ''}
         {g.title}
-        {g.correct && !g.exact && <span className="muted small"> (same franchise as the answer)</span>}
+        {g.correct && !g.exact && <span className="muted small"> · same franchise</span>}
       </div>
-      <div className="cells">
-        <NumberCell label="Year" value={g.year.value} direction={g.year.direction} />
-        <NumberCell label="Score" value={g.score.value} direction={g.score.direction} format={(v) => v.toFixed(2)} />
-        <ScalarCell label="Source" value={g.source.value} match={g.source.match} />
-        <ListCell label="Studio" clue={g.studios} />
-        <ListCell label="Genre" clue={g.genres} />
-        <ListCell label="Tags" clue={g.tags} />
-      </div>
+      <NumberCell label="Year" clue={g.year} />
+      <NumberCell label="Score" clue={g.score} format={(v) => v.toFixed(2)} />
+      <Cell label="Source" tone={g.source.match ? 'ok' : 'none'}>
+        {pretty(g.source.value)}
+      </Cell>
+      <ListCell label="Studio" clue={g.studios} />
+      <ListCell label="Genre" clue={g.genres} />
+      <ListCell label="Tags" clue={g.tags} />
     </div>
   );
 }
@@ -87,128 +88,86 @@ function rangeText(r: RangeSummary, integer: boolean): string | null {
   return parts.filter(Boolean).join(' and ');
 }
 
-function SummaryValue({ s }: { s: ScalarSummary }) {
-  if (s.known) return <span className="chip hit">{pretty(s.known.value)}</span>;
-  if (!s.ruledOut.length) return <span className="muted">—</span>;
+/** What is known, then what is ruled out (quiet "not …" line). */
+function Known({ yes, no }: { yes: string | null; no: string[] }) {
+  if (!yes && !no.length) return <span className="muted">—</span>;
   return (
     <>
-      {s.ruledOut.map((v) => (
-        <span key={v} className="chip miss">
-          {pretty(v)}
-        </span>
-      ))}
+      {yes && <b className="anidle-hit">{yes}</b>}
+      {no.length > 0 && <span className="anidle-not">not {no.join(', ')}</span>}
     </>
   );
 }
 
-function SummaryList({ s }: { s: ListSummary }) {
-  if (s.complete && !s.has.length) return <span className="chip hit">none</span>;
-  if (!s.has.length && !s.not.length) return <span className="muted">—</span>;
-  return (
-    <>
-      {s.has.map((v) => (
-        <span key={v} className="chip hit">
-          {v}
-        </span>
-      ))}
-      {s.complete && <span className="muted small">(complete)</span>}
-      {!s.complete &&
-        s.not.map((v) => (
-          <span key={v} className="chip miss">
-            {v}
-          </span>
-        ))}
-    </>
-  );
-}
+const knownList = (s: ListSummary) =>
+  s.complete && !s.has.length ? { yes: 'none', no: [] } : { yes: s.has.length ? s.has.join(', ') : null, no: s.complete ? [] : s.not };
+const knownScalar = (s: ScalarSummary) => (s.known ? { yes: pretty(s.known.value), no: [] } : { yes: null, no: s.ruledOut.map((v) => pretty(v)) });
 
-function SummaryPanel({ guesses }: { guesses: AnidleFeedback[] }) {
+/** The board's first row: everything the guesses so far proved about the answer. */
+function KnownRow({ guesses }: { guesses: AnidleFeedback[] }) {
   const s = useMemo(() => summarizeAnidle(guesses), [guesses]);
-  const range = (label: string, r: RangeSummary, integer: boolean) => {
-    const text = rangeText(r, integer);
-    return (
-      <div className="summary-row">
-        <span className="cell-label">{label}</span>
-        <span className="chips">{text ? <span className={`chip ${r.exact != null ? 'hit' : 'range'}`}>{text}</span> : <span className="muted">—</span>}</span>
-      </div>
-    );
-  };
-  const scalar = (label: string, v: ScalarSummary) => (
-    <div className="summary-row">
-      <span className="cell-label">{label}</span>
-      <span className="chips">
-        <SummaryValue s={v} />
-      </span>
-    </div>
-  );
-  const list = (label: string, v: ListSummary) => (
-    <div className="summary-row">
-      <span className="cell-label">{label}</span>
-      <span className="chips">
-        <SummaryList s={v} />
-      </span>
-    </div>
+  const range = (label: string, r: RangeSummary, integer: boolean) => (
+    <Cell label={label} tone="none">
+      <Known yes={rangeText(r, integer)} no={[]} />
+    </Cell>
   );
   return (
-    <section className="summary">
-      <div className="summary-head">
-        <h3>What you know so far</h3>
-        <span className="legend small">
-          <span className="chip hit">yes</span>
-          <span className="chip miss">not</span>
-          <span className="chip range">range</span>
-        </span>
+    <div className="anidle-row known">
+      <div className="anidle-row-title">
+        Answer <span className="muted small">so far</span>
       </div>
-      <div className="summary-grid">
-        {range('Year', s.year, true)}
-        {range('Score', s.score, false)}
-        {scalar('Source', s.source)}
-        {list('Studio', s.studios)}
-        {list('Genre', s.genres)}
-        {list('Tags', s.tags)}
-      </div>
-    </section>
+      {range('Year', s.year, true)}
+      {range('Score', s.score, false)}
+      <Cell label="Source" tone="none">
+        <Known {...knownScalar(s.source)} />
+      </Cell>
+      <Cell label="Studio" tone="none">
+        <Known {...knownList(s.studios)} />
+      </Cell>
+      <Cell label="Genre" tone="none">
+        <Known {...knownList(s.genres)} />
+      </Cell>
+      <Cell label="Tags" tone="none">
+        <Known {...knownList(s.tags)} />
+      </Cell>
+    </div>
   );
 }
 
 const CLUE_LABELS: Record<AnidleClueKind, string> = { cover: 'Blurred poster', synopsis: 'Synopsis', characters: 'Two of its characters' };
+const CLUE_STEP: Record<AnidleClueKind, string> = { cover: 'Poster', synopsis: 'Synopsis', characters: 'Characters' };
 
-/** The clues unlocked so far, and when the next ones open (ANIDLE_CLUES). */
-function CluePanel({ puzzle }: { puzzle: AnidleState }) {
-  const used = puzzle.guesses.length;
+/** Only the clues already unlocked (the strip above shows when the others open). */
+function OpenClues({ puzzle }: { puzzle: AnidleState }) {
   const { clues } = puzzle;
+  const open = ANIDLE_CLUES.filter(({ kind }) => kind in clues);
+  if (!open.length) return null;
   return (
-    <section className="anidle-clues">
-      {ANIDLE_CLUES.map(({ kind, after }) => {
-        const open = kind in clues;
-        return (
-          <div key={kind} className={`anidle-clue ${kind}${open ? '' : ' locked'}`}>
-            <span className="cell-label">{CLUE_LABELS[kind]}</span>
-            {!open && (
-              <span className="muted small">
-                Unlocks after {after} tries ({after - used} more)
-              </span>
-            )}
-            {kind === 'cover' && clues.cover && (
+    <section className="anidle-clues open-clues">
+      {open.map(({ kind }) => (
+        <div key={kind} className={`anidle-clue ${kind}`}>
+          <span className="cell-label">{CLUE_LABELS[kind]}</span>
+          {kind === 'cover' &&
+            (clues.cover ? (
               <span className="anidle-cover-frame">
                 <img className="anidle-cover" src={clues.cover} alt="" />
               </span>
-            )}
-            {kind === 'cover' && open && !clues.cover && <span className="muted small">No poster for this one.</span>}
-            {kind === 'synopsis' && open && <p className="anidle-synopsis">{clues.synopsis ?? 'MAL has no synopsis for this one.'}</p>}
-            {kind === 'characters' && clues.characters && (
-              <div className="anidle-chars">
-                {clues.characters.map((c) => (
-                  <figure key={c.portrait}>
-                    <img src={c.portrait} alt="" />
-                    <figcaption>{c.name}</figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+            ) : (
+              <span className="muted small">No poster for this one.</span>
+            ))}
+          {kind === 'synopsis' && <p className="anidle-synopsis">{clues.synopsis ?? 'MAL has no synopsis for this one.'}</p>}
+          {kind === 'characters' && clues.characters && (
+            <div className="anidle-chars">
+              {clues.characters.map((c) => (
+                <figure key={c.portrait}>
+                  <img src={c.portrait} alt="" />
+                  <figcaption>{c.name}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
     </section>
   );
 }
@@ -253,12 +212,6 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
             <span className="muted small">{puzzle.finished ? 'finished' : `${left} of ${puzzle.maxGuesses} tries left`}</span>
           </div>
         </div>
-        <div className="legend small">
-          <span className="tag ok">match</span>
-          <span className="tag partial">partial</span>
-          <span className="tag bad">different</span>
-          <span className="muted">↑↓ toward the answer</span>
-        </div>
       </header>
 
       {puzzle.finished && puzzle.answer ? (
@@ -291,40 +244,60 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
       ) : (
         <div className="anidle-play">
           <GuessInput exclude={guessed} disabled={sending} onPick={(malId) => void send(() => api.guess(puzzle.id, malId))} />
-          {nextClue && (
-            <div className="anidle-skip">
+          <div className="clue-strip">
+            <span className="clue-steps">
+              <span className="muted">Clues</span>
+              {ANIDLE_CLUES.map(({ kind, after }) => (
+                <span key={kind} className={`clue-step${kind in puzzle.clues ? ' open' : ''}`}>
+                  {CLUE_STEP[kind]} <span className="muted">{kind in puzzle.clues ? '✓' : `at ${after}`}</span>
+                </span>
+              ))}
+            </span>
+            {nextClue && (
               <ConfirmButton
-                className="ghost"
+                className="ghost small"
                 disabled={sending}
                 title={`Skip to the ${CLUE_LABELS[nextClue.kind].toLowerCase()}?`}
                 message={`This uses ${nextClue.after - puzzle.guesses.length} of your ${left} tries left without guessing, and opens the ${CLUE_LABELS[nextClue.kind].toLowerCase()}.`}
                 confirmLabel="Skip"
                 onConfirm={() => void send(() => api.anidleSkip(puzzle.id))}
               >
-                Skip to {CLUE_LABELS[nextClue.kind].toLowerCase()} (−{nextClue.after - puzzle.guesses.length} {nextClue.after - puzzle.guesses.length === 1 ? 'try' : 'tries'})
+                Skip to {CLUE_STEP[nextClue.kind].toLowerCase()} (−{nextClue.after - puzzle.guesses.length})
               </ConfirmButton>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
       {error && <div className="error-box">{error}</div>}
-      <CluePanel puzzle={puzzle} />
-      {titled.length > 0 && !puzzle.solved && <SummaryPanel guesses={titled} />}
+      <OpenClues puzzle={puzzle} />
 
-      <div className="guesses">
-        {groupSkips(puzzle.guesses)
-          .reverse()
-          .map((row, i) =>
-            'skipped' in row ? (
-              <div key={`skip-${i}`} className="guess skipped">
-                ⏭ Skipped {row.skipped} {row.skipped === 1 ? 'try' : 'tries'}
-              </div>
-            ) : (
-              <GuessRow key={row.malId} g={row} />
-            ),
-          )}
-        {!puzzle.guesses.length && <p className="empty muted">Type an anime title, pick it from the list, then check the clues.</p>}
-      </div>
+      {puzzle.guesses.length ? (
+        <section className="anidle-board">
+          <div className="anidle-head" aria-hidden="true">
+            <span>Guess</span>
+            {BOARD_COLUMNS.map((c) => (
+              <span key={c}>{c}</span>
+            ))}
+          </div>
+          {titled.length > 0 && !puzzle.solved && <KnownRow guesses={titled} />}
+          {groupSkips(puzzle.guesses)
+            .reverse()
+            .map((row, i) =>
+              'skipped' in row ? (
+                <div key={`skip-${i}`} className="anidle-skip-row">
+                  Skipped {row.skipped} {row.skipped === 1 ? 'try' : 'tries'}
+                </div>
+              ) : (
+                <GuessRow key={row.malId} g={row} />
+              ),
+            )}
+          <div className="anidle-key muted small">
+            <span className="tone-swatch ok" /> match <span className="tone-swatch partial" /> partly <span>↑↓ the answer is higher / lower</span>
+          </div>
+        </section>
+      ) : (
+        <p className="empty muted">Type an anime title, pick it from the list, and compare its year, score, studio and genres with the answer.</p>
+      )}
     </div>
   );
 }
