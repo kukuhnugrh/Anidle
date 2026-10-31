@@ -224,6 +224,7 @@ Catatan implementasi M1–M7 (beda dari rencana awal):
 - Masuk dengan MAL: callback memakai `accountId` di cookie OAuth (`null` = tamu → masuk). Akun baru dari MAL punya `password_hash` kosong (tidak pernah cocok), jadi login password ditolak dan unlink MAL diblokir supaya akunnya tidak terkunci.
 - Blur clue dikurangi (terlalu susah): video/poster OP/ED 16 → 4 px, screenshot Anidle 9 → 3 px.
 - Character: kolom anime menerima show mana pun tempat karakter muncul (tabel `character_show`, semua karakter ≥ 100 favorit per entri), bukan hanya show yang ditanya, karena karakter populer muncul di banyak seri (Rin Toosaka: Fate/Zero, Fate/Extra, Prisma☆Illya, …).
+- Audit keamanan (Nov 2026, `~/security-audit-skill/anidle/run-1`): masuk dengan MAL dicocokkan lewat id user MAL (`account.mal_id`), bukan username (username MAL bisa berganti pemilik). Biaya Turso/Vercel dibatasi: memo per instance untuk query seluruh tabel, route cache menolak parameter asing, `/api/media` hanya URL resmi + redirect ke R2, batas per IP per menit, cooldown sinkron 10 menit, index `play(username)`, step `cleanup` (puzzle unlimited/progres tamu > 14 hari), dan hanya list `POOL_USERS` yang menambah katalog (pool `saya` akun lain memakai judul yang sudah ada).
 
 ## 14. Risiko
 

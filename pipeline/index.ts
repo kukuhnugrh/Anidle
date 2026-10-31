@@ -82,16 +82,21 @@ async function stepPopular() {
   log(`popular: ${picked.length} judul dengan ≥ ${POPULAR_MIN_MEMBERS.toLocaleString('id-ID')} member`);
 }
 
-/** Every title that is in some pool and has no fresh anime row. */
+/**
+ * Every title in a shared pool (POOL_USERS' completed lists, MAL popular, their queue) with no fresh anime
+ * row. Other linked accounts' lists do not grow the catalog: their `saya` pool draws from it as it is.
+ */
 async function idsToEnrich(refreshAll: boolean): Promise<number[]> {
   const cutoff = new Date(Date.now() - REFRESH_AFTER_DAYS * 86_400_000).toISOString();
+  const members = poolUsers();
+  const marks = members.map(() => '?').join(',');
   const rows = await all<{ mal_id: number }>(
     `SELECT p.mal_id FROM (
-       SELECT mal_id FROM completed UNION SELECT mal_id FROM popular UNION SELECT mal_id FROM enrich_queue
+       SELECT mal_id FROM completed WHERE username IN (${marks || "''"}) UNION SELECT mal_id FROM popular UNION SELECT mal_id FROM enrich_queue
      ) p LEFT JOIN anime a ON a.mal_id = p.mal_id
      WHERE ? OR a.mal_id IS NULL OR a.fetched_at < ?
      ORDER BY p.mal_id`,
-    [refreshAll ? 1 : 0, cutoff],
+    [...members, refreshAll ? 1 : 0, cutoff],
   );
   return rows.map((r) => Number(r.mal_id));
 }
@@ -296,9 +301,34 @@ async function writeActionsSummary(row: Record<string, number>) {
   appendFileSync(file, lines.join('\n'));
 }
 
+/** Puzzles and guest progress left this long are dropped by step `cleanup`. */
+const STALE_DAYS = 14;
+
+/**
+ * Anyone can start unlimited puzzles and guest plays (a fresh guest per request), and nothing else
+ * removes them, so they would pile up for good. Drops unlimited puzzles nobody finished and unfinished
+ * guest plays, once STALE_DAYS old. Finished plays, account progress and daily puzzles stay.
+ */
+async function stepCleanup() {
+  const cutoff = new Date(Date.now() - STALE_DAYS * 86_400_000).toISOString();
+  const stale = `SELECT p.id FROM puzzle p WHERE p.date IS NULL AND p.created_at < ?
+                 AND NOT EXISTS (SELECT 1 FROM play g WHERE g.puzzle_id = p.id AND g.finished_at IS NOT NULL)`;
+  const results = await db().batch(
+    [
+      { sql: `DELETE FROM play WHERE username LIKE 'a:%' AND finished_at IS NULL AND puzzle_id IN (SELECT id FROM puzzle WHERE created_at < ?)`, args: [cutoff] },
+      { sql: `DELETE FROM play WHERE puzzle_id IN (${stale})`, args: [cutoff] },
+      { sql: `DELETE FROM puzzle_round WHERE puzzle_id IN (${stale})`, args: [cutoff] },
+      { sql: `DELETE FROM puzzle_character WHERE puzzle_id IN (${stale})`, args: [cutoff] },
+      { sql: `DELETE FROM puzzle WHERE id IN (${stale})`, args: [cutoff] },
+    ],
+    'write',
+  );
+  log(`cleanup: ${results[0]!.rowsAffected + results[1]!.rowsAffected} play, ${results[4]!.rowsAffected} puzzle unlimited (> ${STALE_DAYS} hari)`);
+}
+
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'daily'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'daily', 'cleanup'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -329,6 +359,7 @@ for (const step of steps) {
   if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
   if (step === 'clips') await stepClips(flag('refresh'), limit);
   if (step === 'daily') await stepDaily();
+  if (step === 'cleanup') await stepCleanup();
 }
 await report();
 log(`selesai dalam ${Math.round((Date.now() - started) / 1000)} dtk`);

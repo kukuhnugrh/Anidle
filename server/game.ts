@@ -38,6 +38,7 @@ import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
 import { HttpError } from './http.js';
 import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
+import { CATALOG_TTL_MS, memo, POOL_TTL_MS } from './memo.js';
 
 export function parseMode(value: unknown): Mode {
   if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
@@ -151,7 +152,8 @@ export function parseDifficulties(value: unknown): Difficulty[] {
   if (value == null || value === '') return [];
   const list = Array.isArray(value) ? value : [value];
   for (const d of list) if (!(DIFFICULTIES as readonly unknown[]).includes(d)) throw new HttpError(400, `Unknown difficulty: ${String(d)}`);
-  return list as Difficulty[];
+  // Canonical order without repeats: the list is part of the pool's SQL and its memo key.
+  return DIFFICULTIES.filter((d) => list.includes(d));
 }
 
 /** Unlimited filters, stored with the puzzle so a round can be replaced from the same pool. */
@@ -181,10 +183,13 @@ export interface PoolTitle {
   franchise: number;
 }
 
-export async function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
-  const where = poolWhere(spec);
-  const rows = await all<{ mal_id: number; franchise_id: number | null }>(`SELECT a.mal_id, a.franchise_id FROM anime a WHERE ${where.sql} ORDER BY a.mal_id`, where.args);
-  return rows.map((r) => ({ malId: Number(r.mal_id), franchise: r.franchise_id == null ? -Number(r.mal_id) : Number(r.franchise_id) }));
+/** A pool's shows for these filters; memoized per instance (each query scans the anime table). */
+export function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
+  return memo(`pool:${JSON.stringify(spec)}`, POOL_TTL_MS, async () => {
+    const where = poolWhere(spec);
+    const rows = await all<{ mal_id: number; franchise_id: number | null }>(`SELECT a.mal_id, a.franchise_id FROM anime a WHERE ${where.sql} ORDER BY a.mal_id`, where.args);
+    return rows.map((r) => ({ malId: Number(r.mal_id), franchise: r.franchise_id == null ? -Number(r.mal_id) : Number(r.franchise_id) }));
+  });
 }
 
 /**
@@ -192,7 +197,9 @@ export async function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
  * entry but also found by its other seasons' names), so any pool's answer can be typed and the list
  * itself does not hint at which pool (or answer) is in play.
  */
-export async function titleEntries(): Promise<TitleEntry[]> {
+export const titleEntries = (): Promise<TitleEntry[]> => memo('titles', CATALOG_TTL_MS, loadTitleEntries);
+
+async function loadTitleEntries(): Promise<TitleEntry[]> {
   const rows = await all<{ mal_id: number; show: number; title: string; title_en: string | null; title_ja: string | null; synonyms: string; year: number | null; media_type: string | null }>(
     `SELECT mal_id, COALESCE(canonical_id, mal_id) AS show, title, title_en, title_ja, synonyms, year, media_type
      FROM anime WHERE excluded IS NULL ORDER BY (COALESCE(canonical_id, mal_id) = mal_id) DESC, members DESC`,
@@ -330,7 +337,9 @@ export function pickTitles(from: PoolTitle[], count: number, draw: (n: number, s
 }
 
 /** For Character mode: the character difficulties each show can be asked at (from its stored characters' favorites). */
-async function characterDifficultiesByShow(): Promise<Map<number, Set<Difficulty>>> {
+const characterDifficultiesByShow = () => memo('character-difficulties', POOL_TTL_MS, loadCharacterDifficulties);
+
+async function loadCharacterDifficulties(): Promise<Map<number, Set<Difficulty>>> {
   const rows = await all<{ mal_id: number; favorites: number }>('SELECT mal_id, favorites FROM anime_character WHERE favorites >= ?', [CHARACTER_MIN_FAVORITES]);
   const out = new Map<number, Set<Difficulty>>();
   for (const r of rows) {

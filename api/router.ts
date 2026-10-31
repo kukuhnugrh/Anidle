@@ -22,6 +22,7 @@ import * as puzzleReplace from '../routes/puzzle/replace.js';
 import * as sync from '../routes/sync.js';
 import * as titles from '../routes/titles.js';
 import { json } from '../server/http.js';
+import { rateLimited } from '../server/ratelimit.js';
 
 type Handler = (req: Request) => Promise<Response>;
 type RouteModule = { GET?: Handler; POST?: Handler };
@@ -60,11 +61,12 @@ function routeOf(url: URL): string {
 }
 
 async function dispatch(req: Request): Promise<Response> {
-  const mod = ROUTES[routeOf(new URL(req.url))];
+  const name = routeOf(new URL(req.url));
+  const mod = Object.hasOwn(ROUTES, name) ? ROUTES[name] : undefined;
   if (!mod) return json({ error: 'Not found' }, { status: 404 });
   const handler = req.method === 'GET' || req.method === 'HEAD' ? mod.GET : req.method === 'POST' ? mod.POST : undefined;
   if (!handler) return json({ error: `${req.method} is not supported here.` }, { status: 405 });
-  return handler(req);
+  return rateLimited(req, name) ?? handler(req);
 }
 
 export const GET = dispatch;

@@ -7,6 +7,7 @@ import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
 import { mediaUrl } from './media.js';
+import { CATALOG_TTL_MS, memo } from './memo.js';
 
 // Character mode: ROUND_COUNT rounds of CHARACTERS_PER_ROUND characters from different anime. For each
 // character the player picks its name (a character id) and its anime (a mal_id); one Guess answers the
@@ -226,7 +227,9 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
  * hint at the answers. A character listed under several titles appears once, and so do different
  * characters sharing a name (several "Rin"): they cannot be told apart without giving the anime away.
  */
-export async function characterEntries(): Promise<CharacterEntry[]> {
+export const characterEntries = (): Promise<CharacterEntry[]> => memo('characters', CATALOG_TTL_MS, loadCharacterEntries);
+
+async function loadCharacterEntries(): Promise<CharacterEntry[]> {
   const rows = await all<{ char_id: number; name: string; nicknames: string; aliases: string }>(
     `SELECT c.char_id, MIN(c.name) AS name, MAX(c.nicknames) AS nicknames, MAX(c.aliases) AS aliases
      FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id

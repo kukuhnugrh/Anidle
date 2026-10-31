@@ -13,7 +13,7 @@ function readFilters(): DbFilters {
   const difficulty = p.get('difficulty');
   return {
     q: p.get('q') || undefined,
-    sort: sort && sort in DB_SORTS ? (sort as DbSort) : 'popularity',
+    sort: sort && Object.hasOwn(DB_SORTS, sort) ? (sort as DbSort) : 'popularity',
     genres: p.getAll('genre').map(Number).filter((n) => Number.isInteger(n) && n > 0),
     studio: p.get('studio') || undefined,
     source: p.get('source') || undefined,

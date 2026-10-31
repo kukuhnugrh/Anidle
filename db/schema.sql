@@ -197,9 +197,5 @@ CREATE TABLE IF NOT EXISTS account (
   created_at     TEXT NOT NULL
 );
 
--- Replaced by `popular` (Oct 2026). Old unlimited puzzles keep working under the new pool name.
+-- Replaced by `popular` (Oct 2026).
 DROP TABLE IF EXISTS top_genre;
-UPDATE puzzle SET pool = 'populer' WHERE pool = 'top';
-
--- Backfill for rows enriched before unaired titles were excluded (shared/catalog.ts exclusionReason).
-UPDATE anime SET excluded = 'status:not_yet_aired' WHERE status = 'not_yet_aired' AND excluded IS NULL;

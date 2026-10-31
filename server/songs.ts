@@ -118,6 +118,9 @@ export async function songSources(puzzleId: string, mode: SongMode): Promise<Son
   }));
 }
 
+/** The `v` of a round's /api/media URL: changes when a round is replaced, so a cached copy of the old song is never played for the new one. */
+export const mediaTag = (puzzleId: string, round: number, source: SongSource) => opaqueTag(`${puzzleId}:${round}:${source.malId}:${source.themeId}`);
+
 export const storedSongs = async (puzzleId: string, playerKey: string): Promise<StoredSong[]> => {
   const play = await readPlay(puzzleId, playerKey);
   return play ? (JSON.parse(play.guesses) as StoredSong[]) : [];
@@ -131,9 +134,8 @@ interface Evaluated {
 async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, stored: StoredSong[]): Promise<Evaluated> {
   const sources = await songSources(puzzle.id, mode);
   const anime = await loadAnidle([...sources.map((s) => s.malId), ...stored.flatMap((s) => (s.g ? [s.g] : []))]);
-  // v changes when a round is replaced, so a cached copy of the old song is never played for the new one.
   const media = (round: number, kind: 'audio' | 'video') =>
-    `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}&v=${opaqueTag(`${puzzle.id}:${round}:${sources[round]!.malId}:${sources[round]!.themeId}`)}`;
+    `/api/media?puzzle=${encodeURIComponent(puzzle.id)}&round=${round}&kind=${kind}&v=${mediaTag(puzzle.id, round, sources[round]!)}`;
   const rounds = sources.map((s, i): SongRoundState => {
     const answer = anime.get(s.malId);
     if (!answer) throw new HttpError(500, 'An answer is missing from the database.');

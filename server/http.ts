@@ -19,9 +19,20 @@ export function json(body: unknown, init: ResponseInit = {}, cookies: string[] =
 }
 
 /**
+ * The query of a cacheable GET, refusing parameters the route does not use: the CDN keys its cache on
+ * the whole URL, so `?anything=<n>` would otherwise make every request a miss that reaches the
+ * database. `route` is added by the vercel.json rewrite.
+ */
+export function queryOf(req: Request, allowed: readonly string[] = []): URLSearchParams {
+  const params = new URL(req.url).searchParams;
+  for (const name of params.keys()) if (name !== 'route' && !allowed.includes(name)) throw new HttpError(400, `Unknown parameter: ${name}`);
+  return params;
+}
+
+/**
  * Public JSON the browser must revalidate (an ETag of the body answers 304 when unchanged) but the CDN
- * keeps for an hour: the lists only change with the pipeline, and every page with a guess box asks for
- * them, which read the whole anime/character table each time (Turso bills rows read).
+ * keeps for an hour. The lists only change with the pipeline; callers check queryOf first and memoize
+ * the list (server/memo.ts), so a cache-busting query cannot force a full-table read.
  */
 export function revalidatedJson(req: Request, data: unknown): Response {
   const body = JSON.stringify(data);

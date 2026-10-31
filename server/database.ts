@@ -7,6 +7,7 @@ import { titleHint } from '../shared/normalize.js';
 import { all, one } from './db.js';
 import { difficultySql, USABLE_THEME_SQL } from './game.js';
 import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
+import { CATALOG_TTL_MS, memo } from './memo.js';
 
 const ORDER_BY: Record<DbSort, string> = {
   popularity: 'a.members IS NULL, a.members DESC',
@@ -226,8 +227,10 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
   };
 }
 
-/** Filter options with how many shows each has. */
-export async function facets(): Promise<DbFacets> {
+/** Filter options with how many shows each has (three whole-table aggregations, so memoized). */
+export const facets = (): Promise<DbFacets> => memo('facets', CATALOG_TTL_MS, loadFacets);
+
+async function loadFacets(): Promise<DbFacets> {
   const [genres, studios, sources] = await Promise.all([
     all<{ id: number; name: string; type: GenreType; count: number }>(
       `SELECT g.id, g.name, g.type, COUNT(*) AS count FROM anime_genre ag

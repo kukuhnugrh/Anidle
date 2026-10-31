@@ -23,10 +23,27 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // A daily Opening/Ending round's full song copied to R2 by step `daily` (NULL = stream from AnimeThemes).
   // theme_id: the anime_theme a song-mode round plays (NULL for other modes).
   puzzle_round: { audio_key: 'TEXT', theme_id: 'INTEGER' },
+  // The MAL user id the account is linked to: sign-in and linking match on it, never on the
+  // username alone (MAL usernames can change hands).
+  account: { mal_id: 'INTEGER' },
 };
 
 /** Indexes on ADDED_COLUMNS, created once the columns exist. */
-const ADDED_INDEXES = ['CREATE INDEX IF NOT EXISTS anime_canonical ON anime (canonical_id)'];
+const ADDED_INDEXES = [
+  'CREATE INDEX IF NOT EXISTS anime_canonical ON anime (canonical_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS account_mal_id ON account (mal_id)',
+  // History, and moving guest plays on login, look plays up by player alone.
+  'CREATE INDEX IF NOT EXISTS play_username ON play (username)',
+];
+
+/**
+ * Accounts linked before account.mal_id existed take the id MAL reported at that link (player.mal_user_id,
+ * written by the same OAuth callback). Only touches accounts still missing it.
+ */
+const BACKFILLS = [
+  `UPDATE account SET mal_id = (SELECT p.mal_user_id FROM player p WHERE p.username = account.mal_username)
+   WHERE mal_username IS NOT NULL AND mal_id IS NULL`,
+];
 
 export async function migrate(): Promise<void> {
   const url = requireEnv('TURSO_DATABASE_URL');
@@ -38,6 +55,7 @@ export async function migrate(): Promise<void> {
     for (const [column, type] of Object.entries(columns)) if (!existing.has(column)) await db().execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
   for (const sql of ADDED_INDEXES) await db().execute(sql);
+  for (const sql of BACKFILLS) await db().execute(sql);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

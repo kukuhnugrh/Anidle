@@ -3,7 +3,7 @@ import { verify } from '../../server/crypto.js';
 import { getCookie, redirect, route, setCookie } from '../../server/http.js';
 import { exchangeCode, fetchMe } from '../../server/mal.js';
 import { OAUTH_COOKIE, type OAuthPending } from '../../server/oauth.js';
-import { linkMal, signInWithMal, syncCompleted } from '../../server/players.js';
+import { linkMal, signInWithMal, syncCompleted, syncWait } from '../../server/players.js';
 
 // Errors land on the page the flow started from: the account page (link) or the sign-in page.
 const back = (req: Request, page: 'akun' | 'masuk', error: string | null, cookies: string[] = []) =>
@@ -32,8 +32,8 @@ export const GET = route(async (req) => {
       await adoptAnonymousPlays(anonKey, signedIn.id);
       cookies.push(sessionCookie(req, signedIn.id));
     }
-    // Pull the completed list right away (private lists work too, through their token).
-    await syncCompleted(me.name).catch((err) => console.warn(`sync ${me.name} gagal:`, err));
+    // Pull the completed list right away (private lists work too, through their token), unless it was just synced.
+    if ((await syncWait(me.name)) === 0) await syncCompleted(me.name).catch((err) => console.warn(`sync ${me.name} gagal:`, err));
     return back(req, page, null, cookies);
   } catch (err) {
     return back(req, page, err instanceof Error ? err.message : String(err));

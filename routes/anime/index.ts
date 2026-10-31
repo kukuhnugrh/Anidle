@@ -1,7 +1,7 @@
 import { DIFFICULTIES, type Difficulty } from '../../shared/catalog.js';
 import { DB_MAX_GENRES, DB_SORTS, type DbSort } from '../../shared/database.js';
 import { listAnime } from '../../server/database.js';
-import { HttpError, json, route } from '../../server/http.js';
+import { HttpError, json, queryOf, route } from '../../server/http.js';
 
 const text = (value: string | null, max = 100) => {
   const v = value?.trim();
@@ -12,9 +12,9 @@ const text = (value: string | null, max = 100) => {
 
 /** Browse playable shows: ?q=&sort=&genre=1&genre=62&studio=&source=&difficulty=&page= */
 export const GET = route(async (req) => {
-  const p = new URL(req.url).searchParams;
+  const p = queryOf(req, ['q', 'sort', 'genre', 'studio', 'source', 'difficulty', 'page']);
   const sort = p.get('sort') ?? 'popularity';
-  if (!(sort in DB_SORTS)) throw new HttpError(400, `Unknown sort: ${sort}`);
+  if (!Object.hasOwn(DB_SORTS, sort)) throw new HttpError(400, `Unknown sort: ${sort}`);
   const genres = p.getAll('genre').map(Number);
   if (genres.some((g) => !Number.isInteger(g) || g <= 0) || genres.length > DB_MAX_GENRES) throw new HttpError(400, 'Invalid genre filter.');
   const difficulty = p.get('difficulty') || undefined;
