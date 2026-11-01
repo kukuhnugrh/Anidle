@@ -13,6 +13,8 @@ function once<T>(fetch: () => Promise<T>): () => Promise<T> {
 }
 
 const loadTitles = once(api.titles);
+/** Guess the Anime: only each show's full romaji and English titles, no synonyms, abbreviations or other seasons' names. */
+const loadFullTitles = once(() => loadTitles().then((list) => list.map((t) => ({ ...t, names: t.en ? [t.names[0]!, t.en] : [t.names[0]!] }))));
 const loadCharacters = once(api.characters);
 
 interface PickerProps {
@@ -125,16 +127,21 @@ function Autocomplete<T extends SearchEntry>({
 
 // A hit through another name (a season, a nickname) names the entry it stands for.
 const titleDetail = ({ entry: t, name }: SearchHit<TitleEntry>) => (name === t.names[0] ? [t.names[1], t.type?.toUpperCase(), t.year].filter(Boolean).join(' · ') : `→ ${t.names[0]}`);
+// Full names only: the other one of the pair (romaji ↔ English) as detail, never an arrow to an alias.
+const fullTitleDetail = ({ entry: t, name }: SearchHit<TitleEntry>) => [name === t.names[0] ? t.en : t.names[0], t.type?.toUpperCase(), t.year].filter(Boolean).join(' · ');
 const characterDetail = ({ entry: c, name }: SearchHit<CharacterEntry>) => (name === c.names[0] ? (c.names[1] ?? '') : `→ ${c.names[0]}`);
 
-/** Picks an anime (one entry per show) by any of its names. */
-export function GuessInput({ compact, ...props }: PickerProps) {
+/**
+ * Picks an anime (one entry per show) by any of its names, or with `fullNamesOnly` by its full romaji
+ * or English title alone (Guess the Anime).
+ */
+export function GuessInput({ compact, fullNamesOnly = false, ...props }: PickerProps & { fullNamesOnly?: boolean }) {
   return (
     <Autocomplete
       {...props}
       compact={compact}
-      load={loadTitles}
-      detail={titleDetail}
+      load={fullNamesOnly ? loadFullTitles : loadTitles}
+      detail={fullNamesOnly ? fullTitleDetail : titleDetail}
       placeholder={(n) => (compact ? 'Which anime?' : `Guess the anime… (${n} titles)`)}
       noneText="No matching title."
     />

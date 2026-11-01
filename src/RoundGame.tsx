@@ -180,7 +180,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
           {round.hint && <TitleHint hint={round.hint} />}
           {playing && (
             <div className="stage-controls">
-              <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />
+              <GuessInput fullNamesOnly disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {fmtNumber(worth)} pts</span>
                 <ConfirmButton

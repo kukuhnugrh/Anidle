@@ -29,6 +29,8 @@ export interface SearchEntry {
 export interface TitleEntry extends SearchEntry {
   /** Romaji title, English title, Japanese title, synonyms, then the other entries' names of the show. */
   names: string[];
+  /** The show's English title (MAL), when it has one: with names[0] the two full names Guess the Anime offers. */
+  en: string | null;
   year: number | null;
   type: string | null;
 }

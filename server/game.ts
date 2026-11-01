@@ -210,7 +210,11 @@ async function loadTitleEntries(): Promise<TitleEntry[]> {
     const names = [r.title, r.title_en, r.title_ja, ...(JSON.parse(r.synonyms) as string[])].filter((n): n is string => Boolean(n));
     const show = shows.get(Number(r.show));
     if (show) for (const n of names) show.names.add(n);
-    else if (Number(r.show) === Number(r.mal_id)) shows.set(Number(r.mal_id), { entry: { id: Number(r.mal_id), year: r.year == null ? null : Number(r.year), type: r.media_type }, names: new Set(names) });
+    else if (Number(r.show) === Number(r.mal_id))
+      shows.set(Number(r.mal_id), {
+        entry: { id: Number(r.mal_id), en: r.title_en && r.title_en !== r.title ? r.title_en : null, year: r.year == null ? null : Number(r.year), type: r.media_type },
+        names: new Set(names),
+      });
   }
   return [...shows.values()].map(({ entry, names }) => ({ ...entry, names: [...names] }));
 }
