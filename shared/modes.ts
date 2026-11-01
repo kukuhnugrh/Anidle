@@ -82,6 +82,19 @@ export function roundDifficulties(pool: readonly Difficulty[], round: number): r
   return pool;
 }
 
+/**
+ * The slices a round draws from, in order, when the first is too small (media still being copied).
+ * Rounds after the first never fall back to easy: a hard round widens to medium + hard, a medium one to
+ * medium + hard. Only when the pool has no such title at all does it take the whole pool.
+ */
+export function roundTries(pool: readonly Difficulty[], round: number): ReadonlyArray<readonly Difficulty[]> {
+  const staged = roundDifficulties(pool, round);
+  if (staged === pool) return [pool];
+  const widened = round === 0 ? pool : (pool.length ? pool : ROUND_STAGES).filter((d) => d !== 'easy');
+  const tries = [staged, widened, pool];
+  return tries.filter((t, i) => tries.findIndex((u) => u.join() === t.join()) === i);
+}
+
 /** Character mode: characters per round, each from a different anime. */
 export const CHARACTERS_PER_ROUND = 4;
 

@@ -3,7 +3,7 @@ import { anidleScore, compareAnidle, groupSkips, maskSynopsis, summarizeAnidle, 
 import { aliasOf, characterAliases, characterDifficultyOf, isRomaji, sameCharacterName } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
 import { franchiseIds } from './franchise';
-import { roundDifficulties } from './modes';
+import { roundDifficulties, roundTries } from './modes';
 import { indexNames, normalizeTitle, searchNames, titleHint } from './normalize';
 
 const anime = (over: Partial<AnidleAnime>): AnidleAnime => ({
@@ -251,5 +251,17 @@ describe('roundDifficulties', () => {
     expect(roundDifficulties(['hard'], 0)).toEqual(['hard']);
     expect(roundDifficulties(['easy'], 2)).toEqual(['easy']);
     expect(roundDifficulties(['medium', 'hard'], 0)).toEqual(['medium', 'hard']);
+  });
+});
+
+describe('roundTries', () => {
+  it('widens a hard or medium round to medium + hard before ever reaching easy titles', () => {
+    expect(roundTries([], 2)).toEqual([['hard'], ['medium', 'hard'], []]);
+    expect(roundTries([], 1)).toEqual([['medium'], ['medium', 'hard'], []]);
+  });
+
+  it('lets round 1 fall back to the whole pool, and keeps a narrowed pool as is', () => {
+    expect(roundTries([], 0)).toEqual([['easy'], []]);
+    expect(roundTries(['hard'], 2)).toEqual([['hard']]);
   });
 });

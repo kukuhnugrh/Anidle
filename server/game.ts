@@ -24,6 +24,7 @@ import {
   MODES,
   ROUND_COUNT,
   roundDifficulties,
+  roundTries,
   shiftDate,
   SONG_KIND,
   todayUtc7,
@@ -378,13 +379,13 @@ async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly 
 
 /**
  * The answers of a new puzzle per round, all from different franchises. Each round draws from its
- * roundDifficulties() slice of the pool (easy, medium, hard for every difficulty); a slice that is too small (media
- * still being copied) falls back to the whole pool. Song modes stage by the song's own entry instead of
- * the show: the round's show has a song of that difficulty, and that song is drawn among them. Character
- * mode instead keeps the whole pool for every round and asks for a character of
- * CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by the character's own popularity), so only
- * shows with such a character qualify. Titles in `avoid` (recent daily answers) are only reused when
- * nothing else is left.
+ * roundDifficulties() slice of the pool (easy, medium, hard for every difficulty); a slice that is too
+ * small (media still being copied) widens per roundTries(), never to easy after round 1. Song modes stage
+ * by the song's own entry instead of the show: the round's show has a song of that difficulty, and that
+ * song is drawn among them. Character mode instead keeps the whole pool for every round and asks for a
+ * character of CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by the character's own
+ * popularity), so only shows with such a character qualify. Titles in `avoid` (recent daily answers)
+ * are only reused when nothing else is left.
  */
 export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<DrawnRound[]> {
   const { rounds, perRound } = SHAPE[mode];
@@ -398,8 +399,8 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
   const used = new Set<number>();
   const out: DrawnRound[] = [];
   for (let round = 0; round < rounds; round++) {
-    const staged = rounds > 1 && !characters ? roundDifficulties(spec.difficulties, round) : spec.difficulties;
-    const tries = staged === spec.difficulties ? [staged] : [staged, spec.difficulties];
+    const tries = rounds > 1 && !characters ? roundTries(spec.difficulties, round) : [spec.difficulties];
+    const staged = tries[0]!;
     const wanted = CHARACTER_ROUND_DIFFICULTIES[round]!;
     const roundDraw = (n: number, size: number) => draw(round, n, size);
     let picked: PoolTitle[] | null = null;
