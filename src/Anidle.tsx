@@ -110,7 +110,8 @@ function rangeText(r: RangeSummary, integer: boolean): string | null {
 
 /**
  * A fact about the answer: known (green), partly known (amber: a range, some items, or what it is not),
- * or still open. Green chips are only ever certain values; a range gets an amber chip.
+ * or still open. Its pills use the board's colours: green = the answer has it, amber = a range,
+ * red (struck through) = the answer does not have it.
  */
 type FactState = 'known' | 'partly' | 'open';
 
@@ -121,19 +122,19 @@ function Fact({ label, state, yes, range, no }: { label: string; state: FactStat
       {state === 'open' ? (
         <span className="fact-open">?</span>
       ) : (
-        <>
-          {(yes.length > 0 || range) && (
-            <span className="soft-chips">
-              {yes.map((v) => (
-                <span key={v} className="soft-chip hit">
-                  {v}
-                </span>
-              ))}
-              {range && <span className="soft-chip maybe">{range}</span>}
+        <span className="soft-chips">
+          {yes.map((v) => (
+            <span key={v} className="soft-chip hit">
+              {v}
             </span>
-          )}
-          {no.length > 0 && <span className="anidle-not">not {no.join(', ')}</span>}
-        </>
+          ))}
+          {range && <span className="soft-chip maybe">{range}</span>}
+          {no.map((v) => (
+            <span key={v} className="soft-chip miss ruled-out" title={`Not ${v}`} aria-label={`not ${v}`}>
+              {v}
+            </span>
+          ))}
+        </span>
       )}
     </div>
   );

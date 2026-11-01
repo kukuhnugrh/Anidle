@@ -452,7 +452,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .anidle-head { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); background: var(--ground); border-bottom: var(--detail); }
 .anidle-head > span { padding: 9px 10px; }
 .anidle-head > span:first-child { padding-left: 14px; }
-.anidle-row { border-bottom: 1px solid var(--dp-color-rule-muted); animation: rise .25s ease-out; transition: background var(--dp-motion-interaction); }
+/* Cells sit in the middle of the row, whatever the tallest cell's height. */
+.anidle-row { align-items: center; border-bottom: 1px solid var(--dp-color-rule-muted); animation: rise .25s ease-out; transition: background var(--dp-motion-interaction); }
 .anidle-row:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .anidle-row-title { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .anidle-thumb { flex: none; width: 34px; aspect-ratio: 225 / 320; object-fit: cover; border-radius: 8px; border: var(--detail); background: var(--ground); }
@@ -475,7 +476,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .anidle-num { white-space: nowrap; }
 /* A range ("2009 or earlier"): narrows the answer down, so amber like a partial match, never green. */
 .soft-chip.maybe { font-weight: 700; background: color-mix(in srgb, var(--partial-fill) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--partial-fill) 75%, transparent); }
-.anidle-not { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
+/* A value the answer is proven not to have (answer card): red like a miss on the board, struck through. */
+.soft-chip.ruled-out { text-decoration: line-through; text-decoration-thickness: 1.5px; }
 .anidle-row.correct { background: color-mix(in srgb, var(--ok-fill) 14%, transparent); box-shadow: inset 4px 0 0 var(--ok-fill); }
 .anidle-row.correct .anidle-row-title { color: var(--ok); }
 .anidle-skip-row { padding: 6px 14px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--dp-color-rule-muted); background: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--ink) 3%, transparent) 6px 12px); }
@@ -484,7 +486,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 
 /* "The answer so far": its own card above the board, a mystery poster and one tile per fact. */
 .answer-card {
-  display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 18px; align-items: start; padding: 16px 18px;
+  display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 18px; align-items: center; padding: 16px 18px;
   background: var(--panel); border: var(--outline); border-radius: var(--radius-broad); box-shadow: var(--shadow-violet);
 }
 .answer-mystery {

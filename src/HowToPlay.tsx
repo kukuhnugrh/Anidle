@@ -36,7 +36,10 @@ const HOW_TO: Record<Mode, { rules: ReactNode[]; scoring: ReactNode }> = {
         Every guess is a row compared with the answer. <b>Year</b> and <b>Score</b> show ↑ or ↓ toward the answer. Each value is a pill:{' '}
         <span className="soft-chip hit">green</span> when the answer has it too, <span className="soft-chip miss">red</span> when it does not.
       </>,
-      <>"The answer so far" card sums up everything your guesses have proved: green once a fact is known, amber when you only know part of it (a range, or what it is not).</>,
+      <>
+        "The answer so far" card sums up everything your guesses have proved: <span className="soft-chip hit">green</span> what the answer has,{' '}
+        <span className="soft-chip maybe">amber</span> a range, <span className="soft-chip miss ruled-out">red</span> what it does not have.
+      </>,
       <>
         Clues open as your tries add up: after {clueAfter('cover')} tries its blurred poster, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
         {clueAfter('characters')} two of its characters.
