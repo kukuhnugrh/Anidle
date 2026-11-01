@@ -43,7 +43,7 @@ jobs:
       R2_BUCKET: ${{ secrets.R2_BUCKET }}
       MEDIA_BASE_URL: https://media.velvetaco.dev
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
