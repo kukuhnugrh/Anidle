@@ -12,6 +12,7 @@ import * as health from '../routes/health.js';
 import * as history from '../routes/history.js';
 import * as leaderboard from '../routes/leaderboard.js';
 import * as logout from '../routes/logout.js';
+import * as malList from '../routes/mal/list.js';
 import * as malUnlink from '../routes/mal/unlink.js';
 import * as me from '../routes/me.js';
 import * as media from '../routes/media.js';
@@ -41,6 +42,7 @@ const ROUTES: Record<string, RouteModule> = {
   history,
   leaderboard,
   logout,
+  'mal/list': malList,
   'mal/unlink': malUnlink,
   me,
   media,

@@ -122,6 +122,50 @@ export async function completedIds(user: string, auth: MalAuth, schedule: <T>(ta
   return ids;
 }
 
+/** A list entry's own state on MAL (the user's status, score and progress). */
+export interface MalListStatus {
+  status: 'watching' | 'completed' | 'on_hold' | 'dropped' | 'plan_to_watch';
+  score: number;
+  num_episodes_watched: number;
+  is_rewatching: boolean;
+  updated_at: string;
+  start_date?: string;
+  finish_date?: string;
+}
+
+export interface MalListNode {
+  id: number;
+  title: string;
+  alternative_titles?: { en?: string };
+  main_picture?: { medium?: string; large?: string };
+  media_type?: string;
+  status?: string;
+  num_episodes?: number;
+  start_season?: { year: number; season: string };
+  mean?: number;
+  genres?: Array<{ id: number; name: string }>;
+  studios?: Array<{ id: number; name: string }>;
+}
+
+const LIST_FIELDS = 'list_status,alternative_titles,main_picture,media_type,status,num_episodes,start_season,mean,genres,studios';
+
+/**
+ * A user's whole anime list, every status. `@me` + user auth reads private lists. Only next-page links on
+ * MAL's own API host are followed, so the user's token is never sent anywhere else.
+ */
+export async function animeList(user: string, auth: MalAuth): Promise<Array<{ node: MalListNode; list_status: MalListStatus }>> {
+  const items: Array<{ node: MalListNode; list_status: MalListStatus }> = [];
+  const first = new URL(`${API}/users/${encodeURIComponent(user).replace(/%40/g, '@')}/animelist`);
+  first.search = new URLSearchParams({ limit: '1000', nsfw: 'true', fields: LIST_FIELDS }).toString();
+  let next: string | undefined = first.toString();
+  while (next) {
+    const page: { data: Array<{ node: MalListNode; list_status: MalListStatus }>; paging?: { next?: string } } = await malFetch(next, auth);
+    items.push(...page.data);
+    next = page.paging?.next && new URL(page.paging.next).origin === new URL(API).origin ? page.paging.next : undefined;
+  }
+  return items;
+}
+
 export const DETAIL_FIELDS = [
   'id', 'title', 'alternative_titles', 'main_picture', 'start_date', 'start_season', 'mean', 'num_list_users',
   'media_type', 'status', 'num_episodes', 'source', 'rating', 'nsfw', 'studios', 'genres', 'related_anime', 'synopsis',

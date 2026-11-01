@@ -14,6 +14,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
 import { Home } from './Home';
+import { MalListPage } from './MalList';
 import { MenuIcon } from './icons';
 import { DayBar, UnlimitedBar } from './ModeBar';
 import { go, readRoute } from './route';
@@ -163,6 +164,7 @@ export function App() {
             {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
             {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
             {route.view === 'history' && <HistoryPage account={account} />}
+            {route.view === 'mylist' && <MalListPage account={account} />}
             {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
             {route.view === 'auth' && (
               <AuthPage

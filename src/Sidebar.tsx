@@ -2,7 +2,7 @@ import { useState, type ComponentType } from 'react';
 import { MODE_LABELS, type Mode } from '../shared/modes';
 import type { Account, TodayScore } from './api';
 import { fmtNumber } from './format';
-import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
+import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, ListIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 import { applyTheme, currentTheme } from './theme';
 import { VolumeControl } from './VolumeControl';
@@ -55,6 +55,9 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
   },
 ];
 
+/** Only for accounts with MAL linked (the list is read with their MAL token): joins the Community section. */
+const MAL_ITEM: (typeof NAV)[number]['items'][number] = { id: 'mylist', href: '/mylist', label: 'My MAL list', Icon: ListIcon };
+
 /** Only for ADMIN_USERS (the server checks again on every admin request). */
 const ADMIN_SECTION: (typeof NAV)[number] = { title: 'Admin', items: [{ id: 'admin', href: '/admin', label: 'Review media', Icon: ShieldIcon }] };
 
@@ -96,7 +99,8 @@ export function Sidebar({
   onLogout: () => void;
 }) {
   const current = navId(route);
-  const sections = admin ? [...NAV, ADMIN_SECTION] : NAV;
+  const nav = account?.mal ? NAV.map((s) => (s.title === 'Community' ? { ...s, items: [...s.items, MAL_ITEM] } : s)) : NAV;
+  const sections = admin ? [...nav, ADMIN_SECTION] : nav;
   return (
     <>
       <aside className={`sidebar${open ? ' open' : ''}`}>

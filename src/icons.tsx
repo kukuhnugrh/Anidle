@@ -182,6 +182,15 @@ export const UnlockIcon = () => (
   </Icon>
 );
 
+export const ListIcon = () => (
+  <Icon>
+    <path d="M9 6.5h11M9 12h11M9 17.5h11" />
+    <circle cx="4.75" cy="6.5" r="1.25" />
+    <circle cx="4.75" cy="12" r="1.25" />
+    <circle cx="4.75" cy="17.5" r="1.25" />
+  </Icon>
+);
+
 const SPEAKER = 'M4 9.5h3.5L12 5.5v13l-4.5-4H4z';
 
 export const VolumeIcon = () => (

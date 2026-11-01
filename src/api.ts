@@ -1,6 +1,7 @@
 import type { AdminPage } from '../server/admin';
 import type { CharacterPick, CharacterState } from '../server/characters';
 import type { AnidleState } from '../server/game';
+import type { MalList, MalListCategory, MalListEntry } from '../server/mallist';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
 import type { SongState } from '../server/songs';
@@ -11,7 +12,7 @@ import type { Mode } from '../shared/modes';
 import type { CharacterEntry, TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, PuzzleState, RoundState, SongState, TodayScore };
+export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, MalList, MalListCategory, MalListEntry, PuzzleState, RoundState, SongState, TodayScore };
 
 export interface MalLink {
   username: string;
@@ -116,4 +117,6 @@ export const api = {
   setThemeStatus: (themeId: number, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { themeId, action } }),
   animeFacets: () => call<DbFacets>('/api/anime/facets'),
   animeDetail: (id: number) => call<DbDetail>(`/api/anime/detail?id=${id}`),
+  /** The signed-in player's whole MAL list (every status); `fresh` re-reads it from MAL. */
+  malList: (fresh = false) => call<MalList>(`/api/mal/list${fresh ? '?fresh=1' : ''}`),
 };

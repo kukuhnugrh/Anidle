@@ -25,3 +25,8 @@ export function memo<T>(key: string, ttlMs: number, load: () => Promise<T>): Pro
   });
   return value;
 }
+
+/** Drops a memoized value, so the next call loads it again (a player asking for a fresh copy). */
+export function forget(key: string): void {
+  entries.delete(key);
+}

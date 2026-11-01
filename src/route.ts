@@ -1,7 +1,7 @@
 import { FIRST_DAILY_DATE, MODES, todayUtc7, type Mode } from '../shared/modes';
 
 export type Route =
-  | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' }
+  | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' | 'mylist' }
   /** `date` = an earlier day from the archive; null = today. */
   | { view: 'daily'; mode: Mode; date: string | null }
   | { view: 'play'; id: string }
@@ -18,6 +18,7 @@ const PATHS: Record<string, Exclude<View, 'play' | 'daily' | 'anime'>> = {
   leaderboard: 'leaderboard',
   riwayat: 'history',
   admin: 'admin',
+  mylist: 'mylist',
 };
 
 /** An archive day from `?date=`: before today and not before FIRST_DAILY_DATE, else null (= today). */

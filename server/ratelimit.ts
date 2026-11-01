@@ -12,6 +12,8 @@ const LIMITS: Record<string, number> = {
   'POST auth/register': 5,
   'GET oauth/login': 10,
   'GET media': 60,
+  // Each one reads the player's whole list from MAL.
+  'GET mal/list': 10,
 };
 const DEFAULT = 180;
 const WINDOW_MS = 60_000;
