@@ -34,7 +34,7 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
     </>,
     <>
       Clues open as your tries add up: after {clueAfter('cover')} tries its blurred poster, after {clueAfter('synopsis')} the synopsis (title hidden), after{' '}
-      {clueAfter('characters')} two of its characters.
+      {clueAfter('characters')} its best-known characters.
     </>,
     <>
       Stuck? <b>Skip</b> jumps straight to the next clue, using up the tries in between.
@@ -43,7 +43,7 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
   opening: songRules('opening'),
   ending: songRules('ending'),
   screenshot: [
-    <>{ROUND_COUNT} rounds, each a screenshot from the opening of a different anime.</>,
+    <>{ROUND_COUNT} rounds, each a screenshot from the opening (or, for a show without one, the ending) of a different anime.</>,
     <>Need help? Unlock clues in order: a second screenshot, a third, then the title's first letters (N_____). Opened screenshots stay viewable.</>,
     <>Type a title (its full romaji or English name), pick it from the list, then press Guess. One guess per round; any season, movie or remake of the same series counts.</>,
     <>Give up shows the answer and scores 0.</>,

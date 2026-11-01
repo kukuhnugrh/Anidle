@@ -12,7 +12,7 @@ import { dailyPuzzle } from '../server/game.js';
 import { songSources } from '../server/songs.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { deleteObject, putObject } from './r2.js';
-import { entryThemes, firstTheme, type ThemeSource } from './sources/animeThemes.js';
+import { entryThemes, type ThemeSource } from './sources/animeThemes.js';
 import { anilistCharacters } from './sources/anilist.js';
 import { animeCharacters, characterDetail, type JikanCharacter } from './sources/jikanEdge.js';
 
@@ -272,8 +272,8 @@ const isPlaceholder = (url: string | null) => !url || url.includes('questionmark
  * CHARACTER_MIN_FAVORITES from every MAL entry of the show (the canonical entry and each season, movie
  * or OVA merged into it), from jikan-edge, stored under the show id best known first (slot 0). A
  * character in several entries is stored once (its most favorites; Main if any entry says so).
- * Shows with fewer than two are `missing` (Anidle shows two) and keep no characters. --refresh redoes
- * every show, e.g. after a threshold changes.
+ * Shows without any are `missing` (one is enough: Character mode asks one character per show, Anidle's
+ * clue shows up to two). --refresh redoes every show, e.g. after a threshold changes.
  */
 export async function stepCharacters(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
@@ -339,8 +339,8 @@ export async function stepCharacters(refreshAll: boolean, limit: number) {
           { sql: 'DELETE FROM character_show WHERE mal_id = ?', args: [entry] },
           ...known.map((c) => ({ sql: 'INSERT OR IGNORE INTO character_show (char_id, mal_id) VALUES (?, ?)', args: [c.malId, entry] })),
         ]);
-        // A show without two characters is never asked; its rows stay, so old puzzles keep their slots.
-        if (picked.length < 2) {
+        // A show without a known character is never asked; its rows stay, so old puzzles keep their slots.
+        if (!picked.length) {
           await db().batch(appearances, 'write');
           await save(id, 'chars', { status: 'missing', error: `${picked.length} karakter bergambar dengan ≥ ${CHARACTER_MIN_FAVORITES} favorit` });
           counts.missing++;
@@ -547,17 +547,29 @@ async function pickFrame(videoUrl: string, times: number[]): Promise<Frame | nul
 }
 
 /**
- * Screenshot mode: SCREENSHOTS_PER_TITLE frames per show from its first opening's video (the smallest
- * file AnimeThemes has), WebP 960 wide at v1/shot/<hash>.webp. Frames already stored are kept, so a
- * show that had fewer only fetches the rest. Seeking a 1080p video over HTTP costs ~25 s and a few MB
- * per frame, so shows go most popular first (easy, medium, then hard, which round 3 of the daily needs)
- * and a run with --limit picks up where the last one stopped.
+ * Screenshot mode: SCREENSHOTS_PER_TITLE frames per show from a video of its own songs (anime_theme, step
+ * `media`): the first opening of the show's own entry, else of its most popular merged entry, and the ending
+ * the same way for shows without any opening video (most movies). The smallest file AnimeThemes has, WebP
+ * 960 wide at v1/shot/<hash>.webp. Frames already stored are kept, so a show that had fewer only fetches the
+ * rest. Seeking a 1080p video over HTTP costs ~25 s and a few MB per frame, so shows go most popular first
+ * (easy, medium, then hard, which round 3 of the daily needs) and a run with --limit picks up where the last
+ * one stopped.
  */
 export async function stepScreenshots(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
   const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'shots'`);
   const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
   const stored = Map.groupBy(await all<{ mal_id: number; slot: number; at_seconds: number }>('SELECT mal_id, slot, at_seconds FROM anime_screenshot ORDER BY slot'), (s) => Number(s.mal_id));
+  // Each show's song videos in the order they are tried: openings before endings, the show's own entry before
+  // its merged ones (most popular first), then OP1 before OP1-TV before OP2.
+  const videos = Map.groupBy(
+    await all<{ show: number; video_url: string }>(
+      `SELECT COALESCE(e.canonical_id, e.mal_id) AS show, t.video_url FROM anime_theme t JOIN anime e ON e.mal_id = t.mal_id
+       WHERE t.status = 'ok' AND t.video_url <> '' AND e.excluded IS NULL
+       ORDER BY t.kind = 'ed', e.canonical_id IS NOT NULL AND e.canonical_id <> e.mal_id, e.members DESC, t.seq, length(t.label)`,
+    ),
+    (v) => Number(v.show),
+  );
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const queue = anime
     .map((a) => Number(a.mal_id))
@@ -572,9 +584,9 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
   const workers = Array.from({ length: 3 }, async () => {
     for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
       try {
-        const video = firstTheme(await entryThemes(id), 'op')?.videoUrl ?? null;
+        const video = videos.get(id)?.[0]?.video_url ?? null;
         if (!video) {
-          await save(id, 'shots', { status: 'missing', error: 'tidak ada video opening' });
+          await save(id, 'shots', { status: 'missing', error: 'tidak ada video opening/ending' });
           counts.missing++;
         } else {
           try {

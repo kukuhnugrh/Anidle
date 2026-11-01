@@ -106,7 +106,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             <HowToPlay mode={puzzle.mode} />
           </div>
           <p className="muted small">
-            Guess the anime from a screenshot of its opening. One guess per round ({fmtNumber(roundMaxPoints(puzzle.mode))} pts); every clue you unlock (two more
+            Guess the anime from a screenshot of its opening or ending. One guess per round ({fmtNumber(roundMaxPoints(puzzle.mode))} pts); every clue you unlock (two more
             screenshots, then the title's initials) takes {fmtNumber(roundMaxPoints(puzzle.mode) * SCREENSHOT_CLUE_COST)} off.
           </p>
         </div>

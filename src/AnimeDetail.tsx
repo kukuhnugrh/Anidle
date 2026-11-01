@@ -119,7 +119,7 @@ function AnidlePanel({ d }: { d: DbDetail }) {
           <p className="anidle-synopsis">{d.clues.synopsis ?? 'MAL has no synopsis for this one.'}</p>
         </div>
         <div className="anidle-clue characters">
-          <span className="cell-label">Two of its characters · after {clueAfter('characters')} tries</span>
+          <span className="cell-label">Its best-known characters · after {clueAfter('characters')} tries</span>
           {d.clues.characters.length ? (
             <div className="anidle-chars">
               {d.clues.characters.map((c) => (

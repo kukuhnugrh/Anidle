@@ -188,7 +188,7 @@ function AnswerCard({ guesses }: { guesses: AnidleFeedback[] }) {
   );
 }
 
-const CLUE_LABELS: Record<AnidleClueKind, string> = { cover: 'Blurred poster', synopsis: 'Synopsis', characters: 'Two of its characters' };
+const CLUE_LABELS: Record<AnidleClueKind, string> = { cover: 'Blurred poster', synopsis: 'Synopsis', characters: 'Its best-known characters' };
 const CLUE_STEP: Record<AnidleClueKind, string> = { cover: 'Poster', synopsis: 'Synopsis', characters: 'Characters' };
 const CLUE_ICON: Record<AnidleClueKind, ComponentType> = { cover: ImageIcon, synopsis: PuzzleIcon, characters: UsersIcon };
 

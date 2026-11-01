@@ -66,8 +66,3 @@ export async function entryThemes(malId: number): Promise<ThemeSource[]> {
   }
   return themes;
 }
-
-/** An entry's first theme of a kind: `OP1` wins over `OP1-TV`, which wins over `OP2`. */
-export function firstTheme<T extends Pick<ThemeSource, 'kind' | 'seq' | 'label'>>(themes: T[], kind: ThemeKind): T | undefined {
-  return themes.filter((t) => t.kind === kind).sort((a, b) => a.seq - b.seq || a.label.length - b.label.length)[0];
-}
