@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType } from 'react';
+import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
 import { DAILY_MAX_POINTS, DAILY_UTC_OFFSET_MS, MODES, MODE_LABELS, todayUtc7, type Mode } from '../shared/modes';
 import { api, type Account, type PuzzleState } from './api';
 import { DatePicker } from './DatePicker';
@@ -23,7 +24,7 @@ function Countdown() {
 }
 
 const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
-  anidle: { Icon: PuzzleIcon, text: 'Guess from clues: year, score, source, studio, genres and tags. 16 tries, and Skip jumps to the next clue.' },
+  anidle: { Icon: PuzzleIcon, text: `Guess from clues: year, score, source, studio, genres and tags. ${ANIDLE_MAX_GUESSES} tries, and Skip jumps to the next clue.` },
   opening: { Icon: MusicIcon, text: '3 rounds of full openings, one guess each. Stuck? The blurred music video costs half the points.' },
   ending: { Icon: DiscIcon, text: '3 rounds of full endings, one guess each. The clue: the blurred music video and cover.' },
   character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Pick each name and anime, then one Guess.' },

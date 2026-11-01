@@ -81,7 +81,7 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
   };
 }
 
-/** MODE_MAX_POINTS.anidle (10,000) for a first-try solve, one ANIDLE_MAX_GUESSES-th less per extra try (625 on the 16th), 0 when not solved. Skips count as tries. */
+/** MODE_MAX_POINTS.anidle (10,000) for a first-try solve, one ANIDLE_MAX_GUESSES-th less per extra try (500 on the 20th), 0 when not solved. Skips count as tries. */
 export function anidleScore(solved: boolean, guessCount: number): number {
   const max = MODE_MAX_POINTS.anidle;
   const step = max / ANIDLE_MAX_GUESSES;
@@ -101,13 +101,13 @@ export function groupSkips<T extends AnidleFeedback>(tries: ReadonlyArray<T | nu
 }
 
 /**
- * Clues Anidle unlocks as tries pile up (wrong guesses or Skip): after 10 the blurred poster, after 13 the
- * synopsis, after 15 two characters (one try left). Skip jumps straight to the next one.
+ * Clues Anidle unlocks as tries pile up (wrong guesses or Skip): after 12 the blurred poster, after 16 the
+ * synopsis, after 19 two characters (one try left). Skip jumps straight to the next one.
  */
 export const ANIDLE_CLUES = [
-  { kind: 'cover', after: 10 },
-  { kind: 'synopsis', after: 13 },
-  { kind: 'characters', after: 15 },
+  { kind: 'cover', after: 12 },
+  { kind: 'synopsis', after: 16 },
+  { kind: 'characters', after: 19 },
 ] as const;
 export type AnidleClueKind = (typeof ANIDLE_CLUES)[number]['kind'];
 

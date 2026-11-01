@@ -548,11 +548,12 @@ export interface PlayRow {
   guesses: string;
   solved: number;
   score: number | null;
+  finished_at: string | null;
 }
 
 /** `playerKey` is play.username: 'u:<account id>' or 'a:<anonymous id>'. */
 export const readPlay = (puzzleId: string, playerKey: string) =>
-  one<PlayRow>('SELECT guesses, solved, score FROM play WHERE puzzle_id = ? AND username = ?', [puzzleId, playerKey]);
+  one<PlayRow>('SELECT guesses, solved, score, finished_at FROM play WHERE puzzle_id = ? AND username = ?', [puzzleId, playerKey]);
 
 export async function writePlay(puzzleId: string, playerKey: string, play: { guesses: unknown; solved: number; score: number | null; finished: boolean }) {
   await run(
@@ -630,7 +631,8 @@ export async function anidleState(puzzle: PuzzleRow, playerKey: string): Promise
     return guess ? [{ ...compareAnidle(answer, guess), cover: guess.cover }] : [];
   });
   const solved = Boolean(play?.solved);
-  const finished = solved || guesses.length >= ANIDLE_MAX_GUESSES;
+  // A play that ended stays ended, also under a later, higher ANIDLE_MAX_GUESSES (its answer was shown).
+  const finished = solved || guesses.length >= ANIDLE_MAX_GUESSES || Boolean(play?.finished_at);
   const unlocked = new Set(ANIDLE_CLUES.filter((c) => finished || guesses.length >= c.after).map((c) => c.kind));
   return {
     id: puzzle.id,
