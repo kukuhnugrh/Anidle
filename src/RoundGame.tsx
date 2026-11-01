@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
+import { MODE_LABELS, MODE_MAX_POINTS, roundMaxPoints, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES } from '../shared/modes';
 import { api, errorMessage, type RoundState } from './api';
 import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
@@ -106,8 +106,8 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             <HowToPlay mode={puzzle.mode} />
           </div>
           <p className="muted small">
-            Guess the anime from a screenshot of its opening. One guess per round ({ROUND_MAX_POINTS.map(fmtNumber).join(' / ')} pts); every clue you unlock (two more
-            screenshots, then the title's initials) takes a quarter off.
+            Guess the anime from a screenshot of its opening. One guess per round ({fmtNumber(roundMaxPoints(puzzle.mode))} pts); every clue you unlock (two more
+            screenshots, then the title's initials) takes {fmtNumber(roundMaxPoints(puzzle.mode) * SCREENSHOT_CLUE_COST)} off.
           </p>
         </div>
         <div className="round-tabs" role="tablist">
@@ -242,7 +242,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             <span className="eyebrow">Finished</span>
             <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {fmtNumber(MODE_MAX_POINTS)} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} rounds correct · max {fmtNumber(MODE_MAX_POINTS[puzzle.mode])} pts
             </p>
           </div>
           <div className="actions">

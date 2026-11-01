@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { POOL_LABELS } from '../shared/catalog';
-import { MODE_LABELS, MODE_MAX_POINTS, ROUND_MAX_POINTS, SONG_CLUE_SHARE } from '../shared/modes';
+import { MODE_LABELS, MODE_MAX_POINTS, roundMaxPoints, SONG_CLUE_SHARE } from '../shared/modes';
 import { api, errorMessage, type SongState } from './api';
 import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
@@ -258,7 +258,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             <HowToPlay mode={puzzle.mode} />
           </div>
           <p className="muted small">
-            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {ROUND_MAX_POINTS.map(fmtNumber).join(' / ')} pts per round if right,
+            Listen to the whole {puzzle.mode === 'opening' ? 'opening' : 'ending'} and make one guess: {fmtNumber(roundMaxPoints(puzzle.mode))} pts per round if right,
             half that if you opened the clue (its blurred music video), 0 if wrong.
           </p>
         </div>
@@ -367,7 +367,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             <span className="eyebrow">Finished</span>
             <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} right · max {fmtNumber(MODE_MAX_POINTS)} pts
+              {puzzle.rounds.filter((r) => r.solved).length} of {puzzle.rounds.length} right · max {fmtNumber(MODE_MAX_POINTS[puzzle.mode])} pts
             </p>
           </div>
           <div className="actions">

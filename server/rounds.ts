@@ -1,6 +1,6 @@
 import { isCorrect } from '../shared/anidle.js';
 import type { Difficulty, Pool } from '../shared/catalog.js';
-import { ROUND_COUNT, ROUND_MAX_POINTS, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES, SCREENSHOTS_PER_TITLE, type RoundMode } from '../shared/modes.js';
+import { ROUND_COUNT, roundMaxPoints, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES, SCREENSHOTS_PER_TITLE, type RoundMode } from '../shared/modes.js';
 import { titleHint } from '../shared/normalize.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
@@ -31,7 +31,7 @@ export interface RoundPlayState {
   solved: boolean;
   finished: boolean;
   points: number;
-  /** What a right guess is worth with no clue (ROUND_MAX_POINTS). */
+  /** What a right guess is worth with no clue (roundMaxPoints). */
   max: number;
   /** Only once the round is over. */
   answer: AnswerInfo | null;
@@ -102,8 +102,8 @@ async function evaluate(puzzle: PuzzleRow, mode: RoundMode, playerKey: string, s
       gaveUp: played.g === 0,
       solved,
       finished,
-      points: solved ? ROUND_MAX_POINTS[i]! * (1 - SCREENSHOT_CLUE_COST * played.c) : 0,
-      max: ROUND_MAX_POINTS[i]!,
+      points: solved ? roundMaxPoints(mode) * (1 - SCREENSHOT_CLUE_COST * played.c) : 0,
+      max: roundMaxPoints(mode),
       answer: finished ? info : null,
     };
   });

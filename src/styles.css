@@ -204,6 +204,9 @@ input:focus-visible, select:focus-visible { outline: none; }
 .help-rules li:nth-child(4n + 3)::before { background: var(--dp-color-accent-secondary); border-radius: 15px 15px 5px 5px; }
 .help-rules li:nth-child(4n)::before { background: var(--fill-lavender); }
 .help-scoring { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--dp-color-selection); border: var(--detail); }
+.help-scoring h3 { margin: 0 0 6px; font-size: 15px; }
+.help-scoring ul { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 4px; }
+.help-scoring p { margin: 0; }
 
 /* ------------------------------------------------------------------ shell */
 .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
@@ -348,6 +351,20 @@ input:focus-visible, select:focus-visible { outline: none; }
 .tile .tile-icon { grid-row: span 2; margin: 0; }
 .tile h3 { margin: 0; align-self: end; }
 .tile p { margin: 0; font-size: 13.5px; line-height: 1.45; }
+
+/* Home: how points are earned, folded to one bar until opened. */
+.scoring-guide { background: var(--panel); border: var(--outline); border-radius: var(--radius-broad); box-shadow: var(--shadow-sm); }
+.scoring-guide summary { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 12px 18px; cursor: pointer; list-style: none; }
+.scoring-guide summary::-webkit-details-marker { display: none; }
+.scoring-guide summary::before { content: '▸'; color: var(--accent-ink); transition: transform var(--dp-motion-interaction); }
+.scoring-guide[open] summary::before { transform: rotate(90deg); }
+.scoring-title { font-family: var(--dp-typography-display); font-weight: 800; font-size: 16px; }
+.scoring-table { width: calc(100% - 36px); margin: 0 18px 16px; border-collapse: collapse; font-size: 14px; }
+.scoring-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 6px 10px; border-bottom: var(--detail); }
+.scoring-table td { padding: 7px 10px; border-bottom: 1px solid var(--dp-color-rule-muted); }
+.scoring-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.scoring-table tfoot td { font-weight: 800; border-bottom: 0; }
+.scoring-table tfoot td.muted { font-weight: 400; font-size: 12.5px; }
 
 /* ------------------------------------------------------------------ unlimited */
 .form-card { display: grid; gap: 22px; }

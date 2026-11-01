@@ -58,10 +58,10 @@ describe('compareAnidle', () => {
 });
 
 describe('anidleScore', () => {
-  it('drops one sixteenth per extra try from 20,000 to 1,250 on the 16th, and is 0 when unsolved', () => {
-    expect(anidleScore(true, 1)).toBe(20_000);
-    expect(anidleScore(true, 4)).toBe(16_250);
-    expect(anidleScore(true, 16)).toBe(1_250);
+  it('drops one sixteenth per extra try from 10,000 to 625 on the 16th, and is 0 when unsolved', () => {
+    expect(anidleScore(true, 1)).toBe(10_000);
+    expect(anidleScore(true, 4)).toBe(8_125);
+    expect(anidleScore(true, 16)).toBe(625);
     expect(anidleScore(false, 16)).toBe(0);
   });
 });

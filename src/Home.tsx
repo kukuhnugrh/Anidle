@@ -5,6 +5,7 @@ import { DatePicker } from './DatePicker';
 import { fmtDate, fmtNumber } from './format';
 import { ArrowIcon, DatabaseIcon, DiscIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
 import { archiveDate, dailyHref } from './route';
+import { ScoringGuide } from './scoring';
 
 const DAY_MS = 86_400_000;
 
@@ -177,6 +178,8 @@ export function Home({ account }: { account: Account | null }) {
           </p>
         </a>
       </div>
+
+      <ScoringGuide />
     </div>
   );
 }

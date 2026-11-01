@@ -216,7 +216,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             <span className="eyebrow">Finished</span>
             <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
             <p className="muted small">
-              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {fmtNumber(MODE_MAX_POINTS)} pts
+              {perfect} of {puzzle.rounds.length * round.slots.length} characters fully right · max {fmtNumber(MODE_MAX_POINTS.character)} pts
             </p>
           </div>
           <div className="actions">

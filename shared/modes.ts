@@ -55,12 +55,16 @@ export const SCREENSHOTS_PER_TITLE = 3;
  */
 export const SCREENSHOT_CLUES = ['shot', 'shot', 'title'] as const;
 
-/** Every mode's puzzle is worth MODE_MAX_POINTS, so a day's five daily puzzles make DAILY_MAX_POINTS (100,000). */
-export const MODE_MAX_POINTS = 20_000;
-export const DAILY_MAX_POINTS = MODE_MAX_POINTS * MODES.length;
+/**
+ * What each mode's puzzle is worth; a day's five daily puzzles add up to DAILY_MAX_POINTS (100,000).
+ * Guess the Anime and Character weigh most (three rounds of 10,000), Opening and Ending three rounds
+ * of 5,000, Anidle one puzzle of 10,000.
+ */
+export const MODE_MAX_POINTS: Record<Mode, number> = { anidle: 10_000, opening: 15_000, ending: 15_000, character: 30_000, screenshot: 30_000 };
+export const DAILY_MAX_POINTS = MODES.reduce((sum, mode) => sum + MODE_MAX_POINTS[mode], 0);
 
-/** Round modes: round 1 (easy) 30 % of the mode, rounds 2 (medium) and 3 (hard) 35 % each: 6,000 / 7,000 / 7,000. */
-export const ROUND_MAX_POINTS: readonly number[] = [(MODE_MAX_POINTS * 3) / 10, (MODE_MAX_POINTS * 7) / 20, (MODE_MAX_POINTS * 7) / 20];
+/** A round of a three-round mode: an equal share of the mode's points, whatever its difficulty. */
+export const roundMaxPoints = (mode: Exclude<Mode, 'anidle'>) => MODE_MAX_POINTS[mode] / ROUND_COUNT;
 
 /** Song modes: one guess; right = the round's points, half of them after opening the clue (the blurred music video); a miss scores 0. */
 export const SONG_CLUE_SHARE = 0.5;

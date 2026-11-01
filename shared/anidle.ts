@@ -81,10 +81,11 @@ export function compareAnidle(answer: AnidleAnime, guess: AnidleAnime): AnidleFe
   };
 }
 
-/** MODE_MAX_POINTS (20,000) for a first-try solve, one ANIDLE_MAX_GUESSES-th less per extra try (1,250 on the 16th), 0 when not solved. Skips count as tries. */
+/** MODE_MAX_POINTS.anidle (10,000) for a first-try solve, one ANIDLE_MAX_GUESSES-th less per extra try (625 on the 16th), 0 when not solved. Skips count as tries. */
 export function anidleScore(solved: boolean, guessCount: number): number {
-  const step = MODE_MAX_POINTS / ANIDLE_MAX_GUESSES;
-  return solved ? Math.max(step, MODE_MAX_POINTS - step * (guessCount - 1)) : 0;
+  const max = MODE_MAX_POINTS.anidle;
+  const step = max / ANIDLE_MAX_GUESSES;
+  return solved ? Math.max(step, max - step * (guessCount - 1)) : 0;
 }
 
 /** Tries in order with each run of skipped ones (null) folded into one { skipped: n } entry. */

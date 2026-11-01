@@ -1,7 +1,7 @@
 import { isCorrect } from '../shared/anidle.js';
 import { CANONICAL_SQL, DIFFICULTIES, type Difficulty, type Pool } from '../shared/catalog.js';
 import { CHARACTER_FIELDS_PER_ROUND, characterAliases, characterDifficultyOf, displayName, type CharacterField } from '../shared/characters.js';
-import { ROUND_COUNT, ROUND_MAX_POINTS } from '../shared/modes.js';
+import { ROUND_COUNT, roundMaxPoints } from '../shared/modes.js';
 import type { CharacterEntry } from '../shared/normalize.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
@@ -42,7 +42,7 @@ export interface CharacterRoundState {
   difficulties: Difficulty[];
   finished: boolean;
   points: number;
-  /** All 8 fields right (ROUND_MAX_POINTS). */
+  /** All 8 fields right (roundMaxPoints). */
   max: number;
   /** One right field (max / 8). */
   fieldPoints: number;
@@ -118,7 +118,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
   let perfect = 0;
   const rounds = slots.map((roundSlots, r): CharacterRoundState => {
     const difficulties: Difficulty[] = [];
-    const worth = ROUND_MAX_POINTS[r]! / CHARACTER_FIELDS_PER_ROUND;
+    const worth = roundMaxPoints('character') / CHARACTER_FIELDS_PER_ROUND;
     const states = roundSlots.map((s, i): CharacterSlotState => {
       const answer = anime.get(Number(s.mal_id));
       if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
@@ -155,7 +155,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       difficulties: DIFFICULTIES.filter((d) => difficulties.includes(d)),
       finished: states.every((s) => s.answer),
       points: states.reduce((sum, s) => sum + s.name.points + s.anime.points, 0),
-      max: ROUND_MAX_POINTS[r]!,
+      max: roundMaxPoints('character'),
       fieldPoints: worth,
     };
   });
