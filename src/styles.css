@@ -471,11 +471,12 @@ input:focus-visible, select:focus-visible { outline: none; }
 .anidle-pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok-fill) 35%, transparent); }
 .soft-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .soft-chip { padding: 1px 7px; font-size: 12.5px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.soft-chip.hit { font-weight: 700; background: color-mix(in srgb, var(--ok-fill) 38%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok-fill) 75%, transparent); }
-.soft-chip.miss { color: var(--bad); background: color-mix(in srgb, var(--bad-fill) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad-fill) 30%, transparent); }
+/* Solid fills with their own text colour, so a pill reads the same on any tile or row, in both themes. */
+.soft-chip.hit { font-weight: 700; color: var(--on-fill); background: var(--ok-fill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok-fill) 70%, var(--on-fill)); }
+.soft-chip.miss { color: var(--bad); background: var(--bad-bg); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bad) 40%, transparent); }
 .anidle-num { white-space: nowrap; }
 /* A range ("2009 or earlier"): narrows the answer down, so amber like a partial match, never green. */
-.soft-chip.maybe { font-weight: 700; background: color-mix(in srgb, var(--partial-fill) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--partial-fill) 75%, transparent); }
+.soft-chip.maybe { font-weight: 700; color: var(--on-fill); background: var(--partial-fill); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--partial-fill) 70%, var(--on-fill)); }
 /* A value the answer is proven not to have (answer card): red like a miss on the board, struck through. */
 .soft-chip.ruled-out { text-decoration: line-through; text-decoration-thickness: 1.5px; }
 .anidle-row.correct { background: color-mix(in srgb, var(--ok-fill) 14%, transparent); box-shadow: inset 4px 0 0 var(--ok-fill); }
@@ -500,7 +501,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .answer-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .fact { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 8px 10px; font-size: 13.5px; border-radius: var(--radius-sm); border: var(--detail); overflow-wrap: anywhere; }
 .fact.known { background: color-mix(in srgb, var(--ok-fill) 20%, var(--panel)); }
-.fact.partly { background: color-mix(in srgb, var(--partial-fill) 14%, var(--panel)); }
+/* Only a hint of amber: the pills inside carry the colour. */
+.fact.partly { background: color-mix(in srgb, var(--partial-fill) 7%, var(--panel)); }
 .fact.open { border-style: dashed; border-color: var(--dp-color-rule-muted); }
 .fact-open { font-family: var(--dp-typography-display); font-size: 18px; font-weight: 800; color: var(--muted); }
 .cell-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
