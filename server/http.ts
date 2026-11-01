@@ -21,11 +21,17 @@ export function json(body: unknown, init: ResponseInit = {}, cookies: string[] =
 /**
  * The query of a cacheable GET, refusing parameters the route does not use: the CDN keys its cache on
  * the whole URL, so `?anything=<n>` would otherwise make every request a miss that reaches the
- * database. `route` is added by the vercel.json rewrite.
+ * database. The vercel.json rewrite adds `route` and `path` (both the matched path); a request may
+ * carry them only with that same value, so they cannot vary the URL either.
  */
 export function queryOf(req: Request, allowed: readonly string[] = []): URLSearchParams {
   const params = new URL(req.url).searchParams;
-  for (const name of params.keys()) if (name !== 'route' && !allowed.includes(name)) throw new HttpError(400, `Unknown parameter: ${name}`);
+  const route = params.get('route');
+  for (const [name, value] of params) {
+    if (name === 'route' || name === 'path') {
+      if (value !== route) throw new HttpError(400, `Unexpected ${name}: ${value}`);
+    } else if (!allowed.includes(name)) throw new HttpError(400, `Unknown parameter: ${name}`);
+  }
   return params;
 }
 
