@@ -1,5 +1,6 @@
 import './env.js';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
+import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason, FRANCHISE_RELATIONS, MEDIUM_MIN_MEMBERS, POPULAR_MIN_MEMBERS } from '../shared/catalog.js';
 import { franchiseIds } from '../shared/franchise.js';
 import { all, db, nowIso, run } from '../server/db.js';
@@ -345,6 +346,13 @@ if (unknown.length) {
 const steps: Step[] = !requested.length || requested.includes('all') ? [...STEPS] : (requested as Step[]);
 // Every run refreshes the catalog (pools, completed lists, R2 lists) from what it changed, before `daily` draws from it.
 if (!steps.includes('catalog')) steps.splice(steps.includes('daily') ? steps.indexOf('daily') : steps.length, 0, 'catalog');
+// Without the binary every frame, clip and song fails one by one and the run still ends green (Nov 2026: npm
+// skipped ffmpeg-static's install script until package.json allowScripts approved it), so stop right away.
+const FFMPEG_STEPS: readonly Step[] = ['media', 'characters', 'screenshots', 'clips', 'daily'];
+if (steps.some((s) => FFMPEG_STEPS.includes(s)) && !(ffmpegPath && existsSync(ffmpegPath))) {
+  console.error(`ffmpeg tidak ada (${ffmpegPath ?? 'platform tidak didukung'}): install script ffmpeg-static tidak jalan? Cek allowScripts di package.json lalu npm ci.`);
+  process.exit(1);
+}
 
 await migrate();
 const started = Date.now();

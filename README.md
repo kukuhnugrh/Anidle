@@ -58,6 +58,8 @@ npm run pipeline -- --turso           # tulis ke Turso: baca .env.turso dulu, la
 
 Bisa dijalankan ulang kapan saja; tidak membuat duplikat. Rate limit: MAL 3 req/dtk, jikan-edge 25 req/10 dtk dan 50 req/menit, AnimeThemes 80 req/menit, dengan retry untuk timeout/429/5xx. Step `media` tidak mengunduh lagu (satu request AnimeThemes per entri MAL); run pertama untuk semua entri makan beberapa jam (rate limit AnimeThemes yang jadi batas).
 
+Step `media`, `characters`, `screenshots`, `clips`, dan `daily` butuh binary ffmpeg dari `ffmpeg-static`, yang diunduh install script paket itu. npm baru (runner GitHub) melewati install script yang belum disetujui, jadi `allowScripts` di `package.json` menyetujui `ffmpeg-static` dan `esbuild`. Tanpa binary, pipeline langsung berhenti dengan pesan error; dulu (Okt–Nov 2026) setiap frame, klip, dan lagu gagal satu per satu sebagai `ffmpeg null` sementara run tetap hijau.
+
 Hasil run Okt 2026 (1 pemain, `Velvetaco`): 621 completed + 3.701 populer → 3.842 anime, 78 dikecualikan (49 Hentai/Erotica, 29 belum tayang), **3.764 judul bisa dimainkan**: 537 easy, 888 medium, 2.339 hard. Pool harian (easy + medium) ±1.425 judul.
 
 ## Game
