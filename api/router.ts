@@ -2,15 +2,14 @@
 // rewritten here (vercel.json) and dispatched to a handler in routes/. Locally, vite.config.ts does the same.
 import * as adminMedia from '../routes/admin/media.js';
 import * as animeDetail from '../routes/anime/detail.js';
-import * as animeFacets from '../routes/anime/facets.js';
 import * as anime from '../routes/anime/index.js';
 import * as authLogin from '../routes/auth/login.js';
 import * as authRegister from '../routes/auth/register.js';
-import * as characters from '../routes/characters.js';
 import * as guess from '../routes/guess.js';
 import * as health from '../routes/health.js';
 import * as history from '../routes/history.js';
 import * as leaderboard from '../routes/leaderboard.js';
+import * as lists from '../routes/lists.js';
 import * as logout from '../routes/logout.js';
 import * as malList from '../routes/mal/list.js';
 import * as malUnlink from '../routes/mal/unlink.js';
@@ -21,7 +20,6 @@ import * as oauthLogin from '../routes/oauth/login.js';
 import * as puzzle from '../routes/puzzle.js';
 import * as puzzleReplace from '../routes/puzzle/replace.js';
 import * as sync from '../routes/sync.js';
-import * as titles from '../routes/titles.js';
 import { json } from '../server/http.js';
 import { rateLimited } from '../server/ratelimit.js';
 
@@ -33,14 +31,13 @@ const ROUTES: Record<string, RouteModule> = {
   'admin/media': adminMedia,
   anime,
   'anime/detail': animeDetail,
-  'anime/facets': animeFacets,
   'auth/login': authLogin,
   'auth/register': authRegister,
-  characters,
   guess,
   health,
   history,
   leaderboard,
+  lists,
   logout,
   'mal/list': malList,
   'mal/unlink': malUnlink,
@@ -51,7 +48,6 @@ const ROUTES: Record<string, RouteModule> = {
   puzzle,
   'puzzle/replace': puzzleReplace,
   sync,
-  titles,
 };
 
 /**

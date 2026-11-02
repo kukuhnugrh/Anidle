@@ -1,13 +1,11 @@
 import { isCorrect } from '../shared/anidle.js';
-import { CANONICAL_SQL, DIFFICULTIES, type Difficulty, type Pool } from '../shared/catalog.js';
+import { DIFFICULTIES, type Difficulty, type Pool } from '../shared/catalog.js';
 import { CHARACTER_FIELDS_PER_ROUND, characterAliases, characterDifficultyOf, displayName, type CharacterField } from '../shared/characters.js';
 import { ROUND_COUNT, roundMaxPoints } from '../shared/modes.js';
-import type { CharacterEntry } from '../shared/normalize.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
 import { mediaUrl } from './media.js';
-import { CATALOG_TTL_MS, memo } from './memo.js';
 
 // Character mode: ROUND_COUNT rounds of CHARACTERS_PER_ROUND characters from different anime. For each
 // character the player picks its name (a character id) and its anime (a mal_id); one Guess answers the
@@ -220,28 +218,4 @@ export async function characterGuess(puzzle: PuzzleRow, playerKey: string, round
   const after = await evaluate(puzzle, next);
   await writePlay(puzzle.id, playerKey, { guesses: next, solved: after.perfect, score: after.state.score, finished: after.state.finished });
   return after.state;
-}
-
-/**
- * Name autocomplete: every character of every show (not only the ones asked), so the list does not
- * hint at the answers. A character listed under several titles appears once, and so do different
- * characters sharing a name (several "Rin"): they cannot be told apart without giving the anime away.
- */
-export const characterEntries = (): Promise<CharacterEntry[]> => memo('characters', CATALOG_TTL_MS, loadCharacterEntries);
-
-async function loadCharacterEntries(): Promise<CharacterEntry[]> {
-  const rows = await all<{ char_id: number; name: string; nicknames: string; aliases: string }>(
-    `SELECT c.char_id, MIN(c.name) AS name, MAX(c.nicknames) AS nicknames, MAX(c.aliases) AS aliases
-     FROM anime_character c JOIN anime a ON a.mal_id = c.mal_id
-     WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY c.char_id ORDER BY MAX(a.members) DESC`,
-  );
-  // Keyed by the shown name; the id is the best known character's (rows come most popular show first).
-  const byName = new Map<string, CharacterEntry>();
-  for (const r of rows) {
-    const shown = displayName(r.name);
-    const entry = byName.get(shown.toLowerCase()) ?? { id: Number(r.char_id), names: [shown] };
-    for (const n of characterAliases(r.nicknames, r.aliases, r.name)) if (!entry.names.includes(n)) entry.names.push(n);
-    byName.set(shown.toLowerCase(), entry);
-  }
-  return [...byName.values()];
 }

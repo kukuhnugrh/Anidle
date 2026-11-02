@@ -2,12 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { ANIDLE_CLUES, anidleScore, compareAnidle, maskSynopsis, type AnidleAnime, type AnidleClueKind, type AnidleFeedback } from '../shared/anidle.js';
 import {
   ANIDLE_MAX_GUESSES,
-  CANONICAL_SQL,
   DAILY_DIFFICULTIES,
   DIFFICULTIES,
   difficultyOf,
-  EASY_MIN_MEMBERS,
-  MEDIUM_MIN_MEMBERS,
   POOL_NEEDS_MAL,
   POOLS,
   type Difficulty,
@@ -28,18 +25,16 @@ import {
   shiftDate,
   SONG_KIND,
   todayUtc7,
-  type MediaKind,
   type Mode,
   type ThemeKind,
 } from '../shared/modes.js';
-import type { TitleEntry } from '../shared/normalize.js';
 import type { Account } from './accounts.js';
+import { catalogShows, completedShows, type CatalogShow, type PoolMediaKind } from './catalog.js';
 import { seedOf } from './crypto.js';
 import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
 import { HttpError } from './http.js';
 import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
-import { CATALOG_TTL_MS, memo, POOL_TTL_MS } from './memo.js';
 
 export function parseMode(value: unknown): Mode {
   if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
@@ -57,91 +52,39 @@ export interface PoolSpec {
   /** Empty = every difficulty: the show's, or with `song` the song's own entry's. */
   difficulties: readonly Difficulty[];
   /** Only titles whose media of this kind is ok (Screenshot, Character). */
-  media?: MediaKind;
+  media?: PoolMediaKind;
   /** Song modes: only shows with a usable song of this kind whose entry is of one of `difficulties`. */
   song?: ThemeKind;
   /** Only these MAL media types (Character mode: TV, so movies and specials don't repeat a show's cast). */
   mediaTypes?: readonly string[];
 }
 
-/** Difficulty condition on the members of alias `alias` (thresholds from shared/catalog.ts). */
-export function difficultySql(difficulty: Difficulty, alias = 'a'): string {
-  switch (difficulty) {
-    case 'easy':
-      return `${alias}.members >= ${EASY_MIN_MEMBERS}`;
-    case 'medium':
-      return `${alias}.members >= ${MEDIUM_MIN_MEMBERS} AND ${alias}.members < ${EASY_MIN_MEMBERS}`;
-    case 'hard':
-      return `(${alias}.members < ${MEDIUM_MIN_MEMBERS} OR ${alias}.members IS NULL)`;
-  }
-}
+/** Whether a catalog show is in a pool's source, before filters. */
+type InSource = (id: number, show: CatalogShow) => boolean;
 
-const anyDifficultySql = (difficulties: readonly Difficulty[], alias: string) => `(${difficulties.map((d) => `(${difficultySql(d, alias)})`).join(' OR ')})`;
-
-/**
- * FROM … WHERE of the songs that can be asked (alias t, its MAL entry e): ok, from an entry that is not
- * excluded. A song's show is COALESCE(e.canonical_id, e.mal_id); its difficulty is its entry's members.
- */
-export const USABLE_THEME_SQL = `anime_theme t JOIN anime e ON e.mal_id = t.mal_id WHERE t.status = 'ok' AND e.excluded IS NULL`;
-
-/**
- * SQL for the set of shows whose entries `from` lists in `col` (alias x = the entry): an entry's show is
- * COALESCE(canonical_id, mal_id), so a friend who completed season 2 has completed the show. Used as
- * `a.mal_id IN <set>`: not correlated, so SQLite builds the set once. A per-show EXISTS here walked a
- * player's whole completed list for each of ~4,000 shows, millions of rows read per pool (Turso bills reads).
- */
-const showsOf = (from: string, col: string, where = '1') => `(SELECT COALESCE(x.canonical_id, x.mal_id) FROM ${from} JOIN anime x ON x.mal_id = ${col} WHERE ${where})`;
-
-/** Which shows a pool contains, before filters. */
-function poolSource({ pool, members, malUsername }: PoolSpec): { sql: string; args: Array<string | number> } {
-  const marks = members.map(() => '?').join(',');
-  const byFriend = members.length ? `a.mal_id IN ${showsOf('completed c', 'c.mal_id', `c.username IN (${marks})`)}` : '0';
-  const popular = `a.mal_id IN ${showsOf('popular p', 'p.mal_id')}`;
+/** Which shows a pool contains, before filters. Completed lists count any entry of a show (completed_shows). */
+async function poolSource({ pool, members, malUsername }: PoolSpec): Promise<InSource> {
   switch (pool) {
-    case 'semua':
-      return { sql: `(${byFriend} OR ${popular})`, args: members };
-    case 'teman':
-      return { sql: byFriend, args: members };
-    case 'bareng':
-      // Completed (any entry of the show) by every member that has a list at all.
-      if (!members.length) return { sql: '0', args: [] };
-      return {
-        sql: `a.mal_id IN (SELECT COALESCE(x.canonical_id, x.mal_id) AS show FROM completed c JOIN anime x ON x.mal_id = c.mal_id
-              WHERE c.username IN (${marks}) GROUP BY show
-              HAVING COUNT(DISTINCT c.username) = (SELECT COUNT(DISTINCT username) FROM completed WHERE username IN (${marks})))`,
-        args: [...members, ...members],
-      };
-    case 'saya':
-      if (!malUsername) return { sql: '0', args: [] };
-      return { sql: `a.mal_id IN ${showsOf('completed c', 'c.mal_id', 'c.username = ?')}`, args: [malUsername] };
+    case 'semua': {
+      const lists = await completedShows(members);
+      return (id, show) => show.popular || lists.some((list) => list.has(id));
+    }
+    case 'teman': {
+      const lists = await completedShows(members);
+      return (id) => lists.some((list) => list.has(id));
+    }
+    case 'bareng': {
+      // Completed by every member that has a list at all.
+      const lists = await completedShows(members);
+      return (id) => lists.length > 0 && lists.every((list) => list.has(id));
+    }
+    case 'saya': {
+      const lists = malUsername ? await completedShows([malUsername]) : [];
+      return (id) => lists.some((list) => list.has(id));
+    }
     case 'populer':
-      return { sql: popular, args: [] };
+      return (_id, show) => show.popular;
   }
-}
-
-/** SQL condition (on alias `a`) selecting the shows of a pool with its filters. Excluded titles never qualify. */
-function poolWhere(spec: PoolSpec): { sql: string; args: Array<string | number> } {
-  const source = poolSource(spec);
-  const parts = ['a.excluded IS NULL', CANONICAL_SQL, source.sql];
-  const args = [...source.args];
-  if (spec.genreId) {
-    parts.push('EXISTS (SELECT 1 FROM anime_genre g WHERE g.mal_id = a.mal_id AND g.genre_id = ?)');
-    args.push(spec.genreId);
-  }
-  if (spec.song) {
-    const ofDifficulty = spec.difficulties.length ? ` AND ${anyDifficultySql(spec.difficulties, 'e')}` : '';
-    parts.push(`a.mal_id IN (SELECT COALESCE(e.canonical_id, e.mal_id) FROM ${USABLE_THEME_SQL} AND t.kind = ?${ofDifficulty})`);
-    args.push(spec.song);
-  } else if (spec.difficulties.length) parts.push(anyDifficultySql(spec.difficulties, 'a'));
-  if (spec.media) {
-    parts.push(`EXISTS (SELECT 1 FROM anime_media m WHERE m.mal_id = a.mal_id AND m.kind = ? AND m.status = 'ok')`);
-    args.push(spec.media);
-  }
-  if (spec.mediaTypes?.length) {
-    parts.push(`a.media_type IN (${spec.mediaTypes.map(() => '?').join(',')})`);
-    args.push(...spec.mediaTypes);
-  }
-  return { sql: parts.join(' AND '), args };
 }
 
 export function parsePool(value: unknown): Pool {
@@ -153,7 +96,7 @@ export function parseDifficulties(value: unknown): Difficulty[] {
   if (value == null || value === '') return [];
   const list = Array.isArray(value) ? value : [value];
   for (const d of list) if (!(DIFFICULTIES as readonly unknown[]).includes(d)) throw new HttpError(400, `Unknown difficulty: ${String(d)}`);
-  // Canonical order without repeats: the list is part of the pool's SQL and its memo key.
+  // Canonical order without repeats.
   return DIFFICULTIES.filter((d) => list.includes(d));
 }
 
@@ -184,40 +127,26 @@ export interface PoolTitle {
   franchise: number;
 }
 
-/** A pool's shows for these filters; memoized per instance (each query scans the anime table). */
-export function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
-  return memo(`pool:${JSON.stringify(spec)}`, POOL_TTL_MS, async () => {
-    const where = poolWhere(spec);
-    const rows = await all<{ mal_id: number; franchise_id: number | null }>(`SELECT a.mal_id, a.franchise_id FROM anime a WHERE ${where.sql} ORDER BY a.mal_id`, where.args);
-    return rows.map((r) => ({ malId: Number(r.mal_id), franchise: r.franchise_id == null ? -Number(r.mal_id) : Number(r.franchise_id) }));
-  });
-}
-
 /**
- * Autocomplete list: every show in the database (one entry per franchise, named after its canonical
- * entry but also found by its other seasons' names), so any pool's answer can be typed and the list
- * itself does not hint at which pool (or answer) is in play.
+ * A pool's shows for these filters, in id order, from the catalog (server/catalog.ts): a few rows read
+ * per instance instead of a query over every show per puzzle. Excluded and merged titles are not in it.
  */
-export const titleEntries = (): Promise<TitleEntry[]> => memo('titles', CATALOG_TTL_MS, loadTitleEntries);
-
-async function loadTitleEntries(): Promise<TitleEntry[]> {
-  const rows = await all<{ mal_id: number; show: number; title: string; title_en: string | null; title_ja: string | null; synonyms: string; year: number | null; media_type: string | null }>(
-    `SELECT mal_id, COALESCE(canonical_id, mal_id) AS show, title, title_en, title_ja, synonyms, year, media_type
-     FROM anime WHERE excluded IS NULL ORDER BY (COALESCE(canonical_id, mal_id) = mal_id) DESC, members DESC`,
-  );
-  // Canonical rows come first, so every show exists before its other entries add their names.
-  const shows = new Map<number, { entry: Omit<TitleEntry, 'names'>; names: Set<string> }>();
-  for (const r of rows) {
-    const names = [r.title, r.title_en, r.title_ja, ...(JSON.parse(r.synonyms) as string[])].filter((n): n is string => Boolean(n));
-    const show = shows.get(Number(r.show));
-    if (show) for (const n of names) show.names.add(n);
-    else if (Number(r.show) === Number(r.mal_id))
-      shows.set(Number(r.mal_id), {
-        entry: { id: Number(r.mal_id), en: r.title_en && r.title_en !== r.title ? r.title_en : null, year: r.year == null ? null : Number(r.year), type: r.media_type },
-        names: new Set(names),
-      });
+export async function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
+  const [shows, inSource] = await Promise.all([catalogShows(), poolSource(spec)]);
+  const { genreId, difficulties, song, media, mediaTypes } = spec;
+  const out: PoolTitle[] = [];
+  for (const [id, show] of shows) {
+    if (!inSource(id, show) || (genreId && !show.genres.includes(genreId))) continue;
+    // Song modes: a usable song of that kind whose own entry is of one of the difficulties; else the show's difficulty.
+    const fits = song
+      ? Object.values(show.songs).some((t) => t.kind === song && (!difficulties.length || difficulties.includes(t.difficulty)))
+      : !difficulties.length || difficulties.includes(show.difficulty);
+    if (!fits) continue;
+    if (media && !show.media[media]) continue;
+    if (mediaTypes?.length && (show.mediaType === null || !mediaTypes.includes(show.mediaType))) continue;
+    out.push({ malId: id, franchise: show.franchise });
   }
-  return [...shows.values()].map(({ entry, names }) => ({ ...entry, names: [...names] }));
+  return out;
 }
 
 interface AnimeRow {
@@ -341,20 +270,6 @@ export function pickTitles(from: PoolTitle[], count: number, draw: (n: number, s
   return picked.length === count ? picked : null;
 }
 
-/** For Character mode: the character difficulties each show can be asked at (from its stored characters' favorites). */
-const characterDifficultiesByShow = () => memo('character-difficulties', POOL_TTL_MS, loadCharacterDifficulties);
-
-async function loadCharacterDifficulties(): Promise<Map<number, Set<Difficulty>>> {
-  const rows = await all<{ mal_id: number; favorites: number }>('SELECT mal_id, favorites FROM anime_character WHERE favorites >= ?', [CHARACTER_MIN_FAVORITES]);
-  const out = new Map<number, Set<Difficulty>>();
-  for (const r of rows) {
-    const set = out.get(Number(r.mal_id)) ?? new Set<Difficulty>();
-    set.add(characterDifficultyOf(Number(r.favorites)));
-    out.set(Number(r.mal_id), set);
-  }
-  return out;
-}
-
 /** A new puzzle's round: its titles, and in song modes the song it plays (an anime_theme id). */
 export interface DrawnRound {
   malIds: number[];
@@ -363,18 +278,15 @@ export interface DrawnRound {
 
 /**
  * One usable song of `kind` from show `malId` whose entry is of one of `difficulties` (empty = any),
- * chosen by `pick` among them in id order (deterministic for a daily seed).
+ * chosen by `pick` among them in id order (deterministic for a daily seed; theme ids are integer keys,
+ * which Object.entries lists in ascending order).
  */
 async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly Difficulty[], pick: (size: number) => number): Promise<number> {
-  const themes = (
-    await all<{ id: number; members: number | null }>(`SELECT t.id, e.members FROM ${USABLE_THEME_SQL} AND t.kind = ? AND (e.mal_id = ? OR e.canonical_id = ?) ORDER BY t.id`, [
-      kind,
-      malId,
-      malId,
-    ])
-  ).filter((t) => !difficulties.length || difficulties.includes(difficultyOf(t.members == null ? null : Number(t.members))));
-  if (!themes.length) throw new HttpError(500, 'A show has no song left to play.');
-  return Number(themes[pick(themes.length)]!.id);
+  const songs = Object.entries((await catalogShows()).get(malId)?.songs ?? {}).filter(
+    ([, song]) => song.kind === kind && (!difficulties.length || difficulties.includes(song.difficulty)),
+  );
+  if (!songs.length) throw new HttpError(500, 'A show has no song left to play.');
+  return Number(songs[pick(songs.length)]![0]);
 }
 
 /**
@@ -395,11 +307,11 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
     if (!pools.has(key)) pools.set(key, poolTitles({ ...spec, difficulties }));
     return pools.get(key)!;
   };
-  const characters = mode === 'character' ? await characterDifficultiesByShow() : null;
+  const shows = mode === 'character' ? await catalogShows() : null;
   const used = new Set<number>();
   const out: DrawnRound[] = [];
   for (let round = 0; round < rounds; round++) {
-    const tries = rounds > 1 && !characters ? roundTries(spec.difficulties, round) : [spec.difficulties];
+    const tries = rounds > 1 && !shows ? roundTries(spec.difficulties, round) : [spec.difficulties];
     const staged = tries[0]!;
     const wanted = CHARACTER_ROUND_DIFFICULTIES[round]!;
     const roundDraw = (n: number, size: number) => draw(round, n, size);
@@ -407,7 +319,7 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
     let pickedFrom = staged;
     for (const difficulties of tries) {
       const titles = await titlesOf(difficulties);
-      const pool = characters ? titles.filter((t) => characters.get(t.malId)?.has(wanted)) : titles;
+      const pool = shows ? titles.filter((t) => shows.get(t.malId)?.characters.includes(wanted)) : titles;
       picked = pickTitles(pool.filter((t) => !avoid.has(t.malId)), perRound, roundDraw, used) ?? pickTitles(pool, perRound, roundDraw, used);
       pickedFrom = difficulties;
       if (picked) break;

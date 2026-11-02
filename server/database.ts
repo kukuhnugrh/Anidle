@@ -1,13 +1,19 @@
-import { CANONICAL_SQL, difficultyOf, type GenreType } from '../shared/catalog.js';
+import { CANONICAL_SQL, difficultyOf, EASY_MIN_MEMBERS, MEDIUM_MIN_MEMBERS, type Difficulty, type GenreType } from '../shared/catalog.js';
 import { maskSynopsis } from '../shared/anidle.js';
 import { characterAliases, characterDifficultyOf, displayName } from '../shared/characters.js';
-import { DB_PAGE_SIZE, type DbDetail, type DbFacets, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSong, type DbSort } from '../shared/database.js';
+import { DB_PAGE_SIZE, type DbDetail, type DbFilters, type DbGenre, type DbItem, type DbPage, type DbSong, type DbSort } from '../shared/database.js';
 import { isSongMode, MODE_MEDIA, MODES, SONG_KIND, type ThemeKind } from '../shared/modes.js';
 import { titleHint } from '../shared/normalize.js';
+import { USABLE_THEME_SQL } from './catalog.js';
 import { all, one } from './db.js';
-import { difficultySql, USABLE_THEME_SQL } from './game.js';
 import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
-import { CATALOG_TTL_MS, memo } from './memo.js';
+
+/** Difficulty condition on the members of alias `a` (thresholds from shared/catalog.ts). */
+const DIFFICULTY_SQL: Record<Difficulty, string> = {
+  easy: `a.members >= ${EASY_MIN_MEMBERS}`,
+  medium: `a.members >= ${MEDIUM_MIN_MEMBERS} AND a.members < ${EASY_MIN_MEMBERS}`,
+  hard: `(a.members < ${MEDIUM_MIN_MEMBERS} OR a.members IS NULL)`,
+};
 
 const ORDER_BY: Record<DbSort, string> = {
   popularity: 'a.members IS NULL, a.members DESC',
@@ -42,7 +48,7 @@ function where(f: DbFilters): { sql: string; args: Array<string | number> } {
     parts.push('a.source = ?');
     args.push(f.source);
   }
-  if (f.difficulty) parts.push(`(${difficultySql(f.difficulty)})`);
+  if (f.difficulty) parts.push(`(${DIFFICULTY_SQL[f.difficulty]})`);
   return { sql: parts.join(' AND '), args };
 }
 
@@ -224,30 +230,5 @@ export async function animeDetail(id: number): Promise<DbDetail | null> {
         .map((c) => ({ name: displayName(c.name), portrait: mediaUrl(c.r2_key) })),
       titleHint: { title: titleHint(row.title), english: row.title_en && row.title_en !== row.title ? titleHint(row.title_en) : null },
     },
-  };
-}
-
-/** Filter options with how many shows each has (three whole-table aggregations, so memoized). */
-export const facets = (): Promise<DbFacets> => memo('facets', CATALOG_TTL_MS, loadFacets);
-
-async function loadFacets(): Promise<DbFacets> {
-  const [genres, studios, sources] = await Promise.all([
-    all<{ id: number; name: string; type: GenreType; count: number }>(
-      `SELECT g.id, g.name, g.type, COUNT(*) AS count FROM anime_genre ag
-       JOIN genre g ON g.id = ag.genre_id JOIN anime a ON a.mal_id = ag.mal_id
-       WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY g.id ORDER BY g.name`,
-    ),
-    all<{ name: string; count: number }>(
-      `SELECT s.value AS name, COUNT(*) AS count FROM anime a, json_each(a.studios) s
-       WHERE a.excluded IS NULL AND ${CANONICAL_SQL} GROUP BY s.value ORDER BY count DESC, name`,
-    ),
-    all<{ value: string; count: number }>(
-      `SELECT source AS value, COUNT(*) AS count FROM anime a WHERE a.excluded IS NULL AND ${CANONICAL_SQL} AND source IS NOT NULL GROUP BY source ORDER BY count DESC`,
-    ),
-  ]);
-  return {
-    genres: genres.map((g) => ({ id: Number(g.id), name: g.name, type: g.type, count: Number(g.count) })),
-    studios: studios.map((s) => ({ name: s.name, count: Number(s.count) })),
-    sources: sources.map((s) => ({ value: s.value, count: Number(s.count) })),
   };
 }

@@ -61,6 +61,22 @@ CREATE TABLE IF NOT EXISTS completed (
 );
 CREATE INDEX IF NOT EXISTS completed_mal_id ON completed (mal_id);
 
+-- Each stored completed list as the shows it covers (JSON array of show ids: an entry counts as
+-- COALESCE(canonical_id, mal_id)), so a pool reads one row per player instead of the whole list.
+-- Rewritten with `completed` (server/players.ts) and by pipeline step `catalog` (franchises change).
+CREATE TABLE IF NOT EXISTS completed_shows (
+  username  TEXT PRIMARY KEY COLLATE NOCASE,
+  shows     TEXT NOT NULL
+);
+
+-- Pipeline step `catalog` (pipeline/catalog.ts): 'shows' = what puzzle pools filter on, per show
+-- (CatalogShows, server/catalog.ts; admin rejects patch it in place); 'lists' = R2 keys of the
+-- autocomplete lists and Database facets. Turso bills rows read: a pool is one row, not 12k–50k.
+CREATE TABLE IF NOT EXISTS catalog (
+  key    TEXT PRIMARY KEY,
+  value  TEXT NOT NULL
+);
+
 -- MAL popularity ranking down to POPULAR_MIN_MEMBERS (shared/catalog.ts): the "populer" pool.
 CREATE TABLE IF NOT EXISTS popular (
   mal_id  INTEGER PRIMARY KEY,

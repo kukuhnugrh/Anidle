@@ -7,9 +7,8 @@ import type { RoundState } from '../server/rounds';
 import type { SongState } from '../server/songs';
 import type { History, Leaderboard, TodayScore } from '../server/stats';
 import type { Difficulty, Pool } from '../shared/catalog';
-import type { DbDetail, DbFacets, DbPage } from '../shared/database';
+import type { CatalogListName, CatalogLists, DbDetail, DbPage } from '../shared/database';
 import type { Mode } from '../shared/modes';
-import type { CharacterEntry, TitleEntry } from '../shared/normalize';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
 export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, MalList, MalListCategory, MalListEntry, PuzzleState, RoundState, SongState, TodayScore };
@@ -93,8 +92,13 @@ export const api = {
   logout: () => call('/api/logout', { method: 'POST' }),
   unlinkMal: () => call<{ account: Account }>('/api/mal/unlink', { method: 'POST' }),
   sync: () => call<SyncResult>('/api/sync', { method: 'POST' }),
-  titles: () => call<TitleEntry[]>('/api/titles'),
-  characters: () => call<CharacterEntry[]>('/api/characters'),
+  /** A whole-catalog list (autocomplete, Database facets): its current URL from /api/lists, the file from R2. */
+  list: async <K extends CatalogListName>(name: K): Promise<CatalogLists[K]> => {
+    const urls = await call<Record<CatalogListName, string>>('/api/lists');
+    const res = await fetch(urls[name]);
+    if (!res.ok) throw new ApiError(res.status, `Could not load the ${name} list (HTTP ${res.status}).`);
+    return res.json();
+  },
   /** The daily puzzle of `date` (YYYY-MM-DD; omitted = today). */
   daily: (mode: Mode, date?: string) => call<PuzzleState>(`/api/puzzle?mode=${mode}${date ? `&date=${date}` : ''}`),
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
@@ -115,7 +119,6 @@ export const api = {
   adminMedia: (query: string) => call<AdminPage>(`/api/admin/media?${query}`),
   setMediaStatus: (malId: number, kind: string, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { malId, kind, action } }),
   setThemeStatus: (themeId: number, action: 'reject' | 'restore') => call('/api/admin/media', { method: 'POST', body: { themeId, action } }),
-  animeFacets: () => call<DbFacets>('/api/anime/facets'),
   animeDetail: (id: number) => call<DbDetail>(`/api/anime/detail?id=${id}`),
   /** The signed-in player's whole MAL list (every status); `fresh` re-reads it from MAL. */
   malList: (fresh = false) => call<MalList>(`/api/mal/list${fresh ? '?fresh=1' : ''}`),

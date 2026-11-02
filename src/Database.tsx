@@ -56,7 +56,7 @@ export function Database() {
   const update = (patch: Partial<DbFilters>) => setFilters((f) => ({ ...f, ...patch, page: 1 }));
 
   useEffect(() => {
-    api.animeFacets().then(setFacets, (err: unknown) => setError(errorMessage(err)));
+    api.list('facets').then(setFacets, (err: unknown) => setError(errorMessage(err)));
   }, []);
 
   // Typing in the search box refetches after a short pause, not on every key.

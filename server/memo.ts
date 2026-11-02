@@ -4,12 +4,12 @@
  * failed query is not kept. Each instance holds its own copy, so a cold start reads once.
  */
 const entries = new Map<string, { expires: number; value: Promise<unknown> }>();
-/** Pools are keyed by filters (pool × mode × genre × difficulty × player), so the oldest are dropped past this. */
+/** Keys include per-player entries (completed lists), so the oldest are dropped past this. */
 const MAX_ENTRIES = 200;
 
-/** Catalog lists (autocomplete, facets, health): change only when the pipeline runs. */
+/** Catalog rows (pools, list URLs) and health: change only with the pipeline or an admin's review. */
 export const CATALOG_TTL_MS = 10 * 60_000;
-/** Puzzle pools: also follow a player's /api/sync, so they refresh sooner. */
+/** Completed lists: also follow a player's /api/sync, so they refresh sooner. */
 export const POOL_TTL_MS = 5 * 60_000;
 
 export function memo<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -33,19 +31,6 @@ export function queryOf(req: Request, allowed: readonly string[] = []): URLSearc
     } else if (!allowed.includes(name)) throw new HttpError(400, `Unknown parameter: ${name}`);
   }
   return params;
-}
-
-/**
- * Public JSON the browser must revalidate (an ETag of the body answers 304 when unchanged) but the CDN
- * keeps for an hour. The lists only change with the pipeline; callers check queryOf first and memoize
- * the list (server/memo.ts), so a cache-busting query cannot force a full-table read.
- */
-export function revalidatedJson(req: Request, data: unknown): Response {
-  const body = JSON.stringify(data);
-  const etag = `"${createHash('sha256').update(body).digest('base64url').slice(0, 16)}"`;
-  const headers = { etag, 'cache-control': 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400' };
-  if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers });
-  return new Response(body, { headers: { ...headers, 'content-type': 'application/json; charset=utf-8' } });
 }
 
 /** Wraps a handler so HttpError becomes a JSON error and anything else a logged 500. */

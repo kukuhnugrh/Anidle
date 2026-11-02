@@ -1,4 +1,5 @@
 import { accountById, registerFromMal, type Account } from './accounts.js';
+import { completedShowsWrites } from './catalog.js';
 import { decrypt, encrypt } from './crypto.js';
 import { all, db, nowIso, one, run } from './db.js';
 import { poolUsers } from './env.js';
@@ -80,7 +81,7 @@ export async function unlinkMal(account: Account): Promise<void> {
     [
       { sql: 'UPDATE account SET mal_username = NULL, mal_id = NULL WHERE id = ?', args: [account.id] },
       { sql: 'UPDATE player SET access_token_enc = NULL, refresh_token_enc = NULL, token_expires_at = NULL WHERE username = ?', args: [account.malUsername] },
-      ...(shared ? [] : [{ sql: 'DELETE FROM completed WHERE username = ?', args: [account.malUsername] }]),
+      ...(shared ? [] : [{ sql: 'DELETE FROM completed WHERE username = ?', args: [account.malUsername] }, ...completedShowsWrites(account.malUsername)]),
     ],
     'write',
   );
@@ -137,9 +138,14 @@ export async function syncCompleted(username: string, schedule?: <T>(task: () =>
   const stored = new Set((await all<{ mal_id: number }>('SELECT mal_id FROM completed WHERE username = ?', [username])).map((r) => Number(r.mal_id)));
   const now = nowIso();
   const shared = isPoolUser(username);
-  const statements = [
+  const changes = [
     ...[...stored].filter((id) => !fresh.has(id)).map((id) => ({ sql: 'DELETE FROM completed WHERE username = ? AND mal_id = ?', args: [username, id] })),
     ...ids.filter((id) => !stored.has(id)).map((id) => ({ sql: 'INSERT OR IGNORE INTO completed (username, mal_id) VALUES (?, ?)', args: [username, id] })),
+  ];
+  const statements = [
+    ...changes,
+    // Pools read the list as shows (server/catalog.ts); the pipeline also rewrites it when franchises change.
+    ...(changes.length ? completedShowsWrites(username) : []),
     ...(shared
       ? [
           {

@@ -1,6 +1,7 @@
 import { CANONICAL_SQL, difficultyOf, type Difficulty } from '../shared/catalog.js';
 import { SCREENSHOTS_PER_TITLE, type MediaKind, type MediaStatus, type ThemeKind } from '../shared/modes.js';
 import { requireAccount, type Account } from './accounts.js';
+import { setCatalogMedia, setCatalogSong } from './catalog.js';
 import { all, one, run } from './db.js';
 import { optionalEnv } from './env.js';
 import { HttpError } from './http.js';
@@ -177,6 +178,7 @@ export async function setMediaStatus(malId: number, kind: MediaKind, action: 're
   if (!row) throw new HttpError(404, 'That media has never been processed.');
   if (action === 'reject') {
     await run(`UPDATE anime_media SET status = 'rejected', error = 'rejected by an admin' WHERE mal_id = ? AND kind = ?`, [malId, kind]);
+    if (kind !== 'cover') await setCatalogMedia(malId, kind, false);
     return;
   }
   if (row.status !== 'rejected') throw new HttpError(409, 'Only rejected media can be restored.');
@@ -188,9 +190,11 @@ export async function setMediaStatus(malId: number, kind: MediaKind, action: 're
         : Boolean(row.r2_key);
   if (!hasFiles) throw new HttpError(409, 'The files for this media are missing; rerun the pipeline with --refresh.');
   await run(`UPDATE anime_media SET status = 'ok', error = NULL WHERE mal_id = ? AND kind = ?`, [malId, kind]);
+  if (kind !== 'cover') await setCatalogMedia(malId, kind, true);
 }
 
 /** Rejects one song, or restores it (songs stream from AnimeThemes, so there are no files to check). */
 export async function setThemeStatus(themeId: number, action: 'reject' | 'restore'): Promise<void> {
   if (!(await run('UPDATE anime_theme SET status = ? WHERE id = ?', [action === 'reject' ? 'rejected' : 'ok', themeId]))) throw new HttpError(404, 'Unknown song.');
+  await setCatalogSong(themeId, action === 'restore');
 }

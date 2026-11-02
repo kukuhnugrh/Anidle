@@ -78,7 +78,8 @@ function ffmpeg(args: string[], input?: Uint8Array, timeoutMs?: number): Promise
   return promise;
 }
 
-const contentKey = (dir: string, body: Uint8Array, ext: string) => `v1/${dir}/${createHash('sha256').update(body).digest('hex').slice(0, 24)}.${ext}`;
+/** R2 key named after the content's hash, so objects never change and are cached forever (and URLs reveal nothing). */
+export const contentKey = (dir: string, body: Uint8Array, ext: string) => `v1/${dir}/${createHash('sha256').update(body).digest('hex').slice(0, 24)}.${ext}`;
 
 /** A download is given up after this long without a byte, however slow (but moving) the file is. */
 const DOWNLOAD_IDLE_MS = 60_000;

@@ -12,10 +12,10 @@ function once<T>(fetch: () => Promise<T>): () => Promise<T> {
     }));
 }
 
-const loadTitles = once(api.titles);
+const loadTitles = once(() => api.list('titles'));
 /** Guess the Anime: only each show's full romaji and English titles, no synonyms, abbreviations or other seasons' names. */
 const loadFullTitles = once(() => loadTitles().then((list) => list.map((t) => ({ ...t, names: t.en ? [t.names[0]!, t.en] : [t.names[0]!] }))));
-const loadCharacters = once(api.characters);
+const loadCharacters = once(() => api.list('characters'));
 
 interface PickerProps {
   exclude?: ReadonlySet<number>;

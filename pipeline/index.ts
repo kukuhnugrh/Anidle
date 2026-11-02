@@ -6,6 +6,7 @@ import { all, db, nowIso, run } from '../server/db.js';
 import { poolUsers } from '../server/env.js';
 import { animeDetail, animeSynopsis, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
+import { stepCatalog } from './catalog.js';
 import { Limiter } from './limiter.js';
 import { stepAliases, stepCharacters, stepClips, stepDaily, stepMedia, stepNicknames, stepScreenshots } from './media.js';
 import { migrate } from './migrate.js';
@@ -328,7 +329,7 @@ async function stepCleanup() {
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'daily', 'cleanup'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'catalog', 'daily', 'cleanup'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -342,6 +343,8 @@ if (unknown.length) {
   process.exit(1);
 }
 const steps: Step[] = !requested.length || requested.includes('all') ? [...STEPS] : (requested as Step[]);
+// Every run refreshes the catalog (pools, completed lists, R2 lists) from what it changed, before `daily` draws from it.
+if (!steps.includes('catalog')) steps.splice(steps.includes('daily') ? steps.indexOf('daily') : steps.length, 0, 'catalog');
 
 await migrate();
 const started = Date.now();
@@ -358,6 +361,7 @@ for (const step of steps) {
   if (step === 'aliases') await stepAliases(flag('refresh'), limit);
   if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
   if (step === 'clips') await stepClips(flag('refresh'), limit);
+  if (step === 'catalog') await stepCatalog();
   if (step === 'daily') await stepDaily();
   if (step === 'cleanup') await stepCleanup();
 }

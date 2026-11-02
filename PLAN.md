@@ -206,7 +206,7 @@ db/                  schema.sql + migrations
 | M7 | GitHub Actions mingguan, proses `enrich_queue`, laporan media broken | Pipeline jalan otomatis tanpa PC | ✓ (butuh secrets) |
 
 Catatan implementasi M1–M7 (beda dari rencana awal):
-- Daftar judul autocomplete tetap lewat `/api/titles` (±3.760 judul, ETag, di-cache browser), tidak dipindah ke R2: sudah cepat, dan file di R2 butuh langkah tambahan untuk memberi tahu API nama file terbaru.
+- Daftar autocomplete (judul, karakter) dan facets Database ada di R2 (`v1/list/<db>/<nama>/<hash>.json`, ditulis step pipeline `catalog`); `GET /api/lists` memberi URL terbarunya. Awalnya lewat `/api/titles` dkk. dari Turso, tapi tiap cold start membaca puluhan ribu baris (Nov 2026). Step yang sama menulis snapshot pool (tabel `catalog` + `completed_shows`), jadi membuat puzzle tidak lagi memindai tabel.
 - Cover dan klip OP/ED disalin ke R2 dengan nama file = hash isi (`v1/cover/<hash>.webp`, `v1/audio/<hash>.mp3`), bukan `mal_id`, jadi URL media tidak membocorkan jawaban. Status per judul di `anime_media` (bukan `theme_song`). Cover yang belum tersalin tetap memakai CDN MAL.
 - Klip: 30 dtk mulai dari bunyi pertama (`silenceremove`), hanya 1,6 MB awal file AnimeThemes yang diunduh.
 - Fallback ronde: klip yang gagal dimuat bisa dicoba lagi; di puzzle unlimited milik sendiri, ronde yang belum ditebak bisa diganti judul lain. Puzzle harian tidak bisa diganti (berlaku untuk semua orang).

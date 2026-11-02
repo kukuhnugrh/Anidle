@@ -1,6 +1,8 @@
-// Contract of the anime database browser (/api/anime, /api/anime/facets, /api/anime/detail), shared by server and UI.
+// Contract of the anime database browser (/api/anime, /api/anime/detail, the facets list) and of the
+// catalog lists on R2 (GET /api/lists), shared by server, pipeline and UI.
 import type { Difficulty, GenreType } from './catalog';
 import type { Mode, ThemeKind } from './modes';
+import type { CharacterEntry, TitleEntry } from './normalize';
 
 export const DB_SORTS = {
   popularity: 'Popularity (most members)',
@@ -62,6 +64,20 @@ export interface DbFacets {
   studios: Array<{ name: string; count: number }>;
   sources: Array<{ value: string; count: number }>;
 }
+
+/**
+ * Whole-catalog lists the pipeline (step `catalog`) publishes as JSON on R2 under content-hashed keys;
+ * GET /api/lists gives their current URLs. Read from R2, they cost no Turso rows.
+ */
+export interface CatalogLists {
+  /** Autocomplete of every show. */
+  titles: TitleEntry[];
+  /** Character-name autocomplete. */
+  characters: CharacterEntry[];
+  /** Database filter options with how many shows each has. */
+  facets: DbFacets;
+}
+export type CatalogListName = keyof CatalogLists;
 
 /** One MAL entry merged into a show (its seasons, movies, OVAs, remakes…). */
 export interface DbEntry {
