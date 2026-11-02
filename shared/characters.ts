@@ -12,8 +12,11 @@ export type CharacterField = 'name' | 'anime';
  */
 export const CHARACTER_EASY_MIN_FAVORITES = 5_000;
 export const CHARACTER_MEDIUM_MIN_FAVORITES = 500;
-/** Below this almost nobody knows the character: never stored or asked. Every character of a show at or above it is kept. */
-export const CHARACTER_MIN_FAVORITES = 100;
+/**
+ * Below this almost nobody knows the character: never stored or asked. Every character of a show at or above it is kept.
+ * 100 left 46 medium shows (200k–500k members) without a single character, their best known at 82–99 (Nov 2026).
+ */
+export const CHARACTER_MIN_FAVORITES = 50;
 
 export function characterDifficultyOf(favorites: number): Difficulty {
   if (favorites >= CHARACTER_EASY_MIN_FAVORITES) return 'easy';
