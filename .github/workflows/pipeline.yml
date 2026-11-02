@@ -49,6 +49,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # ffmpeg-static's Linux binary links glibc statically, which cannot resolve hostnames on its own: every
+      # ffmpeg reading a video URL (screenshots, clips) died with no output. nscd does the lookups for it.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq nscd
       # Inputs go through env, never straight into the script, so they cannot inject shell.
       - name: Run pipeline
         env:
