@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
 import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type TodayScore } from './api';
-import type { Mode } from '../shared/modes';
+import type { DailyMode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
+import { ConnectionsGame } from './ConnectionsGame';
 import { RoundGame } from './RoundGame';
 import { SongGame } from './SongGame';
 import { AuthPage } from './AuthPage';
@@ -184,7 +185,7 @@ export function App() {
 }
 
 /** A mode's daily puzzle (today, or `date` from the archive), or the puzzle `id` (unlimited, resumable after reload because the id is in the URL). */
-function PuzzleLoader(props: ({ daily: Mode; date: string | null } | { id: string }) & { onFinished: () => void }) {
+function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onFinished: () => void }) {
   const [puzzle, setPuzzle] = useState<PuzzleState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const source = 'id' in props ? props.id : `${props.daily}:${props.date}`;
@@ -222,5 +223,6 @@ function PuzzleLoader(props: ({ daily: Mode; date: string | null } | { id: strin
   if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'connections') return <ConnectionsGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   return <SongGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
 }

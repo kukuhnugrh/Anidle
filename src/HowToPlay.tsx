@@ -1,7 +1,9 @@
 import { useRef, type ReactNode } from 'react';
 import { ANIDLE_CLUES } from '../shared/anidle';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
-import { CHARACTERS_PER_ROUND, DAILY_MAX_POINTS, MODE_LABELS, MODE_MAX_POINTS, ROUND_COUNT, type Mode } from '../shared/modes';
+import { CONNECTIONS_GROUP_SIZE, CONNECTIONS_MAX_MISTAKES } from '../shared/connections';
+import { CHARACTERS_PER_ROUND, CONNECTIONS_GROUPS, DAILY_MAX_POINTS, isBetaMode, MODE_LABELS, MODE_MAX_POINTS, ROUND_COUNT, type Mode } from '../shared/modes';
+import { BetaBadge } from './BetaBadge';
 import { fmtNumber } from './format';
 import { CloseIcon } from './icons';
 import { SCORING_RULES } from './scoring';
@@ -57,6 +59,17 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
     <>Fill what you can, then press Guess once for the whole round. Empty fields count as wrong, and a round can't be guessed again.</>,
     <>Click a portrait to see it larger. After the Guess, each card shows the answers and what else was accepted.</>,
   ],
+  connections: [
+    <>
+      {CONNECTIONS_GROUPS * CONNECTIONS_GROUP_SIZE} anime hide {CONNECTIONS_GROUPS} groups of {CONNECTIONS_GROUP_SIZE}. Each group shares one thing: a genre, theme or demographic, its
+      source, its studio, the year it aired, or an artist who sang one of its openings or endings.
+    </>,
+    <>Pick {CONNECTIONS_GROUP_SIZE} titles and press Submit. A right group locks in with its link; "One away" means three of your four belong together.</>,
+    <>
+      Watch out for red herrings: a title can fit several links, but only one split works. {CONNECTIONS_MAX_MISTAKES} mistakes end the board and show every group.
+    </>,
+    <>Groups go from easiest (yellow) to trickiest (purple). Shuffle moves the titles around if you get stuck.</>,
+  ],
 };
 
 /** The "?" next to a mode's title: opens its rules in an in-app dialog (Escape, the close button, or a click beside it closes). */
@@ -72,7 +85,9 @@ export function HowToPlay({ mode }: { mode: Mode }) {
       <dialog ref={dialog} className="confirm help" aria-labelledby={`how-to-${mode}`} onClick={(e) => e.target === dialog.current && dialog.current.close()}>
         <div className="confirm-box">
           <div className="help-head">
-            <h2 id={`how-to-${mode}`}>How to play {MODE_LABELS[mode]}</h2>
+            <h2 id={`how-to-${mode}`}>
+              How to play {MODE_LABELS[mode]} <BetaBadge mode={mode} />
+            </h2>
             <button className="icon-button" onClick={() => dialog.current?.close()} aria-label="Close">
               <CloseIcon />
             </button>
@@ -91,9 +106,13 @@ export function HowToPlay({ mode }: { mode: Mode }) {
                 <li key={i}>{rule}</li>
               ))}
             </ul>
-            <p className="muted small">All five daily puzzles together: {fmtNumber(DAILY_MAX_POINTS)} pts.</p>
+            {!isBetaMode(mode) && <p className="muted small">All five daily puzzles together: {fmtNumber(DAILY_MAX_POINTS)} pts.</p>}
           </section>
-          <p className="muted small">The daily puzzle is the same for everyone and changes at 00:00 UTC+7.</p>
+          <p className="muted small">
+            {isBetaMode(mode)
+              ? 'This mode is in beta: unlimited only, and it does not count for the daily total or the leaderboard yet.'
+              : 'The daily puzzle is the same for everyone and changes at 00:00 UTC+7.'}
+          </p>
           <div className="actions">
             <button className="primary" autoFocus onClick={() => dialog.current?.close()}>
               Got it

@@ -321,11 +321,12 @@ async function stepCleanup() {
       { sql: `DELETE FROM play WHERE puzzle_id IN (${stale})`, args: [cutoff] },
       { sql: `DELETE FROM puzzle_round WHERE puzzle_id IN (${stale})`, args: [cutoff] },
       { sql: `DELETE FROM puzzle_character WHERE puzzle_id IN (${stale})`, args: [cutoff] },
+      { sql: `DELETE FROM puzzle_group WHERE puzzle_id IN (${stale})`, args: [cutoff] },
       { sql: `DELETE FROM puzzle WHERE id IN (${stale})`, args: [cutoff] },
     ],
     'write',
   );
-  log(`cleanup: ${results[0]!.rowsAffected + results[1]!.rowsAffected} play, ${results[4]!.rowsAffected} puzzle unlimited (> ${STALE_DAYS} hari)`);
+  log(`cleanup: ${results[0]!.rowsAffected + results[1]!.rowsAffected} play, ${results[5]!.rowsAffected} puzzle unlimited (> ${STALE_DAYS} hari)`);
 }
 
 // ------------------------------------------------------------------ CLI

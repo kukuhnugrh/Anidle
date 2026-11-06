@@ -1,7 +1,21 @@
 import type { ReactNode } from 'react';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
 import { CHARACTER_FIELDS_PER_ROUND } from '../shared/characters';
-import { CHARACTERS_PER_ROUND, DAILY_MAX_POINTS, MODE_LABELS, MODE_MAX_POINTS, MODES, ROUND_COUNT, roundMaxPoints, SCREENSHOT_CLUE_COST, SCREENSHOT_CLUES, SONG_CLUE_SHARE, type Mode } from '../shared/modes';
+import { CONNECTIONS_MAX_MISTAKES, CONNECTIONS_MISTAKE_COST } from '../shared/connections';
+import {
+  CHARACTERS_PER_ROUND,
+  DAILY_MAX_POINTS,
+  DAILY_MODES,
+  MODE_LABELS,
+  MODE_MAX_POINTS,
+  ROUND_COUNT,
+  roundMaxPoints,
+  SCREENSHOT_CLUE_COST,
+  SCREENSHOT_CLUES,
+  SONG_CLUE_SHARE,
+  type DailyMode,
+  type Mode,
+} from '../shared/modes';
 import { fmtNumber } from './format';
 
 // How each mode scores, in words, from the same constants the server scores with.
@@ -53,10 +67,18 @@ export const SCORING_RULES: Record<Mode, ReactNode[]> = {
     </>,
     <>Wrong or empty: 0.</>,
   ],
+  connections: [
+    <>Every group found with no mistake: {pts(MODE_MAX_POINTS.connections)}.</>,
+    <>
+      Every mistake takes {pts(CONNECTIONS_MISTAKE_COST)} off a solved board: {pts(MODE_MAX_POINTS.connections - CONNECTIONS_MISTAKE_COST * (CONNECTIONS_MAX_MISTAKES - 1))} with{' '}
+      {CONNECTIONS_MAX_MISTAKES - 1} mistakes.
+    </>,
+    <>The {CONNECTIONS_MAX_MISTAKES}th mistake ends the board: 0.</>,
+  ],
 };
 
-/** One line per mode for the Home overview. */
-const SUMMARY: Record<Mode, string> = {
+/** One line per daily mode for the Home overview. */
+const SUMMARY: Record<DailyMode, string> = {
   anidle: `${pts(MODE_MAX_POINTS.anidle)} on the first try, ${fmtNumber(anidleStep)} less per extra try`,
   opening: `${ROUND_COUNT} × ${fmtNumber(roundMaxPoints('opening'))}, half with the clue`,
   ending: `${ROUND_COUNT} × ${fmtNumber(roundMaxPoints('ending'))}, half with the clue`,
@@ -81,7 +103,7 @@ export function ScoringGuide() {
           </tr>
         </thead>
         <tbody>
-          {MODES.map((mode) => (
+          {DAILY_MODES.map((mode) => (
             <tr key={mode}>
               <td>{MODE_LABELS[mode]}</td>
               <td className="num">{fmtNumber(MODE_MAX_POINTS[mode])}</td>

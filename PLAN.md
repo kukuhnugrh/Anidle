@@ -113,6 +113,7 @@ completed(username, mal_id, finished_at, PK(username, mal_id))
 popular(mal_id PK, rank)                        -- ranking popularitas MAL sampai 50 rb member
 enrich_queue(mal_id PK, reason, added_at)      -- judul baru dari "sync list", diproses pipeline berikutnya
 puzzle(id PK, date NULL, mode, pool, rounds JSON, created_at)   -- UNIQUE(date, mode) untuk harian
+puzzle_group(puzzle_id, grp, link, mal_ids JSON)  -- Connections (beta): 4 grup per papan, mudah → sulit
 play(id PK, puzzle_id, username, round, guesses JSON, score, finished_at)
 ```
 
@@ -125,6 +126,7 @@ Puzzle harian **disimpan** saat pertama diminta (dipilih dari seed `tanggal+mode
 2. **Opening** dan **Ending**: 3 ronde, audio diputar bertahap (1 → 3 → 6 → 12 → 30 dtk), poin turun setiap reveal/salah.
 3. **Karakter**: 4 portrait karakter dari satu anime per ronde.
 4. **Screenshot**: dari frame video OP/ED.
+5. **Connections** (beta, hanya unlimited): 16 judul, 4 grup tersembunyi yang berbagi satu link (genre, theme, demographic, source, studio, tahun, artis OP/ED; baris catalog `traits`). Pilih 4, "one away" kalau 3 benar, 4 kesalahan = selesai. Belum ada puzzle harian/leaderboard sampai keluar dari beta.
 
 **Jawaban**:
 - Pemain memilih judul dari autocomplete (yang dikirim `mal_id`), bukan teks bebas. Autocomplete mencari di judul romaji, Inggris, Jepang, dan sinonim setelah normalisasi (huruf kecil, tanpa tanda baca/makron).

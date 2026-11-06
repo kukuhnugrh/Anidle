@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { anidleScore, compareAnidle, groupSkips, maskSynopsis, summarizeAnidle, type AnidleAnime } from './anidle';
 import { aliasOf, characterAliases, characterDifficultyOf, isRomaji, sameCharacterName } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
+import { CONNECTIONS_GROUP_SIZE, connectionsScore, drawBoard, judgeGuess, linkKey, LINK_KINDS, type BoardCandidate } from './connections';
 import { franchiseIds } from './franchise';
 import { roundDifficulties, roundTries } from './modes';
 import { indexNames, normalizeTitle, searchNames, titleHint } from './normalize';
@@ -263,5 +264,61 @@ describe('roundTries', () => {
   it('lets round 1 fall back to the whole pool, and keeps a narrowed pool as is', () => {
     expect(roundTries([], 0)).toEqual([['easy'], []]);
     expect(roundTries(['hard'], 2)).toEqual([['hard']]);
+  });
+});
+
+describe('drawBoard', () => {
+  /** Deterministic random(size) for a seed (LCG). */
+  const seeded = (seed: number) => (size: number) => {
+    seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31;
+    return seed % size;
+  };
+  /** Shows with overlapping links from a small vocabulary, so most titles carry several links that could mislead. */
+  const pool = (count: number, random: (size: number) => number): BoardCandidate[] =>
+    Array.from({ length: count }, (_, i) => ({
+      malId: i + 1,
+      // Every 5th show shares its franchise with the one before.
+      franchise: i % 5 === 4 ? i : i + 1,
+      links: [...new Set(Array.from({ length: 4 }, () => linkKey(LINK_KINDS[random(LINK_KINDS.length)]!, random(6))))],
+    }));
+
+  it('gives every group a link that no other title on the board carries, from distinct franchises', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const candidates = pool(160, seeded(seed));
+      const board = drawBoard(candidates, seeded(seed * 7));
+      expect(board).not.toBeNull();
+      const byId = new Map(candidates.map((c) => [c.malId, c]));
+      const tiles = board!.flatMap((g) => g.malIds);
+      expect(new Set(tiles).size).toBe(16);
+      expect(new Set(tiles.map((id) => byId.get(id)!.franchise)).size).toBe(16);
+      for (const g of board!) {
+        expect(g.malIds).toHaveLength(CONNECTIONS_GROUP_SIZE);
+        expect(tiles.filter((id) => byId.get(id)!.links.includes(g.link)).sort()).toEqual([...g.malIds].sort());
+      }
+    }
+  });
+
+  it('returns null when the pool cannot fill a board', () => {
+    const tiny = Array.from({ length: 15 }, (_, i) => ({ malId: i + 1, franchise: i + 1, links: [linkKey('studio', i % 4)] }));
+    expect(drawBoard(tiny, seeded(1))).toBeNull();
+  });
+});
+
+describe('judgeGuess', () => {
+  const groups = [
+    [1, 2, 3, 4],
+    [5, 6, 7, 8],
+  ];
+  it('finds the group of an exact guess in any order, and flags a guess one title off', () => {
+    expect(judgeGuess(groups, [8, 6, 5, 7])).toEqual({ group: 1, oneAway: false });
+    expect(judgeGuess(groups, [1, 2, 3, 5])).toEqual({ group: null, oneAway: true });
+    expect(judgeGuess(groups, [1, 2, 5, 6])).toEqual({ group: null, oneAway: false });
+  });
+});
+
+describe('connectionsScore', () => {
+  it('takes a quarter off a solved board per mistake and gives 0 to an unsolved one', () => {
+    expect([0, 1, 3].map((m) => connectionsScore(true, m))).toEqual([10_000, 7_500, 2_500]);
+    expect(connectionsScore(false, 2)).toBe(0);
   });
 });

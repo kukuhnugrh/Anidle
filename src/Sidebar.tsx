@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from 'react';
-import { MODE_LABELS, type Mode } from '../shared/modes';
+import { MODE_LABELS, type DailyMode } from '../shared/modes';
 import type { Account, TodayScore } from './api';
 import { fmtNumber } from './format';
 import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, ListIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
@@ -27,7 +27,7 @@ function ThemeToggle() {
 }
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode (those show today's score for it). */
-const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: Mode }[] }[] = [
+const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: DailyMode }[] }[] = [
   { title: 'Main', items: [{ id: 'home', href: '/', label: 'Home', Icon: HomeIcon }] },
   {
     title: 'Daily',

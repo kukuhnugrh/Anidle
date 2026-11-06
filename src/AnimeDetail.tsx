@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ANIDLE_CLUES } from '../shared/anidle';
 import type { DbDetail, DbSong } from '../shared/database';
-import { isSongMode, MODE_LABELS, MODES, SONG_KIND, type Mode } from '../shared/modes';
+import { DAILY_MODES, isSongMode, MODE_LABELS, SONG_KIND, type DailyMode } from '../shared/modes';
 import { api, errorMessage } from './api';
 import { fmtNumber, pretty } from './format';
 
@@ -11,7 +11,8 @@ export const DB_LIST_KEY = 'anidle:db-list';
 const malHref = (malId: number) => `https://myanimelist.net/anime/${malId}`;
 const clueAfter = (kind: (typeof ANIDLE_CLUES)[number]['kind']) => ANIDLE_CLUES.find((c) => c.kind === kind)!.after;
 
-type Tab = Mode | 'about';
+/** A daily mode's clues for this show (Connections has none of its own), or About. */
+type Tab = DailyMode | 'about';
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -243,7 +244,7 @@ export function AnimeDetail({ id }: { id: number }) {
 
   const d = detail;
   const tabs: Array<{ id: Tab; label: string; note: string }> = [
-    ...MODES.map((m) => ({
+    ...DAILY_MODES.map((m) => ({
       id: m,
       label: MODE_LABELS[m],
       note: !d.modes.includes(m) ? 'not asked' : isSongMode(m) ? `${d.songs[SONG_KIND[m]].length} ${d.songs[SONG_KIND[m]].length === 1 ? 'song' : 'songs'}` : 'asked',

@@ -1,9 +1,9 @@
-import { FIRST_DAILY_DATE, MODES, todayUtc7, type Mode } from '../shared/modes';
+import { DAILY_MODES, FIRST_DAILY_DATE, todayUtc7, type DailyMode } from '../shared/modes';
 
 export type Route =
   | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' | 'mylist' }
   /** `date` = an earlier day from the archive; null = today. */
-  | { view: 'daily'; mode: Mode; date: string | null }
+  | { view: 'daily'; mode: DailyMode; date: string | null }
   | { view: 'play'; id: string }
   /** One show of the database (`/database/<mal_id>`). */
   | { view: 'anime'; id: number };
@@ -27,7 +27,7 @@ export function archiveDate(value: string | null): string | null {
 }
 
 /** Daily puzzle of a mode: `/daily` is Anidle (the first mode, kept for old links), `/daily/opening`…, `?date=` an earlier day. */
-export const dailyHref = (mode: Mode, date: string | null = null) => `${mode === 'anidle' ? '/daily' : `/daily/${mode}`}${date ? `?date=${date}` : ''}`;
+export const dailyHref = (mode: DailyMode, date: string | null = null) => `${mode === 'anidle' ? '/daily' : `/daily/${mode}`}${date ? `?date=${date}` : ''}`;
 
 /** `/database?genre=1` → database, `/play/<id>` → that puzzle, anything unknown → home. */
 export function readRoute(): Route {
@@ -38,7 +38,7 @@ export function readRoute(): Route {
   const date = archiveDate(new URLSearchParams(location.search).get('date'));
   if (path === 'daily') return { view: 'daily', mode: 'anidle', date };
   if (path.startsWith('daily/')) {
-    const mode = MODES.find((m) => m === path.slice('daily/'.length));
+    const mode = DAILY_MODES.find((m) => m === path.slice('daily/'.length));
     if (mode) return { view: 'daily', mode, date };
   }
   return { view: PATHS[path] ?? 'home' };

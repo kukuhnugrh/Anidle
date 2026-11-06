@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, type Difficulty, type Pool } from '../shared/catalog';
 import { MODE_LABELS, MODES, type Mode } from '../shared/modes';
 import { api, errorMessage, savedUnlimited, type Account, type UnlimitedOptions } from './api';
+import { BetaBadge } from './BetaBadge';
 import { ArrowIcon } from './icons';
 import { go } from './route';
 
@@ -11,6 +12,7 @@ const MODE_HINTS: Record<Mode, string> = {
   ending: '3 rounds of endings',
   character: '3 rounds, 4 characters',
   screenshot: '3 rounds, zooming out',
+  connections: '16 titles, 4 hidden groups',
 };
 
 const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: Difficulty[] }> = {
@@ -62,7 +64,9 @@ export function Unlimited({ account }: { account: Account | null }) {
           <div className="segmented modes" role="radiogroup" aria-label="Mode">
             {MODES.map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'selected' : ''} onClick={() => setMode(m)}>
-                <b>{MODE_LABELS[m]}</b>
+                <b>
+                  {MODE_LABELS[m]} <BetaBadge mode={m} />
+                </b>
                 <span>{MODE_HINTS[m]}</span>
               </button>
             ))}

@@ -1,4 +1,5 @@
-import { DAILY_MAX_POINTS, PERFECT_SOLVED, todayUtc7, type Mode } from '../shared/modes.js';
+import { linkLabel } from '../shared/connections.js';
+import { DAILY_MAX_POINTS, DAILY_MODES, PERFECT_SOLVED, todayUtc7, type DailyMode, type Mode } from '../shared/modes.js';
 import { all } from './db.js';
 
 /** Anidle guesses (play.guesses is number[] there). The round modes report rounds solved instead, so this is unused for them. */
@@ -16,7 +17,7 @@ export interface TodayScore {
   score: number;
   max: number;
   /** Points per mode for today's finished daily puzzles; a mode not finished yet is absent. */
-  modes: Partial<Record<Mode, number>>;
+  modes: Partial<Record<DailyMode, number>>;
 }
 
 /** The player's points over today's daily puzzles (out of DAILY_MAX_POINTS), in total and per mode. */
@@ -41,14 +42,14 @@ export interface LeaderboardEntry {
 
 export interface Leaderboard {
   date: string;
-  modes: Record<Mode, LeaderboardEntry[]>;
+  modes: Record<DailyMode, LeaderboardEntry[]>;
   /** Sum over the modes each player finished that day. */
   total: Array<{ username: string; avatar: string | null; score: number; modes: number }>;
 }
 
 /** Daily puzzles of `date` finished that same day by accounts (anonymous players have no name to show). */
 export async function leaderboard(date: string): Promise<Leaderboard> {
-  const rows = await all<{ mode: Mode; username: string; avatar: string | null; score: number | null; solved: number; guesses: string; finished_at: string }>(
+  const rows = await all<{ mode: DailyMode; username: string; avatar: string | null; score: number | null; solved: number; guesses: string; finished_at: string }>(
     `SELECT p.mode, ac.username, pr.avatar, g.score, g.solved, g.guesses, g.finished_at
      FROM puzzle p
      JOIN play g ON g.puzzle_id = p.id AND g.finished_at IS NOT NULL
@@ -58,7 +59,7 @@ export async function leaderboard(date: string): Promise<Leaderboard> {
      ORDER BY g.score DESC, g.finished_at ASC`,
     [date],
   );
-  const modes: Record<Mode, LeaderboardEntry[]> = { anidle: [], opening: [], ending: [], character: [], screenshot: [] };
+  const modes = Object.fromEntries(DAILY_MODES.map((m) => [m, []])) as unknown as Record<DailyMode, LeaderboardEntry[]>;
   const totals = new Map<string, { username: string; avatar: string | null; score: number; modes: number }>();
   for (const r of rows) {
     const entry: LeaderboardEntry = {
@@ -103,7 +104,7 @@ export interface ModeStats {
 }
 
 export interface History {
-  stats: Record<Mode, ModeStats>;
+  stats: Record<DailyMode, ModeStats>;
   recent: HistoryEntry[];
 }
 
@@ -144,6 +145,9 @@ export async function history(playerKey: string): Promise<History> {
       )
     : [];
   const roundsOf = Map.groupBy(rounds, (r) => r.puzzle_id);
+  // Connections lists its groups' links instead of titles.
+  const groups = ids.length ? await all<{ puzzle_id: string; link: string }>(`SELECT puzzle_id, link FROM puzzle_group WHERE puzzle_id IN (${marks}) ORDER BY grp`, ids) : [];
+  const groupsOf = Map.groupBy(groups, (g) => g.puzzle_id);
   const answerIds = [...new Set([...recentRows.map((r) => Number(r.answer_id)), ...rounds.map((r) => Number(r.mal_id))])];
   const titles = new Map(
     answerIds.length
@@ -151,7 +155,7 @@ export async function history(playerKey: string): Promise<History> {
       : [],
   );
 
-  const modeStats = (mode: Mode): ModeStats => {
+  const modeStats = (mode: DailyMode): ModeStats => {
     const daily = rows.filter((r) => r.mode === mode && Number(r.on_the_day));
     const scores = daily.map((r) => Number(r.score ?? 0));
     return {
@@ -162,13 +166,7 @@ export async function history(playerKey: string): Promise<History> {
       ...streaks(daily.map((r) => r.date!)),
     };
   };
-  const stats: Record<Mode, ModeStats> = {
-    anidle: modeStats('anidle'),
-    opening: modeStats('opening'),
-    ending: modeStats('ending'),
-    character: modeStats('character'),
-    screenshot: modeStats('screenshot'),
-  };
+  const stats = Object.fromEntries(DAILY_MODES.map((m) => [m, modeStats(m)])) as Record<DailyMode, ModeStats>;
 
   return {
     stats,
@@ -179,7 +177,9 @@ export async function history(playerKey: string): Promise<History> {
       score: Number(r.score ?? 0),
       solved: Number(r.solved),
       attempts: attemptCount(r.guesses),
-      answers: (roundsOf.get(r.id)?.map((x) => Number(x.mal_id)) ?? [Number(r.answer_id)]).map((id) => titles.get(id) ?? `#${id}`),
+      answers:
+        groupsOf.get(r.id)?.map((g) => linkLabel(g.link)) ??
+        (roundsOf.get(r.id)?.map((x) => Number(x.mal_id)) ?? [Number(r.answer_id)]).map((id) => titles.get(id) ?? `#${id}`),
       finishedAt: r.finished_at,
     })),
   };

@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import { CANONICAL_SQL, DIFFICULTIES, difficultyOf, type Difficulty, type GenreType } from '../shared/catalog.js';
 import { CHARACTER_MIN_FAVORITES, characterAliases, characterDifficultyOf, displayName } from '../shared/characters.js';
 import type { CatalogListName, CatalogLists, DbFacets } from '../shared/database.js';
+import { CONNECTIONS_GROUP_SIZE, showLinks } from '../shared/connections.js';
 import type { ThemeKind } from '../shared/modes.js';
 import type { CharacterEntry, TitleEntry } from '../shared/normalize.js';
-import { completedShowsWrites, USABLE_THEME_SQL, type CatalogListKeys, type CatalogShows, type PoolMediaKind } from '../server/catalog.js';
+import { completedShowsWrites, USABLE_THEME_SQL, type CatalogListKeys, type CatalogShows, type CatalogTraits, type PoolMediaKind } from '../server/catalog.js';
 import { all, db, one } from '../server/db.js';
 import { requireEnv } from '../server/env.js';
 import { contentKey } from './media.js';
@@ -33,6 +34,7 @@ const isCanonical = (a: AnimeRow) => a.canonical_id == null || Number(a.canonica
 
 /**
  * Step `catalog` (every run ends with it, before `daily`): what pools filter on (catalog row 'shows'),
+ * what Connections groups can share (catalog row 'traits'),
  * every completed list as shows (completed_shows), and the lists the browser loads from R2 (titles,
  * characters, facets; catalog row 'lists'). The game then reads a few rows per puzzle and none for the
  * lists, instead of whole tables (Turso bills rows read).
@@ -64,8 +66,8 @@ export async function stepCatalog(): Promise<void> {
     all<{ mal_id: number }>('SELECT mal_id FROM popular'),
     all<{ mal_id: number; kind: PoolMediaKind }>(`SELECT mal_id, kind FROM anime_media WHERE kind IN ('chars', 'shots') AND status = 'ok'`),
     all<{ mal_id: number; favorites: number }>('SELECT mal_id, favorites FROM anime_character WHERE favorites >= ?', [CHARACTER_MIN_FAVORITES]),
-    all<{ id: number; kind: ThemeKind; show: number; members: number | null }>(
-      `SELECT t.id, t.kind, COALESCE(e.canonical_id, e.mal_id) AS show, e.members FROM ${USABLE_THEME_SQL} ORDER BY t.id`,
+    all<{ id: number; kind: ThemeKind; show: number; members: number | null; artist: string | null }>(
+      `SELECT t.id, t.kind, COALESCE(e.canonical_id, e.mal_id) AS show, e.members, t.artist FROM ${USABLE_THEME_SQL} ORDER BY t.id`,
     ),
   ]);
   for (const g of genreRows) shows[Number(g.mal_id)]?.genres.push(Number(g.genre_id));
@@ -92,6 +94,7 @@ export async function stepCatalog(): Promise<void> {
     const show = shows[Number(s.show)];
     if (show) show.songs[Number(s.id)] = { kind: s.kind, difficulty: difficultyOf(s.members == null ? null : Number(s.members)) };
   }
+  const traits = JSON.stringify(connectionTraits(canonical, shows, genreRows, genres, songs));
 
   const lists: CatalogLists = { titles: titleEntries(anime), characters: await characterEntries(), facets: facets(canonical, shows, genres) };
   const old = await one<{ value: string }>(`SELECT value FROM catalog WHERE key = 'lists'`);
@@ -114,13 +117,58 @@ export async function stepCatalog(): Promise<void> {
     [
       ...completedShowsWrites(),
       { sql: 'INSERT OR REPLACE INTO catalog (key, value) VALUES (?, ?)', args: ['shows', JSON.stringify(shows)] },
+      { sql: 'INSERT OR REPLACE INTO catalog (key, value) VALUES (?, ?)', args: ['traits', traits] },
       { sql: 'INSERT OR REPLACE INTO catalog (key, value) VALUES (?, ?)', args: ['lists', JSON.stringify({ ...keys, previous: retired } satisfies CatalogListKeys)] },
     ],
     'write',
   );
   // The generation before the previous one: /api/lists stopped pointing at it a whole run ago.
   for (const key of previous?.previous ?? []) if (!live.has(key)) await deleteObject(key);
-  log(`catalog: ${canonical.length} show, ${songs.length} lagu; ${sizes.join(', ')}`);
+  log(`catalog: ${canonical.length} show, ${songs.length} lagu; ${sizes.join(', ')}, traits ${Math.round(traits.length / 1024)} KB`);
+}
+
+/**
+ * Catalog row 'traits' (Connections): what each show can share with others (genres, themes,
+ * demographic, source, studios, year, OP/ED artists), keeping only links that at least
+ * CONNECTIONS_GROUP_SIZE franchises share: any other can never make a group.
+ */
+function connectionTraits(
+  canonical: AnimeRow[],
+  shows: CatalogShows,
+  genreRows: Array<{ mal_id: number; genre_id: number }>,
+  genres: Array<{ id: number; name: string; type: GenreType }>,
+  songs: Array<{ show: number; artist: string | null }>,
+): CatalogTraits {
+  const genreOf = new Map(genres.map((g) => [Number(g.id), g]));
+  const genresOf = Map.groupBy(genreRows, (g) => Number(g.mal_id));
+  const artistsOf = new Map<number, Set<string>>();
+  for (const s of songs) {
+    if (!s.artist) continue;
+    const set = artistsOf.get(Number(s.show)) ?? new Set<string>();
+    set.add(s.artist);
+    artistsOf.set(Number(s.show), set);
+  }
+  const linksOf = new Map<number, string[]>();
+  const franchisesOf = new Map<string, Set<number>>();
+  for (const a of canonical) {
+    const id = Number(a.mal_id);
+    const links = showLinks({
+      genres: (genresOf.get(id) ?? []).flatMap((g) => genreOf.get(Number(g.genre_id)) ?? []),
+      source: a.source,
+      studios: JSON.parse(a.studios) as string[],
+      year: a.year == null ? null : Number(a.year),
+      artists: [...(artistsOf.get(id) ?? [])],
+    });
+    linksOf.set(id, links);
+    for (const link of links) {
+      const set = franchisesOf.get(link) ?? new Set<number>();
+      set.add(shows[id]!.franchise);
+      franchisesOf.set(link, set);
+    }
+  }
+  const traits: CatalogTraits = {};
+  for (const [id, links] of linksOf) traits[id] = links.filter((link) => franchisesOf.get(link)!.size >= CONNECTIONS_GROUP_SIZE);
+  return traits;
 }
 
 /**

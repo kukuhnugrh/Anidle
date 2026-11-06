@@ -15,8 +15,10 @@ import { CHARACTER_MIN_FAVORITES, CHARACTER_ROUND_DIFFICULTIES, characterDifficu
 import {
   CHARACTERS_PER_ROUND,
   FIRST_DAILY_DATE,
+  isDailyMode,
   isRoundMode,
   isSongMode,
+  MODE_LABELS,
   MODE_MEDIA,
   MODES,
   ROUND_COUNT,
@@ -25,6 +27,7 @@ import {
   shiftDate,
   SONG_KIND,
   todayUtc7,
+  type DailyMode,
   type Mode,
   type ThemeKind,
 } from '../shared/modes.js';
@@ -39,6 +42,13 @@ import { COVER_KEY_SQL, coverOf, mediaUrl } from './media.js';
 export function parseMode(value: unknown): Mode {
   if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) return value as Mode;
   throw new HttpError(400, `Unknown mode: ${String(value)}`);
+}
+
+/** A mode with a daily puzzle: beta modes are unlimited only. */
+export function parseDailyMode(value: unknown): DailyMode {
+  const mode = parseMode(value);
+  if (!isDailyMode(mode)) throw new HttpError(400, `${MODE_LABELS[mode]} is in beta: it has no daily puzzle yet, play it in Unlimited.`);
+  return mode;
 }
 
 export interface PoolSpec {
@@ -230,8 +240,8 @@ export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
 
 const RECENT_DAYS_WITHOUT_REPEAT = 60;
 
-/** Rounds × answers per round: Anidle one answer, round modes one title per round, Character four. */
-const SHAPE: Record<Mode, { rounds: number; perRound: number }> = {
+/** Rounds × answers per round: Anidle one answer, round modes one title per round, Character four. Connections draws a board instead (server/connections.ts). */
+const SHAPE: Record<DailyMode, { rounds: number; perRound: number }> = {
   anidle: { rounds: 1, perRound: 1 },
   opening: { rounds: ROUND_COUNT, perRound: 1 },
   ending: { rounds: ROUND_COUNT, perRound: 1 },
@@ -299,7 +309,7 @@ async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly 
  * popularity), so only shows with such a character qualify. Titles in `avoid` (recent daily answers)
  * are only reused when nothing else is left.
  */
-export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<DrawnRound[]> {
+export async function drawRounds(mode: DailyMode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<DrawnRound[]> {
   const { rounds, perRound } = SHAPE[mode];
   const pools = new Map<string, Promise<PoolTitle[]>>();
   const titlesOf = (difficulties: readonly Difficulty[]) => {
@@ -338,7 +348,7 @@ export async function drawRounds(mode: Mode, spec: PoolSpec, draw: Draw, avoid: 
  * with their song), puzzle_character for Character, whose character per show is drawn among its
  * characters of the round's difficulty.
  */
-async function answerInserts(puzzleId: string, mode: Mode, answers: DrawnRound[], draw: Draw) {
+async function answerInserts(puzzleId: string, mode: DailyMode, answers: DrawnRound[], draw: Draw) {
   if (isRoundMode(mode) || isSongMode(mode))
     return answers.map(({ malIds: [malId], themeId }, round) => ({
       sql: 'INSERT OR IGNORE INTO puzzle_round (puzzle_id, round, mal_id, theme_id) VALUES (?, ?, ?, ?)',
@@ -372,7 +382,7 @@ export function parseDailyDate(value: string | null): string {
 }
 
 /** The daily puzzle of `mode` on `date` (today or an earlier day of the archive), created on first request. */
-export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> {
+export async function dailyPuzzle(mode: DailyMode, date: string): Promise<PuzzleRow> {
   const existing = await one<PuzzleRow>('SELECT * FROM puzzle WHERE date = ? AND mode = ?', [date, mode]);
   if (existing) return existing;
 
@@ -408,7 +418,7 @@ export async function dailyPuzzle(mode: Mode, date: string): Promise<PuzzleRow> 
   return row;
 }
 
-export async function unlimitedPuzzle(mode: Mode, spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
+export async function unlimitedPuzzle(mode: DailyMode, spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
   const answers = await drawRounds(mode, spec, randomDraw);
   const row: PuzzleRow = { id: randomUUID(), date: null, mode, pool: spec.pool, answer_id: answers[0]!.malIds[0]!, created_by: playerKey, options: JSON.stringify(options) };
   await db().batch(

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MODE_LABELS, MODES } from '../shared/modes';
+import { DAILY_MODES, MODE_LABELS } from '../shared/modes';
 import { api, errorMessage, type Account, type History } from './api';
 import { fmtDate, fmtNumber, resultText } from './format';
 
@@ -30,7 +30,7 @@ export function HistoryPage({ account }: { account: Account | null }) {
       {data && (
         <>
           <div className="stat-grid">
-            {MODES.map((mode) => {
+            {DAILY_MODES.map((mode) => {
               const s = data.stats[mode];
               return (
                 <section key={mode} className="card stat-card">

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
-import { DAILY_MAX_POINTS, DAILY_UTC_OFFSET_MS, MODES, MODE_LABELS, todayUtc7, type Mode } from '../shared/modes';
-import { api, type Account, type PuzzleState } from './api';
+import { DAILY_MAX_POINTS, DAILY_MODES, DAILY_UTC_OFFSET_MS, MODE_LABELS, todayUtc7, type DailyMode } from '../shared/modes';
+import { api, type Account, type DailyPuzzleState } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtDate, fmtNumber } from './format';
 import { ArrowIcon, DatabaseIcon, DiscIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
@@ -23,7 +23,7 @@ function Countdown() {
   return <span className="countdown">{text}</span>;
 }
 
-const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
+const MODE_CARDS: Record<DailyMode, { Icon: ComponentType; text: string }> = {
   anidle: { Icon: PuzzleIcon, text: `Guess from clues: year, score, source, studio, genres and tags. ${ANIDLE_MAX_GUESSES} tries, and Skip jumps to the next clue.` },
   opening: { Icon: MusicIcon, text: '3 rounds of full openings, one guess each. Stuck? The blurred music video costs half the points.' },
   ending: { Icon: DiscIcon, text: '3 rounds of full endings, one guess each. The clue: the blurred music video and cover.' },
@@ -32,7 +32,7 @@ const MODE_CARDS: Record<Mode, { Icon: ComponentType; text: string }> = {
 };
 
 /** A daily puzzle that could not load (e.g. the mode's pool is still empty). */
-type DailyResult = PuzzleState | 'unavailable' | null;
+type DailyResult = DailyPuzzleState | 'unavailable' | null;
 
 /** The card's badge (`text`, kept short for the narrow five-across cards) and CTA; a finished puzzle's CTA is its points (opens the result). */
 function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean } {
@@ -61,12 +61,12 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
 export function Home({ account }: { account: Account | null }) {
   // null = today; an earlier day replays the archive (`/?date=`).
   const [date, setDate] = useState<string | null>(() => archiveDate(new URLSearchParams(location.search).get('date')));
-  const [daily, setDaily] = useState<Record<Mode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
+  const [daily, setDaily] = useState<Record<DailyMode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
   useEffect(() => {
     history.replaceState(null, '', date ? `/?date=${date}` : '/');
     let cancelled = false;
     setDaily({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
-    for (const mode of MODES)
+    for (const mode of DAILY_MODES)
       api.daily(mode, date ?? undefined).then(
         (p) => !cancelled && setDaily((d) => ({ ...d, [mode]: p })),
         () => !cancelled && setDaily((d) => ({ ...d, [mode]: 'unavailable' })),
@@ -76,7 +76,7 @@ export function Home({ account }: { account: Account | null }) {
     };
   }, [date]);
   const shown = date ?? todayUtc7();
-  const dayScore = MODES.reduce((sum, m) => {
+  const dayScore = DAILY_MODES.reduce((sum, m) => {
     const p = daily[m];
     return sum + (p && p !== 'unavailable' && p.finished ? (p.score ?? 0) : 0);
   }, 0);
@@ -127,7 +127,7 @@ export function Home({ account }: { account: Account | null }) {
       <section className="book">
         <h2 className="book-tab">Daily puzzles</h2>
         <div className="daily-grid">
-          {MODES.map((mode) => {
+          {DAILY_MODES.map((mode) => {
             const { Icon, text } = MODE_CARDS[mode];
             const status = dailyStatus(daily[mode]);
             return (
@@ -156,7 +156,7 @@ export function Home({ account }: { account: Account | null }) {
             <ShuffleIcon />
           </span>
           <h3>Unlimited</h3>
-          <p className="muted">As many random puzzles as you like in any mode. Set the pool, genre, and difficulty.</p>
+          <p className="muted">As many random puzzles as you like in any mode, including Connections (beta). Set the pool, genre, and difficulty.</p>
         </a>
         <a className="tile" href="/database">
           <span className="tile-icon">

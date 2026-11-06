@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { groupSkips, type AnidleFeedback, type Direction, type ListClue } from '../shared/anidle';
-import { MODE_LABELS } from '../shared/modes';
-import type { AnidleState, CharacterState, RoundState, SongState } from './api';
+import { MODE_LABELS, type Mode } from '../shared/modes';
+import type { AnidleState, CharacterState, ConnectionsState, RoundState, SongState } from './api';
 import { fmtDate, fmtNumber } from './format';
 import { ShareIcon } from './icons';
 
@@ -18,8 +18,7 @@ function anidleRow(g: AnidleFeedback): string {
   return [number(g.year.direction), number(g.score.direction), scalar(g.source.match), list(g.studios), list(g.genres), list(g.tags)].join('');
 }
 
-const heading = (mode: AnidleState['mode'] | RoundState['mode'] | SongState['mode'] | CharacterState['mode'], date: string | null, score: number | null) =>
-  `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${fmtNumber(score ?? 0)} pts`;
+const heading = (mode: Mode, date: string | null, score: number | null) => `${MODE_LABELS[mode]} · ${date ? fmtDate(date) : 'Unlimited'} · ${fmtNumber(score ?? 0)} pts`;
 
 /** One row per guess; a run of skipped tries is one "⏭️ ×n" row. */
 export function anidleShareText(p: AnidleState): string {
@@ -44,6 +43,17 @@ export function songShareText(p: SongState): string {
 export function characterShareText(p: CharacterState): string {
   const rows = p.rounds.map((r, i) => `R${i + 1} ${r.slots.map((s) => `${s.name.solved ? '🟩' : '🟥'}${s.anime.solved ? '🟩' : '🟥'}`).join(' ')}`);
   return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
+}
+
+/** Group colours, easiest first (ConnectionsGroup.tier). */
+const TIER_SQUARES = ['🟨', '🟩', '🟦', '🟪'];
+
+/** One row per guess, NYT style: each title's square in its group's colour. Only for a finished board (every group known). */
+export function connectionsShareText(p: ConnectionsState): string {
+  const tierOf = new Map(p.groups.flatMap((g) => g.malIds.map((id) => [id, g.tier] as const)));
+  const rows = p.guesses.map((g) => g.malIds.map((id) => TIER_SQUARES[tierOf.get(id) ?? 0]).join(''));
+  const result = p.solved ? `${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'}` : 'not solved';
+  return [`${heading(p.mode, p.date, p.score)} (${result})`, ...rows, SITE].join('\n');
 }
 
 /** Native share sheet when there is one (phones), else the clipboard. Resolves to what happened. */

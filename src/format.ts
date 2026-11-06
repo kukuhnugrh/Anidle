@@ -13,8 +13,9 @@ export const fmtNumber = (n: number) => n.toLocaleString('en-US');
 export const fmtDate = (isoDate: string) =>
   new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
-/** One line for a finished puzzle: Anidle "4 guesses", round modes "2/3 rounds", Character "9/12 characters". */
+/** One line for a finished puzzle: Anidle "4 guesses", round modes "2/3 rounds", Character "9/12 characters", Connections "3/4 groups". */
 export function resultText(mode: Mode, solved: number, attempts: number): string {
   if (mode === 'anidle') return solved ? `${attempts} guesses` : 'not solved';
-  return `${solved}/${PERFECT_SOLVED[mode]} ${mode === 'character' ? 'characters' : 'rounds'}`;
+  const unit = mode === 'character' ? 'characters' : mode === 'connections' ? 'groups' : 'rounds';
+  return `${solved}/${PERFECT_SOLVED[mode]} ${unit}`;
 }

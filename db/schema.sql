@@ -127,6 +127,17 @@ CREATE TABLE IF NOT EXISTS puzzle_character (
   PRIMARY KEY (puzzle_id, round, slot)
 );
 
+-- Connections (beta): the board's groups, easiest first (grp 0..3). link = what its titles share
+-- (shared/connections.ts, e.g. 'studio:MAPPA'); mal_ids = JSON number[] of its titles. puzzle.answer_id
+-- repeats the first title of group 0.
+CREATE TABLE IF NOT EXISTS puzzle_group (
+  puzzle_id  TEXT NOT NULL,
+  grp        INTEGER NOT NULL,
+  link       TEXT NOT NULL,
+  mal_ids    TEXT NOT NULL,
+  PRIMARY KEY (puzzle_id, grp)
+);
+
 -- Media copied to R2 by the pipeline step `media`. One row per title and kind; modes that need a kind
 -- only use titles whose row is ok. Songs live in anime_theme.
 CREATE TABLE IF NOT EXISTS anime_media (

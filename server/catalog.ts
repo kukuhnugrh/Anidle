@@ -48,6 +48,12 @@ export interface CatalogShow {
 /** Catalog row 'shows': CatalogShow by show id. */
 export type CatalogShows = Record<string, CatalogShow>;
 
+/**
+ * Catalog row 'traits' (Connections): each show's link keys (shared/connections.ts), by show id, only
+ * links that enough franchises share to make a group. Its own row, so other modes never parse it.
+ */
+export type CatalogTraits = Record<string, string[]>;
+
 /** Catalog row 'lists': the R2 keys of the current lists, and those of the generation before. */
 export type CatalogListKeys = Record<CatalogListName, string> & {
   /** Deleted by the next rebuild: clients may still hold their URLs (CDN-cached /api/lists) until then. */
@@ -70,6 +76,14 @@ export const catalogShows = (): Promise<Map<number, CatalogShow>> =>
         .map(([id, show]): [number, CatalogShow] => [Number(id), show])
         .sort(([a], [b]) => a - b),
     );
+  });
+
+/** Every show's Connections links; one row read per instance per CATALOG_TTL_MS. */
+export const catalogTraits = (): Promise<CatalogTraits> =>
+  memo('catalog:traits', CATALOG_TTL_MS, async () => {
+    const row = await one<{ value: string }>(`SELECT value FROM catalog WHERE key = 'traits'`);
+    if (!row) throw new HttpError(503, 'Connections needs the catalog rebuilt first (pipeline step catalog).');
+    return JSON.parse(row.value) as CatalogTraits;
   });
 
 /** The current lists' public URLs (GET /api/lists). */

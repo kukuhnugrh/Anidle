@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { MODE_LABELS, MODES, todayUtc7, type Mode } from '../shared/modes';
+import { DAILY_MODES, MODE_LABELS, todayUtc7, type DailyMode } from '../shared/modes';
 import { api, errorMessage, type Account, type Leaderboard } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtNumber, resultText } from './format';
 
-type Tab = Mode | 'total';
+type Tab = DailyMode | 'total';
 
 function readDate(): string {
   const date = new URLSearchParams(location.search).get('date');
@@ -58,7 +58,7 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
       <div className="board-bar">
         <DatePicker date={date} onChange={setDate} />
         <div className="tabs-inline" role="tablist">
-          {(['total', ...MODES] as const).map((t) => (
+          {(['total', ...DAILY_MODES] as const).map((t) => (
             <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
               {t === 'total' ? 'Total' : MODE_LABELS[t]}
             </button>

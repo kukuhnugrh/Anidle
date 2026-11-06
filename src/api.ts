@@ -1,5 +1,6 @@
 import type { AdminPage } from '../server/admin';
 import type { CharacterPick, CharacterState } from '../server/characters';
+import type { ConnectionsState } from '../server/connections';
 import type { AnidleState } from '../server/game';
 import type { MalList, MalListCategory, MalListEntry } from '../server/mallist';
 import type { PuzzleState } from '../server/puzzles';
@@ -8,10 +9,13 @@ import type { SongState } from '../server/songs';
 import type { History, Leaderboard, TodayScore } from '../server/stats';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { CatalogListName, CatalogLists, DbDetail, DbPage } from '../shared/database';
-import type { Mode } from '../shared/modes';
+import type { DailyMode, Mode } from '../shared/modes';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AdminPage, AnidleState, CharacterPick, CharacterState, History, Leaderboard, MalList, MalListCategory, MalListEntry, PuzzleState, RoundState, SongState, TodayScore };
+export type { AdminPage, AnidleState, CharacterPick, CharacterState, ConnectionsState, History, Leaderboard, MalList, MalListCategory, MalListEntry, PuzzleState, RoundState, SongState, TodayScore };
+
+/** A daily puzzle: any mode but the beta ones, which have none. */
+export type DailyPuzzleState = Exclude<PuzzleState, ConnectionsState>;
 
 export interface MalLink {
   username: string;
@@ -100,7 +104,7 @@ export const api = {
     return res.json();
   },
   /** The daily puzzle of `date` (YYYY-MM-DD; omitted = today). */
-  daily: (mode: Mode, date?: string) => call<PuzzleState>(`/api/puzzle?mode=${mode}${date ? `&date=${date}` : ''}`),
+  daily: (mode: DailyMode, date?: string) => call<DailyPuzzleState>(`/api/puzzle?mode=${mode}${date ? `&date=${date}` : ''}`),
   resume: (id: string) => call<PuzzleState>(`/api/puzzle?id=${encodeURIComponent(id)}`),
   unlimited: (options: UnlimitedOptions) => call<PuzzleState>('/api/puzzle', { method: 'POST', body: options }),
   guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
@@ -113,6 +117,8 @@ export const api = {
   /** Song and Screenshot puzzles; answers with the same kind of state it was asked for. */
   replaceRound: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   characterGuess: (puzzleId: string, round: number, picks: CharacterPick[]) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, picks } }),
+  /** Connections: one guess of four titles. */
+  connectionsGuess: (puzzleId: string, malIds: number[]) => call<ConnectionsState>('/api/guess', { method: 'POST', body: { puzzleId, malIds } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),
   history: () => call<History>('/api/history'),
