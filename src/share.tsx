@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { groupSkips, type AnidleFeedback, type Direction, type ListClue } from '../shared/anidle';
 import { MODE_LABELS, type Mode } from '../shared/modes';
-import type { AnidleState, CharacterState, ConnectionsState, RoundState, SongState } from './api';
+import type { AnidleState, CharacterState, ConnectionsState, HigherLowerState, OddOneOutState, RoundState, SongState, SynopsisState, TimelineState } from './api';
 import { fmtDate, fmtNumber } from './format';
 import { ShareIcon } from './icons';
 
@@ -27,8 +27,8 @@ export function anidleShareText(p: AnidleState): string {
   return [`${heading(p.mode, p.date, p.score)} (${result})`, ...rows, SITE].join('\n');
 }
 
-/** Per round: 🟨 per clue unlocked, then 🟩 right, 🟥 wrong or ⬜ gave up. */
-export function roundShareText(p: RoundState): string {
+/** Per round: 🟨 per clue unlocked (Synopsis: per extra sentence), then 🟩 right, 🟥 wrong or ⬜ gave up. */
+export function roundShareText(p: RoundState | SynopsisState): string {
   const rows = p.rounds.map((r, i) => `R${i + 1} ${'🟨'.repeat(r.clues)}${r.solved ? '🟩' : r.gaveUp ? '⬜' : '🟥'}`);
   return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
 }
@@ -54,6 +54,22 @@ export function connectionsShareText(p: ConnectionsState): string {
   const rows = p.guesses.map((g) => g.malIds.map((id) => TIER_SQUARES[tierOf.get(id) ?? 0]).join(''));
   const result = p.solved ? `${p.mistakes} ${p.mistakes === 1 ? 'mistake' : 'mistakes'}` : 'not solved';
   return [`${heading(p.mode, p.date, p.score)} (${result})`, ...rows, SITE].join('\n');
+}
+
+/** The run as one row: 🟩 per right call, 🟥 for the miss that ended it. */
+export function higherLowerShareText(p: HigherLowerState): string {
+  return [`${heading(p.mode, p.date, p.score)} (${p.streak}/${p.maxSteps})`, p.steps.map((s) => (s.right ? '🟩' : '🟥')).join(''), SITE].join('\n');
+}
+
+/** One square per round: 🟩 right pick, 🟥 wrong. */
+export function oddOneOutShareText(p: OddOneOutState): string {
+  return [heading(p.mode, p.date, p.score), p.rounds.map((r) => (r.solved ? '🟩' : '🟥')).join(''), SITE].join('\n');
+}
+
+/** Per round, one square per place: 🟩 the right title there, 🟥 not. */
+export function timelineShareText(p: TimelineState): string {
+  const rows = p.rounds.map((r, i) => `R${i + 1} ${r.tiles.map((t, at) => (r.answer?.[at] === t.malId ? '🟩' : '🟥')).join('')}`);
+  return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
 }
 
 /** Native share sheet when there is one (phones), else the clipboard. Resolves to what happened. */

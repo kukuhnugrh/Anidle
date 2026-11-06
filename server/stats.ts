@@ -145,15 +145,24 @@ export async function history(playerKey: string): Promise<History> {
       )
     : [];
   const roundsOf = Map.groupBy(rounds, (r) => r.puzzle_id);
-  // Connections lists its groups' links instead of titles.
-  const groups = ids.length ? await all<{ puzzle_id: string; link: string }>(`SELECT puzzle_id, link FROM puzzle_group WHERE puzzle_id IN (${marks}) ORDER BY grp`, ids) : [];
+  // Connections and Odd One Out list their links; Timeline (no link) its titles, like the round modes.
+  const groups = ids.length ? await all<{ puzzle_id: string; link: string; mal_ids: string }>(`SELECT puzzle_id, link, mal_ids FROM puzzle_group WHERE puzzle_id IN (${marks}) ORDER BY grp`, ids) : [];
   const groupsOf = Map.groupBy(groups, (g) => g.puzzle_id);
-  const answerIds = [...new Set([...recentRows.map((r) => Number(r.answer_id)), ...rounds.map((r) => Number(r.mal_id))])];
+  const groupTitles = groups.filter((g) => !g.link).flatMap((g) => JSON.parse(g.mal_ids) as number[]);
+  const answerIds = [...new Set([...recentRows.map((r) => Number(r.answer_id)), ...rounds.map((r) => Number(r.mal_id)), ...groupTitles])];
   const titles = new Map(
     answerIds.length
       ? (await all<{ mal_id: number; title: string }>(`SELECT mal_id, title FROM anime WHERE mal_id IN (${answerIds.map(() => '?').join(',')})`, answerIds)).map((t) => [Number(t.mal_id), t.title])
       : [],
   );
+  const titleOf = (id: number) => titles.get(id) ?? `#${id}`;
+  /** The titles or links a finished puzzle was about (a Higher or Lower run lists the titles it reached). */
+  const answersOf = (r: (typeof recentRows)[number]): string[] => {
+    const own = groupsOf.get(r.id);
+    if (own) return own.flatMap((g) => (g.link ? [linkLabel(g.link)] : (JSON.parse(g.mal_ids) as number[]).map(titleOf)));
+    const ids = roundsOf.get(r.id)?.map((x) => Number(x.mal_id)) ?? [Number(r.answer_id)];
+    return (r.mode === 'higherlower' ? ids.slice(0, Number(r.solved) + 2) : ids).map(titleOf);
+  };
 
   const modeStats = (mode: DailyMode): ModeStats => {
     const daily = rows.filter((r) => r.mode === mode && Number(r.on_the_day));
@@ -177,9 +186,7 @@ export async function history(playerKey: string): Promise<History> {
       score: Number(r.score ?? 0),
       solved: Number(r.solved),
       attempts: attemptCount(r.guesses),
-      answers:
-        groupsOf.get(r.id)?.map((g) => linkLabel(g.link)) ??
-        (roundsOf.get(r.id)?.map((x) => Number(x.mal_id)) ?? [Number(r.answer_id)]).map((id) => titles.get(id) ?? `#${id}`),
+      answers: answersOf(r),
       finishedAt: r.finished_at,
     })),
   };

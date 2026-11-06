@@ -3,8 +3,10 @@ import { anidleScore, compareAnidle, groupSkips, maskSynopsis, summarizeAnidle, 
 import { aliasOf, characterAliases, characterDifficultyOf, isRomaji, sameCharacterName } from './characters';
 import { difficultyOf, exclusionReason } from './catalog';
 import { CONNECTIONS_GROUP_SIZE, connectionsScore, drawBoard, judgeGuess, linkKey, LINK_KINDS, type BoardCandidate } from './connections';
+import { drawOddRounds } from './oddoneout';
+import { synopsisSentences } from './synopsis';
 import { franchiseIds } from './franchise';
-import { roundDifficulties, roundTries } from './modes';
+import { ODD_ONE_OUT_SIZE, roundDifficulties, roundTries } from './modes';
 import { indexNames, normalizeTitle, searchNames, titleHint } from './normalize';
 
 const anime = (over: Partial<AnidleAnime>): AnidleAnime => ({
@@ -267,24 +269,24 @@ describe('roundTries', () => {
   });
 });
 
-describe('drawBoard', () => {
-  /** Deterministic random(size) for a seed (LCG). */
-  const seeded = (seed: number) => (size: number) => {
-    seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31;
-    return seed % size;
-  };
-  /** Shows with overlapping links from a small vocabulary, so most titles carry several links that could mislead. */
-  const pool = (count: number, random: (size: number) => number): BoardCandidate[] =>
-    Array.from({ length: count }, (_, i) => ({
-      malId: i + 1,
-      // Every 5th show shares its franchise with the one before.
-      franchise: i % 5 === 4 ? i : i + 1,
-      links: [...new Set(Array.from({ length: 4 }, () => linkKey(LINK_KINDS[random(LINK_KINDS.length)]!, random(6))))],
-    }));
+/** Deterministic random(size) for a seed (LCG). */
+const seeded = (seed: number) => (size: number) => {
+  seed = (seed * 1_103_515_245 + 12_345) % 2 ** 31;
+  return seed % size;
+};
+/** Shows with overlapping links from a small vocabulary, so most titles carry several links that could mislead. */
+const linkPool = (count: number, random: (size: number) => number): BoardCandidate[] =>
+  Array.from({ length: count }, (_, i) => ({
+    malId: i + 1,
+    // Every 5th show shares its franchise with the one before.
+    franchise: i % 5 === 4 ? i : i + 1,
+    links: [...new Set(Array.from({ length: 4 }, () => linkKey(LINK_KINDS[random(LINK_KINDS.length)]!, random(6))))],
+  }));
 
+describe('drawBoard', () => {
   it('gives every group a link that no other title on the board carries, from distinct franchises', () => {
     for (let seed = 1; seed <= 40; seed++) {
-      const candidates = pool(160, seeded(seed));
+      const candidates = linkPool(160, seeded(seed));
       const board = drawBoard(candidates, seeded(seed * 7));
       expect(board).not.toBeNull();
       const byId = new Map(candidates.map((c) => [c.malId, c]));
@@ -301,6 +303,43 @@ describe('drawBoard', () => {
   it('returns null when the pool cannot fill a board', () => {
     const tiny = Array.from({ length: 15 }, (_, i) => ({ malId: i + 1, franchise: i + 1, links: [linkKey('studio', i % 4)] }));
     expect(drawBoard(tiny, seeded(1))).toBeNull();
+  });
+});
+
+describe('drawOddRounds', () => {
+  it('makes the last title the only one whose removal leaves titles sharing a link', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const candidates = linkPool(200, seeded(seed));
+      const rounds = drawOddRounds(candidates, seeded(seed * 11));
+      expect(rounds).not.toBeNull();
+      const byId = new Map(candidates.map((c) => [c.malId, c]));
+      const ids = rounds!.flatMap((r) => r.malIds);
+      expect(new Set(ids.map((id) => byId.get(id)!.franchise)).size).toBe(ids.length);
+      for (const r of rounds!) {
+        expect(r.malIds).toHaveLength(ODD_ONE_OUT_SIZE);
+        const titles = r.malIds.map((id) => byId.get(id)!);
+        const answers = titles.filter((_, skip) => {
+          const rest = titles.filter((__, i) => i !== skip);
+          return rest[0]!.links.some((l) => rest.every((t) => t.links.includes(l)));
+        });
+        expect(answers).toEqual([titles.at(-1)]);
+        expect(titles.slice(0, -1).every((t) => t.links.includes(r.link))).toBe(true);
+      }
+    }
+  });
+});
+
+describe('synopsisSentences', () => {
+  it('splits after sentence ends (keeping masks and quotes with their sentence) and keeps the first five', () => {
+    expect(synopsisSentences('▇▇▇ is a boy. "He wins!" Then▇▇▇ loses?\n\n▇▇▇ returns… In 2019 it ends.')).toEqual([
+      '▇▇▇ is a boy.',
+      '"He wins!"',
+      'Then▇▇▇ loses?',
+      '▇▇▇ returns…',
+      'In 2019 it ends.',
+    ]);
+    expect(synopsisSentences('A. B. C. D. E. F.')).toHaveLength(5);
+    expect(synopsisSentences('Version 2.0 is out.')).toEqual(['Version 2.0 is out.']);
   });
 });
 

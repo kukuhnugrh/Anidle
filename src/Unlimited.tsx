@@ -13,6 +13,10 @@ const MODE_HINTS: Record<Mode, string> = {
   character: '3 rounds, 4 characters',
   screenshot: '3 rounds, zooming out',
   connections: '16 titles, 4 hidden groups',
+  synopsis: '3 rounds of synopses',
+  higherlower: 'MAL score, 20 in a row',
+  oddoneout: '5 rounds, spot the outlier',
+  timeline: '3 rounds, sort by year',
 };
 
 const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: Difficulty[] }> = {

@@ -2,20 +2,46 @@ import type { AdminPage } from '../server/admin';
 import type { CharacterPick, CharacterState } from '../server/characters';
 import type { ConnectionsState } from '../server/connections';
 import type { AnidleState } from '../server/game';
+import type { HigherLowerState } from '../server/higherlower';
 import type { MalList, MalListCategory, MalListEntry } from '../server/mallist';
+import type { OddOneOutState } from '../server/oddoneout';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
 import type { SongState } from '../server/songs';
 import type { History, Leaderboard, TodayScore } from '../server/stats';
+import type { SynopsisState } from '../server/synopsis';
+import type { TimelineState } from '../server/timeline';
+import type { HigherLowerPick } from '../shared/higherlower';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { CatalogListName, CatalogLists, DbDetail, DbPage } from '../shared/database';
 import type { DailyMode, Mode } from '../shared/modes';
 
 // Puzzle payloads are typed by the server modules that build them (type-only imports, erased at build).
-export type { AdminPage, AnidleState, CharacterPick, CharacterState, ConnectionsState, History, Leaderboard, MalList, MalListCategory, MalListEntry, PuzzleState, RoundState, SongState, TodayScore };
+export type {
+  AdminPage,
+  AnidleState,
+  CharacterPick,
+  CharacterState,
+  ConnectionsState,
+  HigherLowerState,
+  History,
+  Leaderboard,
+  MalList,
+  MalListCategory,
+  MalListEntry,
+  OddOneOutState,
+  PuzzleState,
+  RoundState,
+  SongState,
+  SynopsisState,
+  TimelineState,
+  TodayScore,
+};
 
 /** A daily puzzle: any mode but the beta ones, which have none. */
-export type DailyPuzzleState = Exclude<PuzzleState, ConnectionsState>;
+export type DailyPuzzleState = Extract<PuzzleState, { mode: DailyMode }>;
+/** Puzzles of rounds with one title, one guess and clues (Opening, Ending, Guess the Anime, Synopsis). */
+type ClueRoundState = SongState | RoundState | SynopsisState;
 
 export interface MalLink {
   username: string;
@@ -110,15 +136,20 @@ export const api = {
   guess: (puzzleId: string, malId: number) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, malId } }),
   /** Anidle: use the tries up to the next clue without guessing. */
   anidleSkip: (puzzleId: string) => call<AnidleState>('/api/guess', { method: 'POST', body: { puzzleId, skip: true } }),
-  /** Song and Screenshot rounds: one guess, open the (next) clue, or give up; answers with the state of the same kind. */
-  roundGuess: <T extends SongState | RoundState>(puzzleId: string, round: number, malId: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, malId } }),
-  roundClue: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, clue: true } }),
-  roundGiveUp: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
+  /** Song, Screenshot and Synopsis rounds: one guess, open the (next) clue, or give up; answers with the state of the same kind. */
+  roundGuess: <T extends ClueRoundState>(puzzleId: string, round: number, malId: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, malId } }),
+  roundClue: <T extends ClueRoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, clue: true } }),
+  roundGiveUp: <T extends ClueRoundState>(puzzleId: string, round: number) => call<T>('/api/guess', { method: 'POST', body: { puzzleId, round, giveUp: true } }),
   /** Song and Screenshot puzzles; answers with the same kind of state it was asked for. */
   replaceRound: <T extends SongState | RoundState>(puzzleId: string, round: number) => call<T>('/api/puzzle/replace', { method: 'POST', body: { puzzleId, round } }),
   characterGuess: (puzzleId: string, round: number, picks: CharacterPick[]) => call<CharacterState>('/api/guess', { method: 'POST', body: { puzzleId, round, picks } }),
   /** Connections: one guess of four titles. */
   connectionsGuess: (puzzleId: string, malIds: number[]) => call<ConnectionsState>('/api/guess', { method: 'POST', body: { puzzleId, malIds } }),
+  higherLowerPick: (puzzleId: string, pick: HigherLowerPick) => call<HigherLowerState>('/api/guess', { method: 'POST', body: { puzzleId, pick } }),
+  /** Odd One Out: the round's one pick. */
+  oddOneOutPick: (puzzleId: string, round: number, malId: number) => call<OddOneOutState>('/api/guess', { method: 'POST', body: { puzzleId, round, malId } }),
+  /** Timeline: the round's titles, oldest first. */
+  timelineOrder: (puzzleId: string, round: number, order: number[]) => call<TimelineState>('/api/guess', { method: 'POST', body: { puzzleId, round, order } }),
   animeList: (query: string) => call<DbPage>(`/api/anime?${query}`),
   leaderboard: (date: string) => call<Leaderboard>(`/api/leaderboard?date=${date}`),
   history: () => call<History>('/api/history'),

@@ -15,15 +15,16 @@ export const FIRST_DAILY_DATE = '2026-10-25';
 /** `date` (YYYY-MM-DD) shifted by `days`. */
 export const shiftDate = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
-export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot', 'connections'] as const;
+export const MODES = ['anidle', 'opening', 'ending', 'character', 'screenshot', 'connections', 'synopsis', 'higherlower', 'oddoneout', 'timeline'] as const;
 export type Mode = (typeof MODES)[number];
 /** Modes still in beta: unlimited only (no daily puzzle, leaderboard, streak or share of DAILY_MAX_POINTS), labelled Beta. */
-export type BetaMode = 'connections';
+export const BETA_MODES = ['connections', 'synopsis', 'higherlower', 'oddoneout', 'timeline'] as const satisfies readonly Mode[];
+export type BetaMode = (typeof BETA_MODES)[number];
 export type DailyMode = Exclude<Mode, BetaMode>;
-/** The modes with a daily puzzle: Home, the day bar, leaderboard, history stats and the day's total. */
-export const DAILY_MODES = MODES.filter((m): m is DailyMode => m !== 'connections');
-export const isBetaMode = (mode: Mode): mode is BetaMode => mode === 'connections';
+export const isBetaMode = (mode: Mode): mode is BetaMode => (BETA_MODES as readonly Mode[]).includes(mode);
 export const isDailyMode = (mode: Mode): mode is DailyMode => !isBetaMode(mode);
+/** The modes with a daily puzzle: Home, the day bar, leaderboard, history stats and the day's total. */
+export const DAILY_MODES = MODES.filter(isDailyMode);
 /** Song modes: one title per round, the full song plays, one guess, an optional blurred clue. */
 export type SongMode = 'opening' | 'ending';
 /** Clue modes: one title per round, one guess, clues opened on demand (Screenshot). */
@@ -36,6 +37,10 @@ export const MODE_LABELS: Record<Mode, string> = {
   character: 'Character',
   screenshot: 'Guess the Anime',
   connections: 'Connections',
+  synopsis: 'Synopsis',
+  higherlower: 'Higher or Lower',
+  oddoneout: 'Odd One Out',
+  timeline: 'Timeline',
 };
 
 /** anime_media.kind: media the pipeline copied to R2 for a title. Songs live in anime_theme (SONG_KIND). */
@@ -55,8 +60,17 @@ export type MediaStatus = (typeof MEDIA_STATUSES)[number];
 export const isRoundMode = (mode: Mode): mode is RoundMode => mode === 'screenshot';
 export const isSongMode = (mode: Mode): mode is SongMode => mode === 'opening' || mode === 'ending';
 
-/** What a title needs to be asked in the other modes (Anidle and Connections need nothing); song modes need a theme of SONG_KIND. */
-export const MODE_MEDIA: Record<Exclude<Mode, SongMode>, Exclude<MediaKind, 'cover'> | null> = { anidle: null, screenshot: 'shots', character: 'chars', connections: null };
+/** What a title needs to be asked in the other modes (Anidle and the beta modes need nothing); song modes need a theme of SONG_KIND. */
+export const MODE_MEDIA: Record<Exclude<Mode, SongMode>, Exclude<MediaKind, 'cover'> | null> = {
+  anidle: null,
+  screenshot: 'shots',
+  character: 'chars',
+  connections: null,
+  synopsis: null,
+  higherlower: null,
+  oddoneout: null,
+  timeline: null,
+};
 
 export const ROUND_COUNT = 3;
 
@@ -72,13 +86,27 @@ export const SCREENSHOT_CLUES = ['shot', 'shot', 'title'] as const;
 /**
  * What each mode's puzzle is worth; a day's five daily puzzles add up to DAILY_MAX_POINTS (100,000).
  * Guess the Anime and Character weigh most (three rounds of 10,000), Opening and Ending three rounds
- * of 5,000, Anidle one puzzle of 10,000. Connections (beta, unlimited only) is one board of 10,000.
+ * of 5,000, Anidle one puzzle of 10,000. The beta modes (unlimited only): Connections, Higher or Lower
+ * and Odd One Out 10,000, Synopsis and Timeline three rounds of 5,000.
  */
-export const MODE_MAX_POINTS: Record<Mode, number> = { anidle: 10_000, opening: 15_000, ending: 15_000, character: 30_000, screenshot: 30_000, connections: 10_000 };
+export const MODE_MAX_POINTS: Record<Mode, number> = {
+  anidle: 10_000,
+  opening: 15_000,
+  ending: 15_000,
+  character: 30_000,
+  screenshot: 30_000,
+  connections: 10_000,
+  synopsis: 15_000,
+  higherlower: 10_000,
+  oddoneout: 10_000,
+  timeline: 15_000,
+};
 export const DAILY_MAX_POINTS = DAILY_MODES.reduce((sum, mode) => sum + MODE_MAX_POINTS[mode], 0);
 
+/** Modes of ROUND_COUNT rounds. */
+export type ThreeRoundMode = Exclude<Mode, 'anidle' | 'connections' | 'higherlower' | 'oddoneout'>;
 /** A round of a three-round mode: an equal share of the mode's points, whatever its difficulty. */
-export const roundMaxPoints = (mode: Exclude<Mode, 'anidle' | 'connections'>) => MODE_MAX_POINTS[mode] / ROUND_COUNT;
+export const roundMaxPoints = (mode: ThreeRoundMode) => MODE_MAX_POINTS[mode] / ROUND_COUNT;
 
 /** Song modes: one guess; right = the round's points, half of them after opening the clue (the blurred music video); a miss scores 0. */
 export const SONG_CLUE_SHARE = 0.5;
@@ -118,8 +146,18 @@ export const CHARACTERS_PER_ROUND = 4;
 
 /** Connections: groups on a board (of CONNECTIONS_GROUP_SIZE titles each, shared/connections.ts). */
 export const CONNECTIONS_GROUPS = 4;
+/** Higher or Lower: comparisons in a full run (one more title than that). */
+export const HIGHER_LOWER_STEPS = 20;
+/** Odd One Out: rounds of ODD_ONE_OUT_SIZE titles. */
+export const ODD_ONE_OUT_ROUNDS = 5;
+export const ODD_ONE_OUT_SIZE = 5;
+/** Timeline: titles to put in airing order per round. */
+export const TIMELINE_SIZE = 5;
 
-/** play.solved of a perfect puzzle: Anidle solved, every round, every character (name + anime), or every Connections group. */
+/**
+ * play.solved of a perfect puzzle: Anidle solved, every round, every character (name + anime), every
+ * Connections group, a full Higher or Lower run, or every Timeline title in its place.
+ */
 export const PERFECT_SOLVED: Record<Mode, number> = {
   anidle: 1,
   opening: ROUND_COUNT,
@@ -127,5 +165,9 @@ export const PERFECT_SOLVED: Record<Mode, number> = {
   screenshot: ROUND_COUNT,
   character: ROUND_COUNT * CHARACTERS_PER_ROUND,
   connections: CONNECTIONS_GROUPS,
+  synopsis: ROUND_COUNT,
+  higherlower: HIGHER_LOWER_STEPS,
+  oddoneout: ODD_ONE_OUT_ROUNDS,
+  timeline: ROUND_COUNT * TIMELINE_SIZE,
 };
 

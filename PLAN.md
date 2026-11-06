@@ -127,6 +127,7 @@ Puzzle harian **disimpan** saat pertama diminta (dipilih dari seed `tanggal+mode
 3. **Karakter**: 4 portrait karakter dari satu anime per ronde.
 4. **Screenshot**: dari frame video OP/ED.
 5. **Connections** (beta, hanya unlimited): 16 judul, 4 grup tersembunyi yang berbagi satu link (genre, theme, demographic, source, studio, tahun, artis OP/ED; baris catalog `traits`). Pilih 4, "one away" kalau 3 benar, 4 kesalahan = selesai. Belum ada puzzle harian/leaderboard sampai keluar dari beta.
+6. **Synopsis**, **Higher or Lower**, **Odd One Out**, **Timeline** (beta, hanya unlimited): tebak dari sinopsis yang dibuka per kalimat; skor MAL lebih tinggi/rendah beruntun; cari satu judul yang tidak berbagi link dengan empat lainnya; urutkan lima judul menurut tahun tayang. Detail di README.
 
 **Jawaban**:
 - Pemain memilih judul dari autocomplete (yang dikirim `mal_id`), bukan teks bebas. Autocomplete mencari di judul romaji, Inggris, Jepang, dan sinonim setelah normalisasi (huruf kecil, tanpa tanda baca/makron).

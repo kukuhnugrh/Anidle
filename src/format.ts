@@ -13,9 +13,20 @@ export const fmtNumber = (n: number) => n.toLocaleString('en-US');
 export const fmtDate = (isoDate: string) =>
   new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
-/** One line for a finished puzzle: Anidle "4 guesses", round modes "2/3 rounds", Character "9/12 characters", Connections "3/4 groups". */
+const RESULT_UNITS: Record<Exclude<Mode, 'anidle'>, string> = {
+  opening: 'rounds',
+  ending: 'rounds',
+  screenshot: 'rounds',
+  character: 'characters',
+  connections: 'groups',
+  synopsis: 'rounds',
+  higherlower: 'in a row',
+  oddoneout: 'rounds',
+  timeline: 'in place',
+};
+
+/** One line for a finished puzzle: Anidle "4 guesses", round modes "2/3 rounds", Character "9/12 characters", Connections "3/4 groups", …. */
 export function resultText(mode: Mode, solved: number, attempts: number): string {
   if (mode === 'anidle') return solved ? `${attempts} guesses` : 'not solved';
-  const unit = mode === 'character' ? 'characters' : mode === 'connections' ? 'groups' : 'rounds';
-  return `${solved}/${PERFECT_SOLVED[mode]} ${unit}`;
+  return `${solved}/${PERFECT_SOLVED[mode]} ${RESULT_UNITS[mode]}`;
 }

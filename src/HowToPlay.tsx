@@ -2,7 +2,21 @@ import { useRef, type ReactNode } from 'react';
 import { ANIDLE_CLUES } from '../shared/anidle';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
 import { CONNECTIONS_GROUP_SIZE, CONNECTIONS_MAX_MISTAKES } from '../shared/connections';
-import { CHARACTERS_PER_ROUND, CONNECTIONS_GROUPS, DAILY_MAX_POINTS, isBetaMode, MODE_LABELS, MODE_MAX_POINTS, ROUND_COUNT, type Mode } from '../shared/modes';
+import {
+  CHARACTERS_PER_ROUND,
+  CONNECTIONS_GROUPS,
+  DAILY_MAX_POINTS,
+  HIGHER_LOWER_STEPS,
+  isBetaMode,
+  MODE_LABELS,
+  MODE_MAX_POINTS,
+  ODD_ONE_OUT_ROUNDS,
+  ODD_ONE_OUT_SIZE,
+  ROUND_COUNT,
+  TIMELINE_SIZE,
+  type Mode,
+} from '../shared/modes';
+import { SYNOPSIS_MAX_SENTENCES } from '../shared/synopsis';
 import { BetaBadge } from './BetaBadge';
 import { fmtNumber } from './format';
 import { CloseIcon } from './icons';
@@ -69,6 +83,30 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
       Watch out for red herrings: a title can fit several links, but only one split works. {CONNECTIONS_MAX_MISTAKES} mistakes end the board and show every group.
     </>,
     <>Groups go from easiest (yellow) to trickiest (purple). Shuffle moves the titles around if you get stuck.</>,
+  ],
+  synopsis: [
+    <>{ROUND_COUNT} rounds, each the MAL synopsis of a different anime. The title, its other names and its best-known characters are hidden as ▇▇▇.</>,
+    <>The first sentence shows. Need more? Open the next one, up to {SYNOPSIS_MAX_SENTENCES} sentences; each costs points.</>,
+    <>Type a title, pick it from the list, then press Guess. One guess per round; any season, movie or remake of the same series counts. Give up shows the answer and scores 0.</>,
+  ],
+  higherlower: [
+    <>You see an anime and its MAL score. Does the next one score higher or lower? A right call moves it over and shows a new one.</>,
+    <>
+      The first wrong call ends the run; {HIGHER_LOWER_STEPS} right in a row is a perfect run. Neighbouring scores are always at least 0.1 apart.
+    </>,
+  ],
+  oddoneout: [
+    <>
+      {ODD_ONE_OUT_ROUNDS} rounds of {ODD_ONE_OUT_SIZE} anime. {ODD_ONE_OUT_SIZE - 1} of them share one thing: a genre, theme or demographic, their source, their studio, the year
+      they aired, or an OP/ED artist.
+    </>,
+    <>Pick the one that doesn't belong. One pick per round; the answer shows what the others share.</>,
+  ],
+  timeline: [
+    <>
+      {ROUND_COUNT} rounds of {TIMELINE_SIZE} anime, each from a different year. Use ▲ ▼ to put them in the order they started airing, oldest at the top.
+    </>,
+    <>Press Lock in order once per round. Every title in its right place scores; the years and the right order show after.</>,
   ],
 };
 

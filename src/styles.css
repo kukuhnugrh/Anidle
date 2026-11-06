@@ -380,8 +380,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .option.selected { background: var(--dp-color-selection); box-shadow: 3px 3px 0 var(--accent); }
 .lock { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: var(--dp-border-detail-width) solid var(--dp-color-rule-muted); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
 .segmented { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px; background: var(--ground); border: var(--detail); border-radius: 16px; }
-.segmented.modes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.segmented button { display: grid; gap: 0; padding: 8px 6px; background: transparent; border-color: transparent; box-shadow: none; text-align: center; }
+.segmented.modes { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.segmented button { position: relative; display: grid; gap: 0; padding: 8px 6px; background: transparent; border-color: transparent; box-shadow: none; text-align: center; }
 .segmented button:hover:not(:disabled) { background: var(--panel); border-color: var(--dp-color-rule-muted); box-shadow: none; transform: none; }
 .segmented button span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .segmented button.selected { background: var(--accent); border-color: var(--line); color: #fff; box-shadow: var(--shadow-sm); }
@@ -614,8 +614,10 @@ input:focus-visible, select:focus-visible { outline: none; }
   text-transform: uppercase; letter-spacing: .07em; vertical-align: middle; color: var(--on-fill); background: var(--dp-color-accent-secondary); border: var(--detail); border-radius: 999px;
 }
 .title-row .beta-badge { margin-left: -4px; font-size: 12px; }
-/* Inside a mode picker button, where plain spans are muted hints. */
-.segmented button .beta-badge, .segmented button.selected .beta-badge { font-size: 10.5px; font-weight: 800; color: var(--on-fill); }
+/* Inside a mode picker button (where plain spans are muted hints): a tag on the corner, so labels line up. */
+.segmented button .beta-badge, .segmented button.selected .beta-badge {
+  position: absolute; top: -8px; right: 6px; margin: 0; font-size: 9.5px; font-weight: 800; color: var(--on-fill);
+}
 
 /* Connections */
 .cx-mistakes { display: grid; justify-items: end; gap: 6px; }
@@ -638,7 +640,7 @@ input:focus-visible, select:focus-visible { outline: none; }
   display: flex; justify-content: flex-start; align-items: center; gap: 10px; min-height: 84px; padding: 8px 10px; text-align: left; font-weight: 500;
   background: var(--ground); box-shadow: none;
 }
-.cx-tile img, .cx-nocover { flex: none; width: 46px; height: 64px; object-fit: cover; border-radius: 8px; border: var(--detail); background: var(--dp-color-rule-muted); }
+.thumb { flex: none; width: 46px; height: 64px; object-fit: cover; border-radius: 8px; border: var(--detail); background: var(--dp-color-rule-muted); }
 .cx-names { display: grid; gap: 2px; min-width: 0; }
 .cx-names b { font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: break-word; }
 .cx-names span { font-size: 12px; line-height: 1.3; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -649,6 +651,50 @@ input:focus-visible, select:focus-visible { outline: none; }
 .cx-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cx-note { font-weight: 650; color: var(--muted); }
 .cx-note.show { color: var(--bad); }
+
+/* Odd One Out: picked tiles once the round is over */
+.odd-board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.cx-tile.odd { background: var(--ok-fill); color: var(--on-fill); opacity: 1; }
+.cx-tile.wrong { background: var(--bad-bg); color: var(--bad); opacity: 1; }
+.cx-tile.odd .cx-names span, .cx-tile.wrong .cx-names span { color: inherit; }
+.cx-tile.shared:disabled { opacity: .7; }
+.odd-verdict { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.round-tab.compact { min-width: 52px; padding: 6px 8px; }
+
+/* Synopsis */
+.syn-sentences { display: grid; gap: 10px; margin: 0; padding-left: 26px; font-size: 17px; line-height: 1.6; }
+.syn-sentences li::marker { color: var(--accent-ink); font-weight: 800; }
+/* Sentences never opened, shown once the round is over. */
+.syn-sentences li.extra { color: var(--muted); }
+
+/* Higher or Lower */
+.hl-streak { display: grid; justify-items: end; }
+.hl-streak b { font-family: var(--dp-typography-display); font-size: 30px; line-height: 1.1; }
+.hl-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 20px; }
+.hl-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 14px; }
+.hl-card img, .hl-nocover { width: 96px; height: 136px; object-fit: cover; border-radius: 12px; border: var(--outline); background: var(--dp-color-rule-muted); }
+.hl-card.left img { box-shadow: 5px 5px 0 var(--dp-color-accent-warm); }
+.hl-card.right img { box-shadow: 5px 5px 0 var(--dp-color-accent-fresh); }
+.hl-body { display: grid; gap: 2px; min-width: 0; }
+.hl-body b { font-size: 16px; line-height: 1.3; overflow-wrap: break-word; }
+.hl-score { font-family: var(--dp-typography-display); font-size: 36px; font-weight: 800; line-height: 1.1; margin-top: 6px; color: var(--accent-ink); }
+.hl-middle { display: grid; justify-items: center; gap: 8px; }
+.hl-middle button { min-width: 130px; }
+.hl-verdict { font-weight: 800; }
+.hl-verdict.win { color: var(--ok); }
+.hl-verdict.lose { color: var(--bad); }
+.hl-last { margin: -6px 0 0; }
+
+/* Timeline */
+.tl-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tl-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: var(--detail); border-radius: var(--radius-sm); background: var(--ground); }
+.tl-row .cx-names { flex: 1; }
+.tl-row.right { background: color-mix(in srgb, var(--ok-fill) 22%, var(--ground)); }
+.tl-row.wrong { background: color-mix(in srgb, var(--bad-fill) 18%, var(--ground)); }
+.tl-pos { flex: none; width: 26px; text-align: center; font-family: var(--dp-typography-display); font-size: 20px; font-weight: 800; color: var(--accent-ink); }
+.tl-year { flex: none; font-family: var(--dp-typography-display); font-size: 20px; font-weight: 800; }
+.tl-moves { flex: none; display: flex; gap: 6px; }
+.tl-moves button { padding: 4px 10px; }
 
 /* Opening / Ending */
 .stage-card { display: grid; gap: 18px; }
@@ -921,8 +967,11 @@ input:focus-visible, select:focus-visible { outline: none; }
   .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .segmented button:first-child { grid-column: span 2; }
   .segmented.modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cx-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cx-mistakes { justify-items: start; }
+  .cx-board, .odd-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cx-mistakes, .hl-streak { justify-items: start; }
+  .hl-stage { grid-template-columns: 1fr; }
+  .hl-middle { grid-auto-flow: column; justify-content: start; align-items: center; }
+  .hl-middle button { min-width: 0; }
   .segmented.modes button:first-child { grid-column: auto; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .history-list a { grid-template-columns: 1fr auto; }

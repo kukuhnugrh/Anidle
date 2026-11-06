@@ -1,8 +1,8 @@
+import { isBetaMode } from '../shared/modes.js';
 import { viewer } from '../server/accounts.js';
-import { connectionsPuzzle } from '../server/connections.js';
 import { dailyPuzzle, getPuzzle, parseDailyDate, parseDailyMode, parseDifficulties, parseMode, parsePool, poolSpec, unlimitedPuzzle, type PuzzleOptions } from '../server/game.js';
 import { HttpError, json, readJson, route } from '../server/http.js';
-import { puzzleState } from '../server/puzzles.js';
+import { BETA_PUZZLES, puzzleState } from '../server/puzzles.js';
 
 /** ?mode=…[&date=YYYY-MM-DD] → that day's puzzle (today by default; earlier days replay the archive; beta modes have none). ?id=<uuid> → resume any puzzle. */
 export const GET = route(async (req) => {
@@ -22,6 +22,6 @@ export const POST = route(async (req) => {
   const mode = parseMode(body.mode ?? 'anidle');
   const options: PuzzleOptions = { genreId, difficulties: parseDifficulties(body.difficulties) };
   const spec = poolSpec(parsePool(body.pool ?? 'semua'), me.account, mode, options);
-  const puzzle = mode === 'connections' ? await connectionsPuzzle(spec, options, me.key) : await unlimitedPuzzle(mode, spec, options, me.key);
+  const puzzle = isBetaMode(mode) ? await BETA_PUZZLES[mode](spec, options, me.key) : await unlimitedPuzzle(mode, spec, options, me.key);
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);
 });

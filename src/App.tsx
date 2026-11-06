@@ -5,8 +5,12 @@ import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type
 import type { DailyMode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
 import { ConnectionsGame } from './ConnectionsGame';
+import { HigherLowerGame } from './HigherLowerGame';
+import { OddOneOutGame } from './OddOneOutGame';
 import { RoundGame } from './RoundGame';
 import { SongGame } from './SongGame';
+import { SynopsisGame } from './SynopsisGame';
+import { TimelineGame } from './TimelineGame';
 import { AuthPage } from './AuthPage';
 import { AdminPage } from './AdminPage';
 import { AnimeDetail } from './AnimeDetail';
@@ -224,5 +228,9 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
   if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   if (puzzle.mode === 'connections') return <ConnectionsGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'synopsis') return <SynopsisGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'higherlower') return <HigherLowerGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'oddoneout') return <OddOneOutGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'timeline') return <TimelineGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
   return <SongGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
 }

@@ -1,3 +1,4 @@
+import type { InStatement } from '@libsql/client';
 import { randomUUID } from 'node:crypto';
 import { ANIDLE_CLUES, anidleScore, compareAnidle, maskSynopsis, type AnidleAnime, type AnidleClueKind, type AnidleFeedback } from '../shared/anidle.js';
 import {
@@ -236,6 +237,27 @@ export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
   difficulty: difficultyOf(a.members),
 });
 
+/** A title as shown on a beta mode's board, before anything about it is revealed. */
+export interface TitleCard {
+  malId: number;
+  title: string;
+  /** MAL's English title, when it differs from `title`. */
+  titleEn: string | null;
+  cover: string | null;
+}
+
+export function titleCard(anime: ReadonlyMap<number, LoadedAnime>, malId: number): TitleCard {
+  const a = anime.get(malId);
+  if (!a) throw new HttpError(500, 'A title is missing from the database.');
+  return { malId, title: a.title, titleEn: a.titleEn, cover: a.cover };
+}
+
+/** `ids` shuffled once per puzzle (seeded by its id): a reload keeps a board where it was, and the stored order never shows. */
+export function boardOrder(puzzleId: string, ids: readonly number[]): number[] {
+  const key = new Map(ids.map((id) => [id, seedOf(`${puzzleId}:${id}`)]));
+  return [...ids].sort((a, b) => (key.get(a)! < key.get(b)! ? -1 : 1));
+}
+
 // ------------------------------------------------------------------ puzzles
 
 const RECENT_DAYS_WITHOUT_REPEAT = 60;
@@ -420,18 +442,40 @@ export async function dailyPuzzle(mode: DailyMode, date: string): Promise<Puzzle
 
 export async function unlimitedPuzzle(mode: DailyMode, spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
   const answers = await drawRounds(mode, spec, randomDraw);
-  const row: PuzzleRow = { id: randomUUID(), date: null, mode, pool: spec.pool, answer_id: answers[0]!.malIds[0]!, created_by: playerKey, options: JSON.stringify(options) };
+  return insertUnlimited(mode, spec, options, playerKey, answers[0]!.malIds[0]!, (id) => answerInserts(id, mode, answers, randomDraw));
+}
+
+/** Stores a new unlimited puzzle with the rows that hold its answers (`children` of its id), in one batch. */
+export async function insertUnlimited(
+  mode: Mode,
+  spec: PoolSpec,
+  options: PuzzleOptions,
+  playerKey: string,
+  answerId: number,
+  children: (puzzleId: string) => InStatement[] | Promise<InStatement[]>,
+): Promise<PuzzleRow> {
+  const row: PuzzleRow = { id: randomUUID(), date: null, mode, pool: spec.pool, answer_id: answerId, created_by: playerKey, options: JSON.stringify(options) };
   await db().batch(
     [
       {
         sql: 'INSERT INTO puzzle (id, date, mode, pool, answer_id, created_by, options, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         args: [row.id, row.date, row.mode, row.pool, row.answer_id, row.created_by, row.options, nowIso()],
       },
-      ...(await answerInserts(row.id, mode, answers, randomDraw)),
+      ...(await children(row.id)),
     ],
     'write',
   );
   return row;
+}
+
+/** `list` in random order (a copy). */
+export function shuffled<T>(list: readonly T[]): T[] {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
 }
 
 /**

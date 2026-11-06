@@ -1,24 +1,16 @@
-import { randomUUID } from 'node:crypto';
 import type { Pool } from '../shared/catalog.js';
-import { CONNECTIONS_GROUP_SIZE, CONNECTIONS_MAX_MISTAKES, connectionsScore, drawBoard, judgeGuess, linkLabel } from '../shared/connections.js';
+import { CONNECTIONS_GROUP_SIZE, CONNECTIONS_MAX_MISTAKES, connectionsScore, drawBoard, judgeGuess, linkLabel, type BoardCandidate } from '../shared/connections.js';
 import { CONNECTIONS_GROUPS } from '../shared/modes.js';
 import { catalogTraits } from './catalog.js';
-import { seedOf } from './crypto.js';
-import { all, db, nowIso } from './db.js';
-import { loadAnidle, poolTitles, readPlay, writePlay, type PoolSpec, type PuzzleOptions, type PuzzleRow } from './game.js';
+import { all } from './db.js';
+import { boardOrder, insertUnlimited, loadAnidle, poolTitles, readPlay, titleCard, writePlay, type PoolSpec, type PuzzleOptions, type PuzzleRow, type TitleCard } from './game.js';
 import { HttpError } from './http.js';
 
 // Connections (beta, unlimited only; shared/connections.ts): one board of CONNECTIONS_GROUPS groups,
 // stored in puzzle_group. play.guesses holds number[][]: every guess's titles, in order. A group's link
 // only leaves the server once the group is found or the board is over.
 
-export interface ConnectionsTile {
-  malId: number;
-  title: string;
-  /** MAL's English title, when it differs from `title`. */
-  titleEn: string | null;
-  cover: string | null;
-}
+export type ConnectionsTile = TitleCard;
 
 export interface ConnectionsGroup {
   /** 0 = easiest … CONNECTIONS_GROUPS - 1 = trickiest (the group's colour). */
@@ -54,26 +46,28 @@ export interface ConnectionsState {
   score: number | null;
 }
 
+/** A pool's shows with the links of catalog row 'traits' (Connections, Odd One Out). */
+export async function linkCandidates(spec: PoolSpec): Promise<BoardCandidate[]> {
+  const [titles, traits] = await Promise.all([poolTitles(spec), catalogTraits()]);
+  return titles.map((t) => ({ malId: t.malId, franchise: t.franchise, links: traits[t.malId] ?? [] }));
+}
+
+/** puzzle_group rows of a puzzle in order: Connections groups, Odd One Out and Timeline rounds. */
+export async function puzzleGroups(puzzleId: string, count: number): Promise<Array<{ link: string; malIds: number[] }>> {
+  const rows = await all<{ link: string; mal_ids: string }>('SELECT link, mal_ids FROM puzzle_group WHERE puzzle_id = ? ORDER BY grp', [puzzleId]);
+  if (rows.length !== count) throw new HttpError(500, 'Puzzle data is incomplete.');
+  return rows.map((r) => ({ link: r.link, malIds: JSON.parse(r.mal_ids) as number[] }));
+}
+
+/** Rows that store a puzzle's groups or rounds in puzzle_group. */
+export const groupInserts = (puzzleId: string, groups: ReadonlyArray<{ link: string; malIds: readonly number[] }>) =>
+  groups.map((g, grp) => ({ sql: 'INSERT INTO puzzle_group (puzzle_id, grp, link, mal_ids) VALUES (?, ?, ?, ?)', args: [puzzleId, grp, g.link, JSON.stringify(g.malIds)] }));
+
 /** A new unlimited board from the pool of `spec`, drawn among the links of catalog row 'traits'. */
 export async function connectionsPuzzle(spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
-  const [titles, traits] = await Promise.all([poolTitles(spec), catalogTraits()]);
-  const board = drawBoard(
-    titles.map((t) => ({ malId: t.malId, franchise: t.franchise, links: traits[t.malId] ?? [] })),
-    (size) => Math.floor(Math.random() * size),
-  );
+  const board = drawBoard(await linkCandidates(spec), (size) => Math.floor(Math.random() * size));
   if (!board) throw new HttpError(404, 'This pool is too small for Connections. Try a bigger pool or fewer filters.');
-  const row: PuzzleRow = { id: randomUUID(), date: null, mode: 'connections', pool: spec.pool, answer_id: board[0]!.malIds[0]!, created_by: playerKey, options: JSON.stringify(options) };
-  await db().batch(
-    [
-      {
-        sql: 'INSERT INTO puzzle (id, date, mode, pool, answer_id, created_by, options, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        args: [row.id, row.date, row.mode, row.pool, row.answer_id, row.created_by, row.options, nowIso()],
-      },
-      ...board.map((g, grp) => ({ sql: 'INSERT INTO puzzle_group (puzzle_id, grp, link, mal_ids) VALUES (?, ?, ?, ?)', args: [row.id, grp, g.link, JSON.stringify(g.malIds)] })),
-    ],
-    'write',
-  );
-  return row;
+  return insertUnlimited('connections', spec, options, playerKey, board[0]!.malIds[0]!, (id) => groupInserts(id, board));
 }
 
 interface Evaluated {
@@ -83,20 +77,11 @@ interface Evaluated {
 }
 
 async function evaluate(puzzle: PuzzleRow, stored: number[][]): Promise<Evaluated> {
-  const rows = await all<{ link: string; mal_ids: string }>('SELECT link, mal_ids FROM puzzle_group WHERE puzzle_id = ? ORDER BY grp', [puzzle.id]);
-  if (rows.length !== CONNECTIONS_GROUPS) throw new HttpError(500, 'Puzzle data is incomplete.');
-  const groupIds = rows.map((r) => JSON.parse(r.mal_ids) as number[]);
+  const rows = await puzzleGroups(puzzle.id, CONNECTIONS_GROUPS);
+  const groupIds = rows.map((r) => r.malIds);
   const ids = groupIds.flat();
   const anime = await loadAnidle(ids);
-  // Shuffled once per puzzle, so a reload keeps the board where it was.
-  const order = new Map(ids.map((id) => [id, seedOf(`${puzzle.id}:${id}`)]));
-  const tiles = [...ids]
-    .sort((a, b) => (order.get(a)! < order.get(b)! ? -1 : 1))
-    .map((malId): ConnectionsTile => {
-      const a = anime.get(malId);
-      if (!a) throw new HttpError(500, 'A title is missing from the database.');
-      return { malId, title: a.title, titleEn: a.titleEn, cover: a.cover };
-    });
+  const tiles = boardOrder(puzzle.id, ids).map((malId) => titleCard(anime, malId));
 
   const guesses = stored.map((malIds): ConnectionsGuess => ({ malIds, ...judgeGuess(groupIds, malIds) }));
   const found = guesses.flatMap((g) => (g.group === null ? [] : [g.group]));

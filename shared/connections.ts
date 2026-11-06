@@ -85,12 +85,8 @@ export interface BoardGroup {
   malIds: number[];
 }
 
-/**
- * A new board from `candidates` (a pool's shows), groups easiest first per LINK_TIERS, or null when the
- * pool cannot fill one. Every group's link is shared by its own titles and by no other title on the
- * board, so the board has exactly one solution in terms of its links. `random(size)` is an index below size.
- */
-export function drawBoard(candidates: readonly BoardCandidate[], random: (size: number) => number, attempts = 200): BoardGroup[] | null {
+/** The candidates carrying each link, keeping only links that CONNECTIONS_GROUP_SIZE franchises share (any other can never make a group). */
+export function usableLinks(candidates: readonly BoardCandidate[]): Map<string, BoardCandidate[]> {
   const members = new Map<string, BoardCandidate[]>();
   for (const c of candidates)
     for (const link of c.links) {
@@ -98,8 +94,34 @@ export function drawBoard(candidates: readonly BoardCandidate[], random: (size: 
       if (list) list.push(c);
       else members.set(link, [c]);
     }
-  // Only links shared by enough franchises can make a group.
-  const usable = [...members].filter(([, list]) => new Set(list.map((c) => c.franchise)).size >= CONNECTIONS_GROUP_SIZE).map(([link]) => link);
+  for (const [link, list] of members) if (new Set(list.map((c) => c.franchise)).size < CONNECTIONS_GROUP_SIZE) members.delete(link);
+  return members;
+}
+
+/** `count` random titles of `from` from different franchises (partial Fisher–Yates on a copy), or null if it runs out. */
+export function sampleFranchises(from: readonly BoardCandidate[], count: number, random: (size: number) => number): BoardCandidate[] | null {
+  const list = [...from];
+  const picked: BoardCandidate[] = [];
+  const taken = new Set<number>();
+  for (let i = 0; i < list.length && picked.length < count; i++) {
+    const j = i + random(list.length - i);
+    [list[i], list[j]] = [list[j]!, list[i]!];
+    const c = list[i]!;
+    if (taken.has(c.franchise)) continue;
+    taken.add(c.franchise);
+    picked.push(c);
+  }
+  return picked.length === count ? picked : null;
+}
+
+/**
+ * A new board from `candidates` (a pool's shows), groups easiest first per LINK_TIERS, or null when the
+ * pool cannot fill one. Every group's link is shared by its own titles and by no other title on the
+ * board, so the board has exactly one solution in terms of its links. `random(size)` is an index below size.
+ */
+export function drawBoard(candidates: readonly BoardCandidate[], random: (size: number) => number, attempts = 200): BoardGroup[] | null {
+  const members = usableLinks(candidates);
+  const usable = [...members.keys()];
   const byTier = LINK_TIERS.map((kinds) => usable.filter((link) => kinds.includes(parseLink(link).kind)));
 
   for (let attempt = 0; attempt < attempts; attempt++) {
@@ -112,18 +134,7 @@ export function drawBoard(candidates: readonly BoardCandidate[], random: (size: 
     const fill = (link: string): BoardCandidate[] | null => {
       if (chosen.has(link) || onBoard.some((c) => c.links.includes(link))) return null;
       const eligible = members.get(link)!.filter((c) => !franchises.has(c.franchise) && !c.links.some((l) => chosen.has(l)));
-      const picked: BoardCandidate[] = [];
-      const taken = new Set<number>();
-      // Partial Fisher–Yates: random titles until the group is full or the list runs out.
-      for (let i = 0; i < eligible.length && picked.length < CONNECTIONS_GROUP_SIZE; i++) {
-        const j = i + random(eligible.length - i);
-        [eligible[i], eligible[j]] = [eligible[j]!, eligible[i]!];
-        const c = eligible[i]!;
-        if (taken.has(c.franchise)) continue;
-        taken.add(c.franchise);
-        picked.push(c);
-      }
-      return picked.length === CONNECTIONS_GROUP_SIZE ? picked : null;
+      return sampleFranchises(eligible, CONNECTIONS_GROUP_SIZE, random);
     };
 
     for (let g = 0; g < CONNECTIONS_GROUPS; g++) {

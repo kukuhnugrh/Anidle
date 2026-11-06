@@ -2,13 +2,20 @@ import type { ReactNode } from 'react';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
 import { CHARACTER_FIELDS_PER_ROUND } from '../shared/characters';
 import { CONNECTIONS_MAX_MISTAKES, CONNECTIONS_MISTAKE_COST } from '../shared/connections';
+import { HIGHER_LOWER_POINT } from '../shared/higherlower';
+import { ODD_ONE_OUT_POINTS } from '../shared/oddoneout';
+import { SYNOPSIS_CLUE_COST, SYNOPSIS_MAX_SENTENCES } from '../shared/synopsis';
+import { TIMELINE_POINT } from '../shared/timeline';
 import {
   CHARACTERS_PER_ROUND,
   DAILY_MAX_POINTS,
   DAILY_MODES,
   MODE_LABELS,
   MODE_MAX_POINTS,
+  HIGHER_LOWER_STEPS,
+  ODD_ONE_OUT_ROUNDS,
   ROUND_COUNT,
+  TIMELINE_SIZE,
   roundMaxPoints,
   SCREENSHOT_CLUE_COST,
   SCREENSHOT_CLUES,
@@ -74,6 +81,32 @@ export const SCORING_RULES: Record<Mode, ReactNode[]> = {
       {CONNECTIONS_MAX_MISTAKES - 1} mistakes.
     </>,
     <>The {CONNECTIONS_MAX_MISTAKES}th mistake ends the board: 0.</>,
+  ],
+  synopsis: [
+    <>
+      {ROUND_COUNT} rounds × {pts(roundMaxPoints('synopsis'))}.
+    </>,
+    <>
+      Right from the first sentence: {pts(roundMaxPoints('synopsis'))}. Every extra sentence takes {pts(SYNOPSIS_CLUE_COST)} off: {pts(roundMaxPoints('synopsis') - SYNOPSIS_CLUE_COST * (SYNOPSIS_MAX_SENTENCES - 1))}{' '}
+      with all {SYNOPSIS_MAX_SENTENCES} open.
+    </>,
+    <>Wrong or gave up: 0.</>,
+  ],
+  higherlower: [
+    <>
+      {pts(HIGHER_LOWER_POINT)} per right call, so {HIGHER_LOWER_STEPS} in a row is {pts(MODE_MAX_POINTS.higherlower)}.
+    </>,
+    <>The run (and its points) ends at the first wrong call.</>,
+  ],
+  oddoneout: [
+    <>
+      {ODD_ONE_OUT_ROUNDS} rounds × {pts(ODD_ONE_OUT_POINTS)} for the right pick; a wrong pick scores 0.
+    </>,
+  ],
+  timeline: [
+    <>
+      {ROUND_COUNT} rounds × {pts(roundMaxPoints('timeline'))}: {pts(TIMELINE_POINT)} for each of the {TIMELINE_SIZE} titles in its right place.
+    </>,
   ],
 };
 

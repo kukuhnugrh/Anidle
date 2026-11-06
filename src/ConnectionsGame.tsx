@@ -1,12 +1,8 @@
 import { useState } from 'react';
-import { POOL_LABELS } from '../shared/catalog';
 import { CONNECTIONS_GROUP_SIZE } from '../shared/connections';
-import { MODE_LABELS, MODE_MAX_POINTS } from '../shared/modes';
 import { api, errorMessage, type ConnectionsState } from './api';
-import { BetaBadge } from './BetaBadge';
-import { fmtDate, fmtNumber } from './format';
-import { HowToPlay } from './HowToPlay';
-import { connectionsShareText, ShareButton } from './share';
+import { FinishCard, GameHeader, TitleThumb } from './GameParts';
+import { connectionsShareText } from './share';
 
 type Group = ConnectionsState['groups'][number];
 
@@ -68,27 +64,20 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
   const left = puzzle.maxMistakes - puzzle.mistakes;
   return (
     <div className="connections-game">
-      <header className="page-head game-head">
-        <div>
-          <span className="eyebrow">{puzzle.date ? `Daily · ${fmtDate(puzzle.date)}` : `Unlimited · ${POOL_LABELS[puzzle.pool]}`}</span>
-          <div className="title-row">
-            <h1>{MODE_LABELS[puzzle.mode]}</h1>
-            <BetaBadge mode={puzzle.mode} />
-            <HowToPlay mode={puzzle.mode} />
+      <GameHeader
+        puzzle={puzzle}
+        intro={`Sort the board into groups of ${CONNECTIONS_GROUP_SIZE} anime that share something: a genre, theme, source, studio, year, or OP/ED artist.`}
+        aside={
+          <div className="cx-mistakes" aria-label={`${left} mistakes left`}>
+            <span className="muted small">Mistakes left</span>
+            <span className="cx-dots">
+              {Array.from({ length: puzzle.maxMistakes }, (_, i) => (
+                <span key={i} className={`cx-dot${i < left ? ' on' : ''}`} />
+              ))}
+            </span>
           </div>
-          <p className="muted small">
-            Sort the board into groups of {CONNECTIONS_GROUP_SIZE} anime that share something: a genre, theme, source, studio, year, or OP/ED artist.
-          </p>
-        </div>
-        <div className="cx-mistakes" aria-label={`${left} mistakes left`}>
-          <span className="muted small">Mistakes left</span>
-          <span className="cx-dots">
-            {Array.from({ length: puzzle.maxMistakes }, (_, i) => (
-              <span key={i} className={`cx-dot${i < left ? ' on' : ''}`} />
-            ))}
-          </span>
-        </div>
-      </header>
+        }
+      />
 
       {puzzle.groups.length > 0 && (
         <div className="cx-groups">
@@ -114,11 +103,7 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
                   onClick={() => toggle(malId)}
                   title={t.titleEn ? `${t.title} (${t.titleEn})` : t.title}
                 >
-                  {t.cover ? <img src={t.cover} alt="" /> : <span className="cx-nocover" />}
-                  <span className="cx-names">
-                    <b>{t.title}</b>
-                    {t.titleEn && <span>{t.titleEn}</span>}
-                  </span>
+                  <TitleThumb title={t} />
                 </button>
               );
             })}
@@ -147,25 +132,15 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
       {error && <div className="error-box">{error}</div>}
 
       {puzzle.finished && (
-        <section className="card final">
-          <div>
-            <span className="eyebrow">{puzzle.solved ? 'Solved' : 'Out of mistakes'}</span>
-            <h2>{fmtNumber(puzzle.score ?? 0)} pts</h2>
-            <p className="muted small">
-              {puzzle.groups.filter((g) => g.found).length} of {puzzle.groups.length} groups · {puzzle.mistakes} {puzzle.mistakes === 1 ? 'mistake' : 'mistakes'} · max{' '}
-              {fmtNumber(MODE_MAX_POINTS[puzzle.mode])} pts
-            </p>
-          </div>
-          <div className="actions">
-            <ShareButton text={connectionsShareText(puzzle)} />
-            <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-              Play {MODE_LABELS[puzzle.mode]} unlimited
-            </button>
-            <a className="button ghost" href="/">
-              Home
-            </a>
-          </div>
-        </section>
+        <FinishCard
+          mode={puzzle.mode}
+          eyebrow={puzzle.solved ? 'Solved' : 'Out of mistakes'}
+          score={puzzle.score}
+          detail={`${puzzle.groups.filter((g) => g.found).length} of ${puzzle.groups.length} groups · ${puzzle.mistakes} ${puzzle.mistakes === 1 ? 'mistake' : 'mistakes'}`}
+          share={connectionsShareText(puzzle)}
+          onNewUnlimited={onNewUnlimited}
+          onError={setError}
+        />
       )}
     </div>
   );
