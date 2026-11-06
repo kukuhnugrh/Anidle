@@ -692,6 +692,11 @@ input:focus-visible, select:focus-visible { outline: none; }
 .tl-year { flex: none; font-family: var(--dp-typography-display); font-size: 20px; font-weight: 800; }
 .tl-moves { flex: none; display: flex; gap: 6px; }
 .tl-moves button { padding: 4px 10px; }
+.tl-row.draggable { cursor: grab; user-select: none; transition: box-shadow var(--dp-motion-interaction), transform var(--dp-motion-interaction); }
+.tl-row.dragging { cursor: grabbing; position: relative; z-index: 1; transform: scale(1.02); border-color: var(--accent); background: var(--dp-color-selection); box-shadow: var(--shadow-sm); }
+/* The touch handle: the rest of the row still scrolls the page. */
+.tl-grip { flex: none; padding: 6px 2px; font-size: 18px; line-height: 1; color: var(--muted); touch-action: none; cursor: grab; }
+.tl-row .thumb { pointer-events: none; }
 
 /* Opening / Ending */
 .stage-card { display: grid; gap: 18px; }

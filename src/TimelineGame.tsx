@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState, type PointerEvent } from 'react';
 import { TIMELINE_POINT } from '../shared/timeline';
 import { api, errorMessage, type TimelineState } from './api';
 import { fmtNumber } from './format';
@@ -16,10 +16,33 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
   const playing = roundView === puzzle.current && !round.finished;
   const tiles = new Map(round.tiles.map((t) => [t.malId, t]));
 
+  /** Moves the title at `from` to `to`, shifting the ones between (a swap for neighbours). */
   const move = (from: number, to: number) => {
     const next = [...ids];
-    [next[from], next[to]] = [next[to]!, next[from]!];
+    next.splice(to, 0, ...next.splice(from, 1));
     setOrder({ round: roundView, ids: next });
+  };
+
+  // Drag to reorder (mouse anywhere on a row; touch on its grip, so the page still scrolls). The row
+  // follows the pointer: once it is over another row, it takes that row's place.
+  const rows = useRef<Array<HTMLLIElement | null>>([]);
+  const [dragging, setDragging] = useState<number | null>(null);
+  const dragStart = (e: PointerEvent<HTMLLIElement>, malId: number) => {
+    const target = e.target as Element;
+    if (!playing || sending || e.button !== 0 || target.closest('button')) return;
+    if (e.pointerType !== 'mouse' && !target.closest('.tl-grip')) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(malId);
+  };
+  const dragMove = (e: PointerEvent<HTMLLIElement>) => {
+    if (dragging === null) return;
+    const from = ids.indexOf(dragging);
+    const to = rows.current.findIndex((row) => {
+      const box = row?.getBoundingClientRect();
+      return box !== undefined && e.clientY >= box.top && e.clientY <= box.bottom;
+    });
+    if (to >= 0 && to !== from) move(from, to);
   };
 
   const submit = async () => {
@@ -39,7 +62,7 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
     <div className="round-game">
       <GameHeader
         puzzle={puzzle}
-        intro={`Put the anime in the order they started airing, oldest at the top. ${fmtNumber(TIMELINE_POINT)} pts for every title in its right place.`}
+        intro={`Put the anime in the order they started airing, oldest at the top: drag them, or use ▲ ▼. ${fmtNumber(TIMELINE_POINT)} pts for every title in its right place.`}
         aside={
           <div className="round-tabs" role="tablist">
             {puzzle.rounds.map((r, i) => (
@@ -66,7 +89,22 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
             const t = tiles.get(malId)!;
             const right = round.answer?.[i] === malId;
             return (
-              <li key={malId} className={`tl-row${round.finished ? (right ? ' right' : ' wrong') : ''}`}>
+              <li
+                key={malId}
+                ref={(row) => {
+                  rows.current[i] = row;
+                }}
+                className={`tl-row${round.finished ? (right ? ' right' : ' wrong') : ''}${playing ? ' draggable' : ''}${dragging === malId ? ' dragging' : ''}`}
+                onPointerDown={(e) => dragStart(e, malId)}
+                onPointerMove={dragMove}
+                onPointerUp={() => setDragging(null)}
+                onPointerCancel={() => setDragging(null)}
+              >
+                {playing && (
+                  <span className="tl-grip" aria-hidden="true">
+                    ⠿
+                  </span>
+                )}
                 <span className="tl-pos">{i + 1}</span>
                 <TitleThumb title={t} />
                 {round.years ? (
