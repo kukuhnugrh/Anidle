@@ -2,7 +2,7 @@ import './env.js';
 import { appendFileSync, existsSync } from 'node:fs';
 import ffmpegPath from 'ffmpeg-static';
 import { CANONICAL_SQL, EASY_MIN_MEMBERS, EXCLUDED_MEDIA_TYPES, exclusionReason, FRANCHISE_RELATIONS, MEDIUM_MIN_MEMBERS, POPULAR_MIN_MEMBERS } from '../shared/catalog.js';
-import { franchiseIds } from '../shared/franchise.js';
+import { franchiseIds, otherIsSameShow } from '../shared/franchise.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { poolUsers } from '../server/env.js';
 import { animeDetail, animeSynopsis, malGet, MalError } from '../server/mal.js';
@@ -221,14 +221,22 @@ async function stepSynopsis(limit: number) {
  * Groups a show's seasons, OVAs, movies, recaps, side stories and alternative versions (remakes) into
  * one franchise, and marks its canonical entry: the most popular playable one (most MAL members). Only
  * canonical entries are asked, listed and guessed; their member count sets the franchise's difficulty.
- * Spin-offs, alternative settings and shared-character links stay separate shows.
+ * MAL's loose 'other' relation joins too when the extra is named after the show (otherIsSameShow:
+ * "Kobayashi-san Chi no OO Dragon"). Spin-offs, alternative settings and shared-character links stay
+ * separate shows.
  */
 async function stepFranchise() {
   const edges = await all<{ mal_id: number; related_id: number }>(
     `SELECT mal_id, related_id FROM anime_relation WHERE relation IN (${FRANCHISE_RELATIONS.map(() => '?').join(',')})`,
     [...FRANCHISE_RELATIONS],
   );
-  const groups = franchiseIds(edges.map((e) => [Number(e.mal_id), Number(e.related_id)] as const));
+  // Both ends must be fetched: the rule compares their titles.
+  const others = await all<{ mal_id: number; related_id: number; a_title: string; a_type: string | null; b_title: string; b_type: string | null }>(
+    `SELECT r.mal_id, r.related_id, a.title AS a_title, a.media_type AS a_type, b.title AS b_title, b.media_type AS b_type
+     FROM anime_relation r JOIN anime a ON a.mal_id = r.mal_id JOIN anime b ON b.mal_id = r.related_id WHERE r.relation = 'other'`,
+  );
+  const sameShow = others.filter((o) => otherIsSameShow({ title: o.a_title, mediaType: o.a_type }, { title: o.b_title, mediaType: o.b_type }));
+  const groups = franchiseIds([...edges, ...sameShow].map((e) => [Number(e.mal_id), Number(e.related_id)] as const));
   const anime = await all<{ mal_id: number; members: number | null; excluded: string | null }>('SELECT mal_id, members, excluded FROM anime');
   const canonical = new Map<number, { id: number; members: number }>();
   for (const a of anime) {

@@ -5,7 +5,7 @@ import { difficultyOf, exclusionReason } from './catalog';
 import { CONNECTIONS_GROUP_SIZE, connectionsScore, drawBoard, judgeGuess, linkKey, LINK_KINDS, type BoardCandidate } from './connections';
 import { drawOddRounds } from './oddoneout';
 import { synopsisSentences } from './synopsis';
-import { franchiseIds } from './franchise';
+import { franchiseIds, otherIsSameShow } from './franchise';
 import { ODD_ONE_OUT_SIZE, roundDifficulties, roundTries } from './modes';
 import { indexNames, normalizeTitle, searchNames, titleHint } from './normalize';
 
@@ -188,6 +188,17 @@ describe('franchiseIds', () => {
     expect(ids.get(200)).toBe(100);
     expect(ids.get(950)).toBe(900);
     expect(ids.has(42)).toBe(false);
+  });
+});
+
+describe('otherIsSameShow', () => {
+  const t = (title: string, mediaType = 'special') => ({ title, mediaType });
+  it('joins extras named after their show, never two TV series or loosely named relatives', () => {
+    expect(otherIsSameShow(t('Kobayashi-san Chi no Maid Dragon', 'tv'), t('Kobayashi-san Chi no OO Dragon'))).toBe(true);
+    expect(otherIsSameShow(t('Kuroko no Basket Movie 4: Last Game', 'movie'), t('Kuroko no Basket: Last Game NG-shuu'))).toBe(true);
+    expect(otherIsSameShow(t('Yu☆Gi☆Oh! Duel Monsters', 'tv'), t('Yu☆Gi☆Oh! VRAINS', 'tv'))).toBe(false);
+    expect(otherIsSameShow(t('Yuru Camp△', 'tv'), t('Heya Camp△'))).toBe(false);
+    expect(otherIsSameShow(t('Natsume Yuujinchou Movie: Utsusemi ni Musubu', 'movie'), t('Natsume Yuujinchou: Ishi Okoshi to Ayashiki Raihousha', 'movie'))).toBe(false);
   });
 });
 

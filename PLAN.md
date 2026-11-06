@@ -75,7 +75,7 @@ Playground `D:\Personal Project\MAL-WebAPI` dipakai untuk uji coba query sebelum
   - `bareng`: completed semua teman yang aktif,
   - `saya`: completed akun MAL milik pemain (butuh MAL terhubung; begitu juga `teman` dan `bareng`),
   - `populer`: hanya ranking populer MAL.
-- **Franchise**: dihitung dari relasi MAL `prequel`/`sequel`/`side_story`/`parent_story`/`summary`/`full_story`/`alternative_version` (graph terhubung → `franchise_id`; remake seperti Kino no Tabi 2003/2017 ikut satu franchise). Entri paling populer = entri kanonik (`canonical_id`), satu show per franchise. Dipakai untuk aturan jawaban (lihat §8).
+- **Franchise**: dihitung dari relasi MAL `prequel`/`sequel`/`side_story`/`parent_story`/`summary`/`full_story`/`alternative_version` (graph terhubung → `franchise_id`; remake seperti Kino no Tabi 2003/2017 ikut satu franchise), plus relasi `other` kalau extra-nya dinamai seperti show-nya dan bukan dua seri TV (`otherIsSameShow`: Kobayashi-san Chi no OO Dragon, NG-shuu Kuroko; Yu☆Gi☆Oh! GX/Zexal tetap terpisah). Entri paling populer = entri kanonik (`canonical_id`), satu show per franchise. Dipakai untuk aturan jawaban (lihat §8).
 
 ## 6. Media
 
