@@ -648,6 +648,19 @@ input:focus-visible, select:focus-visible { outline: none; }
 .cx-controls { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cx-note { font-weight: 650; color: var(--muted); }
 .cx-note.show { color: var(--bad); }
+/* Connections at big-game size: bigger covers and titles, louder group bars, mistake dots and controls. */
+.big-game .cx-board { gap: 14px; }
+.big-game .cx-tile { gap: 14px; min-height: 0; padding: 10px 14px 10px 10px; border-width: var(--dp-border-outline-width); }
+.big-game .cx-tile .thumb { width: clamp(64px, 5.4vw, 96px); height: auto; aspect-ratio: 225 / 320; border-radius: 10px; }
+.big-game .cx-tile .cx-names b { font-size: clamp(16px, 1.25vw, 20px); }
+.big-game .cx-tile .cx-names span { font-size: 14px; }
+.big-game .cx-group { padding: 16px 22px; }
+.big-game .cx-group b { font-size: clamp(20px, 1.6vw, 26px); }
+.big-game .cx-group span { font-size: clamp(15px, 1.1vw, 18px); }
+.big-game .cx-dot { width: 20px; height: 20px; }
+.big-game .cx-mistakes .small { font-size: 15px; }
+.big-game .cx-board + .cx-controls .cx-note { font-size: 17px; }
+.big-game .cx-board + .cx-controls button { padding: 12px 22px; font-size: 17px; }
 
 /* Odd One Out, Higher or Lower, Timeline: poster-led games, so they get a wider page and covers that grow with it. */
 .page:has(.big-game) { max-width: 1680px; }
@@ -1002,6 +1015,12 @@ input:focus-visible, select:focus-visible { outline: none; }
   .segmented button:first-child { grid-column: span 2; }
   .segmented.modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cx-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .big-game .cx-board { gap: 8px; }
+  .big-game .cx-tile { gap: 8px; padding: 8px; border-width: var(--dp-border-detail-width); }
+  .big-game .cx-tile .thumb { width: 44px; }
+  .big-game .cx-tile .cx-names b { font-size: 14px; }
+  .big-game .cx-tile .cx-names span { font-size: 12px; }
+  .big-game .cx-board + .cx-controls button { padding: 10px 14px; font-size: 15px; }
   /* Phones: one title per row, cover beside the name, so long titles stay readable. */
   .odd-board { grid-template-columns: 1fr; gap: 8px; }
   .odd-board .cx-tile { flex-direction: row; align-items: center; gap: 14px; text-align: left; }

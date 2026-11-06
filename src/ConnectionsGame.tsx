@@ -63,7 +63,7 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
 
   const left = puzzle.maxMistakes - puzzle.mistakes;
   return (
-    <div className="connections-game">
+    <div className="connections-game big-game">
       <GameHeader
         puzzle={puzzle}
         intro={`Sort the board into groups of ${CONNECTIONS_GROUP_SIZE} anime that share something: a genre, theme, source, studio, year, or OP/ED artist.`}
