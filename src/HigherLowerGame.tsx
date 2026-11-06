@@ -40,7 +40,7 @@ export function HigherLowerGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
   };
 
   return (
-    <div className="round-game">
+    <div className="round-game big-game">
       <GameHeader
         puzzle={puzzle}
         intro={`Does the next anime have a higher or lower MAL score? ${fmtNumber(HIGHER_LOWER_POINT)} pts per right call; the first miss ends the run.`}

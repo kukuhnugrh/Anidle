@@ -104,8 +104,8 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
   ],
   timeline: [
     <>
-      {ROUND_COUNT} rounds of {TIMELINE_SIZE} anime, each from a different year. Drag them (on a phone, by the ⠿ grip) or use ▲ ▼ to put them in the order they started airing,
-      oldest at the top.
+      {ROUND_COUNT} rounds of {TIMELINE_SIZE} anime, each from a different year. Drag them (on a phone, by the ⠿ grip) or use the arrows to put them in the order they started
+      airing, oldest first.
     </>,
     <>Press Lock in order once per round. Every title in its right place scores; the years and the right order show after.</>,
   ],

@@ -34,7 +34,7 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
   };
 
   return (
-    <div className="round-game">
+    <div className="round-game big-game">
       <GameHeader
         puzzle={puzzle}
         intro={`All but one of these anime share something: a genre, theme, source, studio, year, or OP/ED artist. Pick the one that doesn't. ${fmtNumber(ODD_ONE_OUT_POINTS)} pts per round.`}

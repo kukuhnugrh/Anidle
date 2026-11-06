@@ -40,7 +40,7 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
     const from = ids.indexOf(dragging);
     const to = rows.current.findIndex((row) => {
       const box = row?.getBoundingClientRect();
-      return box !== undefined && e.clientY >= box.top && e.clientY <= box.bottom;
+      return box !== undefined && e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top && e.clientY <= box.bottom;
     });
     if (to >= 0 && to !== from) move(from, to);
   };
@@ -59,10 +59,10 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
 
   const shown = round.finished ? round.tiles.map((t) => t.malId) : ids;
   return (
-    <div className="round-game">
+    <div className="round-game big-game">
       <GameHeader
         puzzle={puzzle}
-        intro={`Put the anime in the order they started airing, oldest at the top: drag them, or use ▲ ▼. ${fmtNumber(TIMELINE_POINT)} pts for every title in its right place.`}
+        intro={`Put the anime in the order they started airing, oldest first: drag them, or use the arrows. ${fmtNumber(TIMELINE_POINT)} pts for every title in its right place.`}
         aside={
           <div className="round-tabs" role="tablist">
             {puzzle.rounds.map((r, i) => (
@@ -83,7 +83,11 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
       />
 
       <section className="card cx-card">
-        <span className="muted small">Oldest</span>
+        {/* Wide screens lay the titles out left to right, phones top to bottom (styles.css). */}
+        <div className="tl-axis muted small">
+          <span>Oldest</span>
+          <span className="tl-axis-end">Newest →</span>
+        </div>
         <ol className="tl-list">
           {shown.map((malId, i) => {
             const t = tiles.get(malId)!;
@@ -115,11 +119,11 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
                 ) : (
                   playing && (
                     <span className="tl-moves">
-                      <button className="ghost small" disabled={i === 0 || sending} onClick={() => move(i, i - 1)} aria-label={`Move ${t.title} up`}>
-                        ▲
+                      <button className="ghost small" disabled={i === 0 || sending} onClick={() => move(i, i - 1)} aria-label={`Move ${t.title} earlier`}>
+                        <span className="tl-arrow">▲</span>
                       </button>
-                      <button className="ghost small" disabled={i === shown.length - 1 || sending} onClick={() => move(i, i + 1)} aria-label={`Move ${t.title} down`}>
-                        ▼
+                      <button className="ghost small" disabled={i === shown.length - 1 || sending} onClick={() => move(i, i + 1)} aria-label={`Move ${t.title} later`}>
+                        <span className="tl-arrow">▼</span>
                       </button>
                     </span>
                   )
@@ -128,7 +132,7 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
             );
           })}
         </ol>
-        <span className="muted small">Newest</span>
+        <span className="muted small tl-axis-bottom">Newest</span>
         {playing ? (
           <div className="cx-controls">
             <span className="cx-note">One submission per round.</span>
