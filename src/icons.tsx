@@ -146,6 +146,12 @@ export const ClockIcon = () => (
   </Icon>
 );
 
+export const FlaskIcon = () => (
+  <Icon>
+    <path d="M9.5 3.5h5M10.5 3.5v5.5l-5.2 9.1A1.6 1.6 0 0 0 6.7 20.5h10.6a1.6 1.6 0 0 0 1.4-2.4l-5.2-9.1V3.5M7.6 14.5h8.8" />
+  </Icon>
+);
+
 export const ShareIcon = () => (
   <Icon>
     <path d="M12 15V3.5M7.5 8 12 3.5 16.5 8" />

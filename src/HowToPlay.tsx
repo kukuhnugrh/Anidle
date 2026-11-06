@@ -148,7 +148,7 @@ export function HowToPlay({ mode }: { mode: Mode }) {
           </section>
           <p className="muted small">
             {isBetaMode(mode)
-              ? 'This mode is in beta: unlimited only, and it does not count for the daily total or the leaderboard yet.'
+              ? 'This mode is in beta: play it from Beta modes. It does not count for the daily total or the leaderboard yet.'
               : 'The daily puzzle is the same for everyone and changes at 00:00 UTC+7.'}
           </p>
           <div className="actions">

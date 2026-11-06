@@ -2,7 +2,7 @@ import { useState, type ComponentType } from 'react';
 import { MODE_LABELS, type DailyMode } from '../shared/modes';
 import type { Account, TodayScore } from './api';
 import { fmtNumber } from './format';
-import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, HomeIcon, ImageIcon, ListIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
+import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, FlaskIcon, HomeIcon, ImageIcon, ListIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
 import { applyTheme, currentTheme } from './theme';
 import { VolumeControl } from './VolumeControl';
@@ -27,7 +27,7 @@ function ThemeToggle() {
 }
 
 /** Nav entry ids: a view, or `daily:<mode>` for the daily puzzle of a mode (those show today's score for it). */
-const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: DailyMode }[] }[] = [
+const NAV: { title: string; items: { id: string; href: string; label: string; Icon: ComponentType; mode?: DailyMode; beta?: boolean }[] }[] = [
   { title: 'Main', items: [{ id: 'home', href: '/', label: 'Home', Icon: HomeIcon }] },
   {
     title: 'Daily',
@@ -43,6 +43,7 @@ const NAV: { title: string; items: { id: string; href: string; label: string; Ic
     title: 'Free play',
     items: [
       { id: 'unlimited', href: '/unlimited', label: 'Unlimited', Icon: ShuffleIcon },
+      { id: 'beta', href: '/beta', label: 'Beta modes', Icon: FlaskIcon, beta: true },
       { id: 'database', href: '/database', label: 'Database', Icon: DatabaseIcon },
     ],
   },
@@ -61,8 +62,9 @@ const MAL_ITEM: (typeof NAV)[number]['items'][number] = { id: 'mylist', href: '/
 /** Only for ADMIN_USERS (the server checks again on every admin request). */
 const ADMIN_SECTION: (typeof NAV)[number] = { title: 'Admin', items: [{ id: 'admin', href: '/admin', label: 'Review media', Icon: ShieldIcon }] };
 
-/** An unlimited puzzle in progress belongs to the Unlimited entry, a show's detail page to Database. */
-const navId = (route: Route) => (route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? 'unlimited' : route.view === 'anime' ? 'database' : route.view);
+/** An unlimited puzzle in progress belongs to the entry it was started from (Unlimited or Beta), a show's detail page to Database. */
+const navId = (route: Route, playBeta: boolean) =>
+  route.view === 'daily' ? `daily:${route.mode}` : route.view === 'play' ? (playBeta ? 'beta' : 'unlimited') : route.view === 'anime' ? 'database' : route.view;
 
 export function Brand() {
   return (
@@ -83,6 +85,7 @@ export function Avatar({ account }: { account: Account }) {
 
 export function Sidebar({
   route,
+  playBeta,
   account,
   today,
   admin,
@@ -91,6 +94,8 @@ export function Sidebar({
   onLogout,
 }: {
   route: Route;
+  /** The unlimited puzzle on screen is a beta mode: it belongs to the Beta entry. */
+  playBeta: boolean;
   account: Account | null;
   today: TodayScore | null;
   admin: boolean;
@@ -98,7 +103,7 @@ export function Sidebar({
   onClose: () => void;
   onLogout: () => void;
 }) {
-  const current = navId(route);
+  const current = navId(route, playBeta);
   const nav = account?.mal ? NAV.map((s) => (s.title === 'Community' ? { ...s, items: [...s.items, MAL_ITEM] } : s)) : NAV;
   const sections = admin ? [...nav, ADMIN_SECTION] : nav;
   return (
@@ -118,7 +123,7 @@ export function Sidebar({
           {sections.map((section) => (
             <div key={section.title} className="nav-section">
               <div className="nav-title">{section.title}</div>
-              {section.items.map(({ id, href, label, Icon, mode }) => {
+              {section.items.map(({ id, href, label, Icon, mode, beta }) => {
                 const score = mode ? today?.modes[mode] : undefined;
                 return (
                   <a key={id} className={`nav-item${current === id ? ' active' : ''}`} href={href} aria-current={current === id ? 'page' : undefined}>
@@ -129,6 +134,7 @@ export function Sidebar({
                         {fmtNumber(score)}
                       </span>
                     )}
+                    {beta && <span className="beta-badge nav-new">New</span>}
                   </a>
                 );
               })}

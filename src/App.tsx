@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
 import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type TodayScore } from './api';
-import type { DailyMode } from '../shared/modes';
+import { isBetaMode, type DailyMode, type Mode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
 import { ConnectionsGame } from './ConnectionsGame';
 import { HigherLowerGame } from './HigherLowerGame';
@@ -67,6 +67,8 @@ export function App() {
   const [route, setRoute] = useState(readRoute);
   const [notice] = useState(takeRedirectNotice);
   const [navOpen, setNavOpen] = useState(false);
+  // Whether the unlimited puzzle on screen is a beta mode (null until it loads): its back link and sidebar entry.
+  const [playBeta, setPlayBeta] = useState<boolean | null>(null);
 
   // The admin flag follows the session, so it is re-read after logging in; today's score after every finished puzzle.
   const refreshMe = useCallback(
@@ -86,6 +88,7 @@ export function App() {
     void refreshMe();
     const onNavigate = () => {
       setRoute(readRoute());
+      setPlayBeta(null);
       setNavOpen(false);
       scrollTo({ top: 0 });
     };
@@ -126,6 +129,7 @@ export function App() {
     <div className="shell">
       <Sidebar
         route={route}
+        playBeta={playBeta === true}
         account={account}
         today={today}
         admin={admin}
@@ -159,11 +163,12 @@ export function App() {
             )}
             {route.view === 'play' && (
               <>
-                <UnlimitedBar />
-                <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} />
+                {playBeta !== null && <UnlimitedBar beta={playBeta} />}
+                <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} onLoaded={(mode) => setPlayBeta(isBetaMode(mode))} />
               </>
             )}
-            {route.view === 'unlimited' && <Unlimited account={account} />}
+            {route.view === 'unlimited' && <Unlimited key="unlimited" account={account} page="unlimited" />}
+            {route.view === 'beta' && <Unlimited key="beta" account={account} page="beta" />}
             {route.view === 'database' && <Database />}
             {route.view === 'anime' && <AnimeDetail key={route.id} id={route.id} />}
             {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
@@ -188,8 +193,11 @@ export function App() {
   );
 }
 
-/** A mode's daily puzzle (today, or `date` from the archive), or the puzzle `id` (unlimited, resumable after reload because the id is in the URL). */
-function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onFinished: () => void }) {
+/**
+ * A mode's daily puzzle (today, or `date` from the archive), or the puzzle `id` (unlimited, resumable after reload because the id is in the URL).
+ * `onLoaded` hears the puzzle's mode once it is known.
+ */
+function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onFinished: () => void; onLoaded?: (mode: Mode) => void }) {
   const [puzzle, setPuzzle] = useState<PuzzleState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const source = 'id' in props ? props.id : `${props.daily}:${props.date}`;
@@ -199,6 +207,11 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
     // `source` identifies the props; the object itself is new every render.
   }, [source]);
   useEffect(reload, [reload]);
+  const mode = puzzle?.mode;
+  // Only the mode matters; the callback itself is new every render.
+  useEffect(() => {
+    if (mode) props.onLoaded?.(mode);
+  }, [mode]);
   // A finished daily puzzle changes today's score in the sidebar.
   const { onFinished } = props;
   const change = useCallback(

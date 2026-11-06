@@ -1,7 +1,7 @@
 import { DAILY_MODES, FIRST_DAILY_DATE, todayUtc7, type DailyMode } from '../shared/modes';
 
 export type Route =
-  | { view: 'home' | 'unlimited' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' | 'mylist' }
+  | { view: 'home' | 'unlimited' | 'beta' | 'database' | 'account' | 'auth' | 'leaderboard' | 'history' | 'admin' | 'mylist' }
   /** `date` = an earlier day from the archive; null = today. */
   | { view: 'daily'; mode: DailyMode; date: string | null }
   | { view: 'play'; id: string }
@@ -12,6 +12,7 @@ export type View = Route['view'];
 const PATHS: Record<string, Exclude<View, 'play' | 'daily' | 'anime'>> = {
   '': 'home',
   unlimited: 'unlimited',
+  beta: 'beta',
   database: 'database',
   akun: 'account',
   masuk: 'auth',

@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, type Difficulty, type Pool } from '../shared/catalog';
-import { MODE_LABELS, MODES, type Mode } from '../shared/modes';
+import { BETA_MODES, DAILY_MODES, MODE_LABELS, type Mode } from '../shared/modes';
 import { api, errorMessage, savedUnlimited, type Account, type UnlimitedOptions } from './api';
-import { BetaBadge } from './BetaBadge';
 import { ArrowIcon } from './icons';
 import { go } from './route';
 
@@ -29,9 +28,29 @@ const DIFFICULTY_CHOICES: Record<string, { label: string; hint: string; value: D
 const choiceKey = (value: Difficulty[] = []) =>
   Object.keys(DIFFICULTY_CHOICES).find((k) => DIFFICULTY_CHOICES[k]!.value.join() === [...value].sort().join()) ?? 'all';
 
-export function Unlimited({ account }: { account: Account | null }) {
+/** The two free-play pages: Unlimited (the daily modes) and Beta (modes still being tested, never daily). */
+const PAGES = {
+  unlimited: {
+    modes: DAILY_MODES,
+    eyebrow: 'Free play',
+    title: 'Unlimited',
+    intro: 'As many random puzzles as you like. Your last settings are saved in this browser.',
+    allHint: DIFFICULTY_CHOICES.all!.hint,
+  },
+  beta: {
+    modes: BETA_MODES,
+    eyebrow: 'Free play · Beta',
+    title: 'Beta modes',
+    intro: "New modes we're still testing. They're unlimited only and don't count for the daily total or the leaderboard yet. Tell us what you think!",
+    allHint: 'any title',
+  },
+} satisfies Record<string, { modes: readonly Mode[]; eyebrow: string; title: string; intro: string; allHint: string }>;
+
+export function Unlimited({ account, page }: { account: Account | null; page: keyof typeof PAGES }) {
+  const { modes, eyebrow, title, intro, allHint } = PAGES[page];
   const [saved] = useState(savedUnlimited.load);
-  const [mode, setMode] = useState<Mode>(saved?.mode ?? 'anidle');
+  // The last settings are shared by both pages; a mode from the other page falls back to this page's first.
+  const [mode, setMode] = useState<Mode>(saved && (modes as readonly Mode[]).includes(saved.mode) ? saved.mode : modes[0]!);
   const [pool, setPool] = useState<Pool>(saved && (POOLS as readonly string[]).includes(saved.pool) ? saved.pool : 'semua');
   const [genreId, setGenreId] = useState<number | ''>(saved?.genreId ?? '');
   const [difficulty, setDifficulty] = useState(choiceKey(saved?.difficulties));
@@ -57,20 +76,18 @@ export function Unlimited({ account }: { account: Account | null }) {
   return (
     <div className="stack narrow">
       <header className="page-head">
-        <span className="eyebrow">Free play</span>
-        <h1>Unlimited</h1>
-        <p className="muted">As many random puzzles as you like. Your last settings are saved in this browser.</p>
+        <span className="eyebrow">{eyebrow}</span>
+        <h1>{title}</h1>
+        <p className="muted">{intro}</p>
       </header>
 
       <section className="card form-card">
         <div className="field">
           <span className="field-label">Mode</span>
           <div className="segmented modes" role="radiogroup" aria-label="Mode">
-            {MODES.map((m) => (
+            {modes.map((m) => (
               <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'selected' : ''} onClick={() => setMode(m)}>
-                <b>
-                  {MODE_LABELS[m]} <BetaBadge mode={m} />
-                </b>
+                <b>{MODE_LABELS[m]}</b>
                 <span>{MODE_HINTS[m]}</span>
               </button>
             ))}
@@ -100,7 +117,7 @@ export function Unlimited({ account }: { account: Account | null }) {
             {Object.entries(DIFFICULTY_CHOICES).map(([key, c]) => (
               <button key={key} type="button" role="radio" aria-checked={difficulty === key} className={difficulty === key ? 'selected' : ''} onClick={() => setDifficulty(key)}>
                 <b>{c.label}</b>
-                <span>{c.hint}</span>
+                <span>{key === 'all' ? allHint : c.hint}</span>
               </button>
             ))}
           </div>

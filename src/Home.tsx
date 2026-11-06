@@ -4,7 +4,7 @@ import { DAILY_MAX_POINTS, DAILY_MODES, DAILY_UTC_OFFSET_MS, MODE_LABELS, todayU
 import { api, type Account, type DailyPuzzleState } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtDate, fmtNumber } from './format';
-import { ArrowIcon, DatabaseIcon, DiscIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
+import { ArrowIcon, DatabaseIcon, DiscIcon, FlaskIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
 import { archiveDate, dailyHref } from './route';
 import { ScoringGuide } from './scoring';
 
@@ -156,7 +156,14 @@ export function Home({ account }: { account: Account | null }) {
             <ShuffleIcon />
           </span>
           <h3>Unlimited</h3>
-          <p className="muted">As many random puzzles as you like in any mode, including Connections (beta). Set the pool, genre, and difficulty.</p>
+          <p className="muted">As many random puzzles as you like in any daily mode. Set the pool, genre, and difficulty.</p>
+        </a>
+        <a className="tile" href="/beta">
+          <span className="tile-icon">
+            <FlaskIcon />
+          </span>
+          <h3>Beta modes</h3>
+          <p className="muted">New modes in testing: Connections, Synopsis, Higher or Lower, Odd One Out, Timeline.</p>
         </a>
         <a className="tile" href="/database">
           <span className="tile-icon">

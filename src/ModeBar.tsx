@@ -22,13 +22,13 @@ export function DayBar({ mode, date }: { mode: DailyMode; date: string | null })
   );
 }
 
-/** Above an unlimited puzzle: back to the Unlimited settings. */
-export function UnlimitedBar() {
+/** Above an unlimited puzzle: back to the page it was started from (Unlimited, or Beta for a beta mode). */
+export function UnlimitedBar({ beta }: { beta: boolean }) {
   return (
-    <nav className="mode-bar" aria-label="Unlimited">
-      <a className="button ghost small back-link" href="/unlimited">
+    <nav className="mode-bar" aria-label={beta ? 'Beta modes' : 'Unlimited'}>
+      <a className="button ghost small back-link" href={beta ? '/beta' : '/unlimited'}>
         <BackIcon />
-        Unlimited
+        {beta ? 'Beta modes' : 'Unlimited'}
       </a>
     </nav>
   );
