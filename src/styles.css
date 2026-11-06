@@ -378,6 +378,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .option { justify-content: space-between; text-align: left; font-weight: 600; padding: 11px 13px; box-shadow: none; }
 .option:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
 .option.selected { background: var(--dp-color-selection); box-shadow: 3px 3px 0 var(--accent); }
+.option-grid.link-picks { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.link-check { font-weight: 800; color: var(--accent-ink); }
 .lock { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: var(--dp-border-detail-width) solid var(--dp-color-rule-muted); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
 .segmented { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px; background: var(--ground); border: var(--detail); border-radius: 16px; }
 .segmented.modes { grid-template-columns: repeat(5, minmax(0, 1fr)); }

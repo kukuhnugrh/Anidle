@@ -1,4 +1,5 @@
 import type { InStatement } from '@libsql/client';
+import type { LinkKind } from '../shared/connections.js';
 import { randomUUID } from 'node:crypto';
 import { ANIDLE_CLUES, anidleScore, compareAnidle, maskSynopsis, type AnidleAnime, type AnidleClueKind, type AnidleFeedback } from '../shared/anidle.js';
 import {
@@ -115,6 +116,8 @@ export function parseDifficulties(value: unknown): Difficulty[] {
 export interface PuzzleOptions {
   genreId?: number;
   difficulties?: readonly Difficulty[];
+  /** Connections: the link kinds its groups may use (absent = every kind). */
+  links?: readonly LinkKind[];
 }
 
 /** Pool spec for a player and mode; completed-list pools need a linked MAL account. */

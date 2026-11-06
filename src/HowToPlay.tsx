@@ -75,8 +75,8 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
   ],
   connections: [
     <>
-      {CONNECTIONS_GROUPS * CONNECTIONS_GROUP_SIZE} anime hide {CONNECTIONS_GROUPS} groups of {CONNECTIONS_GROUP_SIZE}. Each group shares one thing: a genre, theme or demographic, its
-      source, its studio, the year it aired, or an artist who sang one of its openings or endings.
+      {CONNECTIONS_GROUPS * CONNECTIONS_GROUP_SIZE} anime hide {CONNECTIONS_GROUPS} groups of {CONNECTIONS_GROUP_SIZE}. Each group shares one thing: a genre, a theme, tags (Shounen,
+      Seinen…), its source, its studio, the year it aired, or an artist who sang one of its openings or endings. Under Links on the Beta page you choose which of these can come up.
     </>,
     <>Pick {CONNECTIONS_GROUP_SIZE} titles and press Submit. A right group locks in with its link; "One away" means three of your four belong together.</>,
     <>
@@ -97,8 +97,8 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
   ],
   oddoneout: [
     <>
-      {ODD_ONE_OUT_ROUNDS} rounds of {ODD_ONE_OUT_SIZE} anime. {ODD_ONE_OUT_SIZE - 1} of them share one thing: a genre, theme or demographic, their source, their studio, the year
-      they aired, or an OP/ED artist.
+      {ODD_ONE_OUT_ROUNDS} rounds of {ODD_ONE_OUT_SIZE} anime. {ODD_ONE_OUT_SIZE - 1} of them share one thing: a genre, a theme, tags (Shounen, Seinen…), their source, their
+      studio, the year they aired, or an OP/ED artist.
     </>,
     <>Pick the one that doesn't belong. One pick per round; the answer shows what the others share.</>,
   ],

@@ -12,6 +12,7 @@ import type { History, Leaderboard, TodayScore } from '../server/stats';
 import type { SynopsisState } from '../server/synopsis';
 import type { TimelineState } from '../server/timeline';
 import type { HigherLowerPick } from '../shared/higherlower';
+import type { LinkKind } from '../shared/connections';
 import type { Difficulty, Pool } from '../shared/catalog';
 import type { CatalogListName, CatalogLists, DbDetail, DbPage } from '../shared/database';
 import type { DailyMode, Mode } from '../shared/modes';
@@ -63,6 +64,8 @@ export interface UnlimitedOptions {
   genreId?: number;
   /** Empty = every difficulty. */
   difficulties?: Difficulty[];
+  /** Connections: the link kinds its groups may use (absent = every kind). */
+  links?: LinkKind[];
 }
 
 const UNLIMITED_KEY = 'anidle:unlimited';

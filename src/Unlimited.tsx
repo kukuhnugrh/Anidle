@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, type Difficulty, type Pool } from '../shared/catalog';
+import { LINK_KIND_LABELS, LINK_KINDS, type LinkKind } from '../shared/connections';
 import { BETA_MODES, DAILY_MODES, MODE_LABELS, type Mode } from '../shared/modes';
 import { api, errorMessage, savedUnlimited, type Account, type UnlimitedOptions } from './api';
 import { ArrowIcon } from './icons';
@@ -54,6 +55,9 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
   const [pool, setPool] = useState<Pool>(saved && (POOLS as readonly string[]).includes(saved.pool) ? saved.pool : 'semua');
   const [genreId, setGenreId] = useState<number | ''>(saved?.genreId ?? '');
   const [difficulty, setDifficulty] = useState(choiceKey(saved?.difficulties));
+  // Connections: which link kinds its groups may use (every kind by default).
+  const [links, setLinks] = useState<LinkKind[]>(saved?.links?.length ? saved.links : [...LINK_KINDS]);
+  const linksMissing = mode === 'connections' && !links.length;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasMal = Boolean(account?.mal);
@@ -63,7 +67,14 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
     setBusy(true);
     setError(null);
     try {
-      const options: UnlimitedOptions = { mode, pool, genreId: genreId === '' ? undefined : genreId, difficulties: DIFFICULTY_CHOICES[difficulty]!.value };
+      const options: UnlimitedOptions = {
+        mode,
+        pool,
+        genreId: genreId === '' ? undefined : genreId,
+        difficulties: DIFFICULTY_CHOICES[difficulty]!.value,
+        // Only Connections reads it; kept with the other settings so it survives switching modes.
+        links,
+      };
       const puzzle = await api.unlimited(options);
       savedUnlimited.save(options);
       go(`/play/${puzzle.id}`);
@@ -111,6 +122,32 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
           )}
         </div>
 
+        {mode === 'connections' && (
+          <div className="field">
+            <span className="field-label">Links</span>
+            <div className="option-grid link-picks" role="group" aria-label="What the groups may share">
+              {LINK_KINDS.map((k) => {
+                const on = links.includes(k);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={on}
+                    className={`option${on ? ' selected' : ''}`}
+                    onClick={() => setLinks((cur) => (cur.includes(k) ? cur.filter((l) => l !== k) : LINK_KINDS.filter((l) => l === k || cur.includes(l))))}
+                  >
+                    <span>{LINK_KIND_LABELS[k]}</span>
+                    <span className="link-check">{on ? '✓' : ''}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="muted small">
+              What the hidden groups may share. Tags are MAL demographics (Shounen, Seinen, Shoujo…). Fewer types make harder boards, and a small pool may not have enough.
+            </p>
+          </div>
+        )}
+
         <div className="field">
           <span className="field-label">Difficulty</span>
           <div className="segmented" role="radiogroup" aria-label="Difficulty">
@@ -136,7 +173,7 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
         </label>
 
         {error && <div className="error-box">{error}</div>}
-        <button className="primary big" disabled={busy || poolLocked} onClick={start}>
+        <button className="primary big" disabled={busy || poolLocked || linksMissing} onClick={start}>
           {busy ? 'Creating puzzle…' : 'Start puzzle'}
           <ArrowIcon />
         </button>

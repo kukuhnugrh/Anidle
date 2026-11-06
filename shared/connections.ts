@@ -12,6 +12,17 @@ export const CONNECTIONS_MISTAKE_COST = MODE_MAX_POINTS.connections / CONNECTION
 export const LINK_KINDS = ['genre', 'theme', 'demographic', 'source', 'studio', 'year', 'artist'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
+/** What the player calls each link kind (the setup's picker, the game's intro). MAL demographics (Shounen, Seinen…) show as Tags. */
+export const LINK_KIND_LABELS: Record<LinkKind, string> = {
+  genre: 'Genre',
+  theme: 'Theme',
+  demographic: 'Tags',
+  source: 'Source',
+  studio: 'Studio',
+  year: 'Year',
+  artist: 'OP/ED artist',
+};
+
 /**
  * The kinds group n is drawn from first, easiest first (the board's yellow, green, blue, purple). A pool
  * without such a link (no artist shared by four shows, say) falls back to any kind.
@@ -60,7 +71,7 @@ export function linkLabel(key: string): string {
     case 'theme':
       return `Theme: ${value}`;
     case 'demographic':
-      return `Demographic: ${value}`;
+      return `Tags: ${value}`;
     case 'source':
       return value === 'original' ? 'Anime original (no source material)' : `Adapted from a ${value.replace(/_/g, ' ').replace(/^4 koma/, '4-koma')}`;
     case 'studio':

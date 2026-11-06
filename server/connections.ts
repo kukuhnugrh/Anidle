@@ -1,5 +1,16 @@
 import type { Pool } from '../shared/catalog.js';
-import { CONNECTIONS_GROUP_SIZE, CONNECTIONS_MAX_MISTAKES, connectionsScore, drawBoard, judgeGuess, linkLabel, type BoardCandidate } from '../shared/connections.js';
+import {
+  CONNECTIONS_GROUP_SIZE,
+  CONNECTIONS_MAX_MISTAKES,
+  connectionsScore,
+  drawBoard,
+  judgeGuess,
+  LINK_KINDS,
+  linkLabel,
+  parseLink,
+  type BoardCandidate,
+  type LinkKind,
+} from '../shared/connections.js';
 import { CONNECTIONS_GROUPS } from '../shared/modes.js';
 import { catalogTraits } from './catalog.js';
 import { all } from './db.js';
@@ -44,12 +55,24 @@ export interface ConnectionsState {
   solved: boolean;
   finished: boolean;
   score: number | null;
+  /** The link kinds the board was drawn from (every kind unless the player narrowed them). */
+  links: LinkKind[];
 }
 
-/** A pool's shows with the links of catalog row 'traits' (Connections, Odd One Out). */
-export async function linkCandidates(spec: PoolSpec): Promise<BoardCandidate[]> {
+/** Connections' link-kind choice from a request: absent = every kind; a list must name known kinds and at least one. */
+export function parseLinkKinds(value: unknown): LinkKind[] | undefined {
+  if (value == null) return undefined;
+  const list = Array.isArray(value) ? value : [value];
+  for (const k of list) if (!(LINK_KINDS as readonly unknown[]).includes(k)) throw new HttpError(400, `Unknown link type: ${String(k)}`);
+  if (!list.length) throw new HttpError(400, 'Pick at least one link type.');
+  // Canonical order without repeats.
+  return LINK_KINDS.filter((k) => list.includes(k));
+}
+
+/** A pool's shows with the links of catalog row 'traits' (Connections, Odd One Out), only of `kinds` when given. */
+export async function linkCandidates(spec: PoolSpec, kinds?: readonly LinkKind[]): Promise<BoardCandidate[]> {
   const [titles, traits] = await Promise.all([poolTitles(spec), catalogTraits()]);
-  return titles.map((t) => ({ malId: t.malId, franchise: t.franchise, links: traits[t.malId] ?? [] }));
+  return titles.map((t) => ({ malId: t.malId, franchise: t.franchise, links: (traits[t.malId] ?? []).filter((link) => !kinds || kinds.includes(parseLink(link).kind)) }));
 }
 
 /** puzzle_group rows of a puzzle in order: Connections groups, Odd One Out and Timeline rounds. */
@@ -63,10 +86,14 @@ export async function puzzleGroups(puzzleId: string, count: number): Promise<Arr
 export const groupInserts = (puzzleId: string, groups: ReadonlyArray<{ link: string; malIds: readonly number[] }>) =>
   groups.map((g, grp) => ({ sql: 'INSERT INTO puzzle_group (puzzle_id, grp, link, mal_ids) VALUES (?, ?, ?, ?)', args: [puzzleId, grp, g.link, JSON.stringify(g.malIds)] }));
 
-/** A new unlimited board from the pool of `spec`, drawn among the links of catalog row 'traits'. */
+/** A new unlimited board from the pool of `spec`, drawn among the links of catalog row 'traits' of the chosen kinds. */
 export async function connectionsPuzzle(spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
-  const board = drawBoard(await linkCandidates(spec), (size) => Math.floor(Math.random() * size));
-  if (!board) throw new HttpError(404, 'This pool is too small for Connections. Try a bigger pool or fewer filters.');
+  const board = drawBoard(await linkCandidates(spec, options.links), (size) => Math.floor(Math.random() * size));
+  if (!board)
+    throw new HttpError(
+      404,
+      options.links ? 'Not enough shared links of these types in this pool. Pick more link types, a bigger pool or fewer filters.' : 'This pool is too small for Connections. Try a bigger pool or fewer filters.',
+    );
   return insertUnlimited('connections', spec, options, playerKey, board[0]!.malIds[0]!, (id) => groupInserts(id, board));
 }
 
@@ -103,6 +130,7 @@ async function evaluate(puzzle: PuzzleRow, stored: number[][]): Promise<Evaluate
       solved,
       finished,
       score: finished ? connectionsScore(solved, mistakes) : null,
+      links: [...((puzzle.options ? (JSON.parse(puzzle.options) as PuzzleOptions).links : undefined) ?? LINK_KINDS)],
     },
     groupIds,
   };

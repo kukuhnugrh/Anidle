@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CONNECTIONS_GROUP_SIZE } from '../shared/connections';
+import { CONNECTIONS_GROUP_SIZE, LINK_KIND_LABELS } from '../shared/connections';
 import { api, errorMessage, type ConnectionsState } from './api';
 import { FinishCard, GameHeader, TitleThumb } from './GameParts';
 import { connectionsShareText } from './share';
@@ -66,7 +66,7 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
     <div className="connections-game big-game">
       <GameHeader
         puzzle={puzzle}
-        intro={`Sort the board into groups of ${CONNECTIONS_GROUP_SIZE} anime that share something: a genre, theme, source, studio, year, or OP/ED artist.`}
+        intro={`Sort the board into groups of ${CONNECTIONS_GROUP_SIZE} anime that share something. Links in play: ${puzzle.links.map((k) => LINK_KIND_LABELS[k]).join(' · ')}.`}
         aside={
           <div className="cx-mistakes" aria-label={`${left} mistakes left`}>
             <span className="muted small">Mistakes left</span>
