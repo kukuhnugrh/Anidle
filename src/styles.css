@@ -554,6 +554,10 @@ input:focus-visible, select:focus-visible { outline: none; }
 .result h3:has(+ .answer-en) { margin-bottom: 0; }
 .answer-en { margin-bottom: 6px; font-weight: 600; color: var(--muted); }
 .result .score { font-family: var(--dp-typography-display); font-size: 30px; font-weight: 800; margin: 8px 0 14px; color: var(--accent); }
+.also-accepted { max-width: 720px; line-height: 1.5; }
+.also-accepted details { display: inline; }
+.also-accepted summary { display: inline; cursor: pointer; margin-left: 6px; color: var(--accent-ink); font-weight: 700; }
+.also-accepted details[open] summary { display: block; margin: 4px 0 0; }
 
 /* Character mode */
 .char-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }

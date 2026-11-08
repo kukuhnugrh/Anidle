@@ -240,6 +240,39 @@ export const answerInfo = (a: LoadedAnime): AnswerInfo => ({
   difficulty: difficultyOf(a.members),
 });
 
+/**
+ * The other MAL entries a guess counts for, per answer show, oldest first: its merged seasons, movies and
+ * spin-offs (picked from the list under the show's own name), and the other shows of its franchise with
+ * their entries (isCorrect). Reads only the rows listed, by primary key and anime_canonical.
+ */
+export async function alsoAccepted(answers: readonly number[]): Promise<Map<number, string[]>> {
+  if (!answers.length) return new Map();
+  const shows = await catalogShows();
+  // Every show a guess may name for each answer (itself included) → that answer.
+  const answerOf = new Map<number, number>(answers.map((a) => [a, a]));
+  for (const answer of answers) {
+    const franchise = shows.get(answer)?.franchise;
+    if (franchise !== undefined) for (const [id, show] of shows) if (show.franchise === franchise) answerOf.set(id, answer);
+  }
+  const ids = [...answerOf.keys()];
+  const marks = ids.map(() => '?').join(',');
+  const rows = await all<{ mal_id: number; title: string; show: number }>(
+    `SELECT mal_id, title, COALESCE(canonical_id, mal_id) AS show FROM anime
+     WHERE (mal_id IN (${marks}) OR canonical_id IN (${marks})) AND excluded IS NULL
+     ORDER BY year IS NULL, year, members DESC`,
+    [...ids, ...ids],
+  );
+  const out = new Map<number, string[]>();
+  for (const r of rows) {
+    const answer = answerOf.get(Number(r.show));
+    if (answer === undefined || Number(r.mal_id) === answer) continue;
+    const list = out.get(answer);
+    if (list) list.push(r.title);
+    else out.set(answer, [r.title]);
+  }
+  return out;
+}
+
 /** A title as shown on a beta mode's board, before anything about it is revealed. */
 export interface TitleCard {
   malId: number;

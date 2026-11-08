@@ -28,6 +28,26 @@ function nextClueLabel(r: Round): string {
   return r.facts ? 'Show the title’s first letters' : 'Show year, studio & genres';
 }
 
+/** Titles shown before the rest fold away. */
+const ALSO_SHOWN = 6;
+
+/** The other entries a guess counted for (seasons, movies, spin-offs, franchise); a long list folds after ALSO_SHOWN. */
+function AlsoAccepted({ titles }: { titles: string[] }) {
+  const rest = titles.slice(ALSO_SHOWN);
+  return (
+    <div className="also-accepted small">
+      <span className="muted">Also counted as right: </span>
+      {titles.slice(0, ALSO_SHOWN).join(' · ')}
+      {rest.length > 0 && (
+        <details>
+          <summary>+{rest.length} more</summary>
+          {rest.join(' · ')}
+        </details>
+      )}
+    </div>
+  );
+}
+
 export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SynopsisState; onChange: (p: SynopsisState) => void; onNewUnlimited: () => Promise<void> }) {
   const [roundView, setRoundView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
   const [sending, setSending] = useState(false);
@@ -145,6 +165,7 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
             </div>
             <h3>{round.answer.title}</h3>
             {round.answer.titleEn && <div className="answer-en">{round.answer.titleEn}</div>}
+            {round.alsoAccepted.length > 0 && <AlsoAccepted titles={round.alsoAccepted} />}
             <div className="score">{fmtNumber(round.points)} pts</div>
             <div className="actions">
               <a className="button" href={`https://myanimelist.net/anime/${round.answer.malId}`} target="_blank" rel="noreferrer">

@@ -6,6 +6,7 @@ import { titleHint } from '../shared/normalize.js';
 import { SYNOPSIS_GUESSES, SYNOPSIS_MIN_SENTENCES, synopsisClueCount, synopsisPoints, synopsisSentences } from '../shared/synopsis.js';
 import { all } from './db.js';
 import {
+  alsoAccepted,
   answerInfo,
   assertPlayable,
   insertUnlimited,
@@ -59,6 +60,8 @@ export interface SynopsisRound {
   max: number;
   /** Only once the round is over. */
   answer: AnswerInfo | null;
+  /** Once the round is over: the other entries a guess would have counted for (seasons, movies, spin-offs, franchise), oldest first. */
+  alsoAccepted: string[];
 }
 
 export interface SynopsisState {
@@ -147,7 +150,8 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
   const ids = (await all<{ mal_id: number }>('SELECT mal_id FROM puzzle_round WHERE puzzle_id = ? ORDER BY round', [puzzle.id])).map((r) => Number(r.mal_id));
   if (ids.length !== ROUND_COUNT) throw new HttpError(500, 'Puzzle data is incomplete.');
   const guessed = stored.flatMap((s) => [...(s.w ?? []), ...(s.g ? [s.g] : [])]);
-  const [sentences, anime] = await Promise.all([maskedSentences(ids), loadAnidle([...ids, ...guessed])]);
+  const over = ids.filter((_, i) => (stored[i]?.g ?? null) !== null);
+  const [sentences, anime, accepted] = await Promise.all([maskedSentences(ids), loadAnidle([...ids, ...guessed]), alsoAccepted(over)]);
   const named = (malId: number) => ({ malId, title: anime.get(malId)?.title ?? `#${malId}` });
   const answers = ids.map((malId) => {
     const answer = anime.get(malId);
@@ -179,6 +183,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       points: synopsisPoints(solved, played.c, misses.length),
       max: roundMaxPoints('synopsis'),
       answer: finished ? info : null,
+      alsoAccepted: finished ? (accepted.get(answer.malId) ?? []) : [],
     };
   });
   const current = rounds.findIndex((r) => !r.finished);
