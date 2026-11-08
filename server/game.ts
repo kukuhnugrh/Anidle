@@ -116,7 +116,7 @@ export function parseDifficulties(value: unknown): Difficulty[] {
 export interface PuzzleOptions {
   genreId?: number;
   difficulties?: readonly Difficulty[];
-  /** Connections: the link kinds its groups may use (absent = every kind). */
+  /** Connections and Odd One Out: the link kinds their groups may use (absent = every kind). */
   links?: readonly LinkKind[];
 }
 

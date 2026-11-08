@@ -27,9 +27,9 @@ export function anidleShareText(p: AnidleState): string {
   return [`${heading(p.mode, p.date, p.score)} (${result})`, ...rows, SITE].join('\n');
 }
 
-/** Per round: 🟨 per clue unlocked (Synopsis: per extra sentence), then 🟩 right, 🟥 wrong or ⬜ gave up. */
+/** Per round: 🟨 per clue unlocked, 🟥 per wrong guess that left the round open (Synopsis), then 🟩 right, 🟥 wrong or ⬜ gave up. */
 export function roundShareText(p: RoundState | SynopsisState): string {
-  const rows = p.rounds.map((r, i) => `R${i + 1} ${'🟨'.repeat(r.clues)}${r.solved ? '🟩' : r.gaveUp ? '⬜' : '🟥'}`);
+  const rows = p.rounds.map((r, i) => `R${i + 1} ${'🟨'.repeat(r.clues)}${'🟥'.repeat('misses' in r ? r.misses.length : 0)}${r.solved ? '🟩' : r.gaveUp ? '⬜' : '🟥'}`);
   return [heading(p.mode, p.date, p.score), ...rows, SITE].join('\n');
 }
 

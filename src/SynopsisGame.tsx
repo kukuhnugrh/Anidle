@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SYNOPSIS_CLUE_COST } from '../shared/synopsis';
+import { SYNOPSIS_GUESSES, SYNOPSIS_STEP_COST, synopsisClueCount } from '../shared/synopsis';
 import { roundMaxPoints } from '../shared/modes';
 import { api, errorMessage, type SynopsisState } from './api';
 import { RoundsSummary } from './AnswerSummary';
@@ -8,9 +8,25 @@ import { fmtNumber } from './format';
 import { FinishCard, GameHeader } from './GameParts';
 import { GuessInput } from './GuessInput';
 import { RoundTitle } from './RoundTitle';
+import { TitleHint } from './RoundGame';
 import { roundShareText } from './share';
 
-const clueNote = (clues: number) => (clues ? `with ${clues} more ${clues === 1 ? 'sentence' : 'sentences'}` : null);
+type Round = SynopsisState['rounds'][number];
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** How a round's clues and wrong guesses were used, e.g. "with 2 clues and 1 wrong guess" (null = none). */
+function clueNote(r: Round): string | null {
+  const parts = [r.clues ? plural(r.clues, 'clue', 'clues') : '', r.misses.length ? plural(r.misses.length, 'wrong guess', 'wrong guesses') : ''].filter(Boolean);
+  return parts.length ? `with ${parts.join(' and ')}` : null;
+}
+
+/** The label of the round's next clue: a sentence, then the facts, then the title's first letters. */
+function nextClueLabel(r: Round): string {
+  const sentencesLeft = r.total - 1 - r.clues;
+  if (sentencesLeft > 0) return `Next sentence (${sentencesLeft} left)`;
+  return r.facts ? 'Show the title’s first letters' : 'Show year, studio & genres';
+}
 
 export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SynopsisState; onChange: (p: SynopsisState) => void; onNewUnlimited: () => Promise<void> }) {
   const [roundView, setRoundView] = useState(Math.min(puzzle.current, puzzle.rounds.length - 1));
@@ -18,7 +34,8 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
   const [error, setError] = useState<string | null>(null);
   const round = puzzle.rounds[roundView]!;
   const playing = roundView === puzzle.current && !round.finished;
-  const worth = round.max - SYNOPSIS_CLUE_COST * round.clues;
+  const worth = round.max - SYNOPSIS_STEP_COST * (round.clues + round.misses.length);
+  const guessesLeft = SYNOPSIS_GUESSES - round.misses.length;
 
   const send = async (task: () => Promise<SynopsisState>) => {
     setSending(true);
@@ -36,7 +53,7 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
     <div className="round-game">
       <GameHeader
         puzzle={puzzle}
-        intro={`Guess the anime from its MAL synopsis, names hidden. One guess per round (${fmtNumber(roundMaxPoints('synopsis'))} pts); every extra sentence you open takes ${fmtNumber(SYNOPSIS_CLUE_COST)} off.`}
+        intro={`Guess the anime from its MAL synopsis, names hidden. ${SYNOPSIS_GUESSES} guesses per round (${fmtNumber(roundMaxPoints('synopsis'))} pts); every clue you open and every wrong guess takes ${fmtNumber(SYNOPSIS_STEP_COST)} off.`}
         aside={
           <div className="round-tabs" role="tablist">
             {puzzle.rounds.map((r, i) => (
@@ -66,16 +83,37 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
             </li>
           ))}
         </ol>
+        {round.facts && (
+          <div className="syn-facts">
+            <span className="field-label">Facts</span>
+            <span>
+              {[round.facts.year ?? 'Year unknown', round.facts.studios.join(', ') || 'Studio unknown', round.facts.genres.join(', ')].filter(Boolean).join(' · ')}
+            </span>
+          </div>
+        )}
+        {round.hint && <TitleHint hint={round.hint} />}
+        {round.misses.length > 0 && (
+          <p className="syn-misses">
+            <span className="field-label">Not</span>
+            {round.misses.map((m) => (
+              <s key={m.malId} className="summary-wrong">
+                {m.title}
+              </s>
+            ))}
+          </p>
+        )}
         {playing && (
           <div className="stage-controls">
-            {round.clues < round.total - 1 && (
+            {round.clues < synopsisClueCount(round.total) && (
               <button className="ghost" disabled={sending} onClick={() => send(() => api.roundClue<SynopsisState>(puzzle.id, roundView))}>
-                Next sentence ({round.total - 1 - round.clues} left) · −{fmtNumber(SYNOPSIS_CLUE_COST)} pts
+                {nextClueLabel(round)} · −{fmtNumber(SYNOPSIS_STEP_COST)} pts
               </button>
             )}
             <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SynopsisState>(puzzle.id, roundView, malId))} />
             <div className="stage-actions">
-              <span className="muted small">One guess · right now = {fmtNumber(worth)} pts</span>
+              <span className="muted small">
+                {plural(guessesLeft, 'guess', 'guesses')} left · right now = {fmtNumber(worth)} pts
+              </span>
               <ConfirmButton
                 className="ghost danger"
                 disabled={sending}
@@ -99,7 +137,11 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
           {round.answer.cover && <img src={round.answer.cover} alt="" />}
           <div>
             <div className="muted small">
-              {round.solved ? (round.clues ? `Right, ${clueNote(round.clues)}` : 'Right from the first sentence!') : round.gaveUp ? 'You gave up. The answer:' : `Not ${round.guess?.title}. The answer:`}
+              {round.solved
+                ? (clueNote(round) ? `Right, ${clueNote(round)}` : 'Right from the first sentence!')
+                : round.gaveUp
+                  ? 'You gave up. The answer:'
+                  : `Not ${round.guess?.title}. Out of guesses; the answer:`}
             </div>
             <h3>{round.answer.title}</h3>
             {round.answer.titleEn && <div className="answer-en">{round.answer.titleEn}</div>}
@@ -130,7 +172,7 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
           />
           <RoundsSummary
             rounds={puzzle.rounds.flatMap((r) =>
-              r.answer ? [{ answer: r.answer, detail: null, guess: r.guess, solved: r.solved, gaveUp: r.gaveUp, clueNote: clueNote(r.clues), points: r.points, max: r.max }] : [],
+              r.answer ? [{ answer: r.answer, detail: null, guess: r.guess, solved: r.solved, gaveUp: r.gaveUp, clueNote: clueNote(r), points: r.points, max: r.max }] : [],
             )}
           />
         </>

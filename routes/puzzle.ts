@@ -1,3 +1,4 @@
+import { usesLinks } from '../shared/connections.js';
 import { isBetaMode } from '../shared/modes.js';
 import { viewer } from '../server/accounts.js';
 import { dailyPuzzle, getPuzzle, parseDailyDate, parseDailyMode, parseDifficulties, parseMode, parsePool, poolSpec, unlimitedPuzzle, type PuzzleOptions } from '../server/game.js';
@@ -14,14 +15,14 @@ export const GET = route(async (req) => {
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);
 });
 
-/** New unlimited puzzle: { mode, pool, genreId?, difficulties?, links? (Connections' link kinds) }. Completed-list pools need a linked MAL account. */
+/** New unlimited puzzle: { mode, pool, genreId?, difficulties?, links? (link kinds of Connections and Odd One Out) }. Completed-list pools need a linked MAL account. */
 export const POST = route(async (req) => {
   const me = await viewer(req);
   const body = await readJson<{ mode?: unknown; pool?: unknown; genreId?: unknown; difficulties?: unknown; links?: unknown }>(req);
   const genreId = body.genreId == null || body.genreId === '' ? undefined : Number(body.genreId);
   if (genreId !== undefined && !Number.isInteger(genreId)) throw new HttpError(400, 'genreId must be a number.');
   const mode = parseMode(body.mode ?? 'anidle');
-  const options: PuzzleOptions = { genreId, difficulties: parseDifficulties(body.difficulties), links: mode === 'connections' ? parseLinkKinds(body.links) : undefined };
+  const options: PuzzleOptions = { genreId, difficulties: parseDifficulties(body.difficulties), links: usesLinks(mode) ? parseLinkKinds(body.links) : undefined };
   const spec = poolSpec(parsePool(body.pool ?? 'semua'), me.account, mode, options);
   const puzzle = isBetaMode(mode) ? await BETA_PUZZLES[mode](spec, options, me.key) : await unlimitedPuzzle(mode, spec, options, me.key);
   return json(await puzzleState(puzzle, me.key), {}, me.cookies);

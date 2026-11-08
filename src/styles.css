@@ -690,6 +690,9 @@ input:focus-visible, select:focus-visible { outline: none; }
 .syn-sentences li::marker { color: var(--accent-ink); font-weight: 800; }
 /* Sentences never opened, shown once the round is over. */
 .syn-sentences li.extra { color: var(--muted); }
+/* Clues after the sentences, and wrong guesses that left the round open. */
+.syn-facts { display: grid; gap: 4px; padding: 12px 16px; border-radius: var(--radius); background: var(--dp-color-selection); border: var(--outline); font-size: 16px; }
+.syn-misses { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0; }
 
 /* Higher or Lower */
 .hl-streak { display: grid; justify-items: end; }

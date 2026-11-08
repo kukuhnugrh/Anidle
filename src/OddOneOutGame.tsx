@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LINK_KIND_LABELS } from '../shared/connections';
 import { ODD_ONE_OUT_POINTS } from '../shared/oddoneout';
 import { api, errorMessage, type OddOneOutState } from './api';
 import { fmtNumber } from './format';
@@ -37,7 +38,7 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
     <div className="round-game big-game">
       <GameHeader
         puzzle={puzzle}
-        intro={`All but one of these anime share something: a genre, theme, source, studio, year, or OP/ED artist. Pick the one that doesn't. ${fmtNumber(ODD_ONE_OUT_POINTS)} pts per round.`}
+        intro={`All but one of these anime share something. Pick the one that doesn't. Links in play: ${puzzle.links.map((k) => LINK_KIND_LABELS[k]).join(' · ')}. ${fmtNumber(ODD_ONE_OUT_POINTS)} pts per round.`}
         aside={
           <div className="round-tabs" role="tablist">
             {puzzle.rounds.map((r, i) => (

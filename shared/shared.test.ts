@@ -367,8 +367,11 @@ describe('judgeGuess', () => {
 });
 
 describe('connectionsScore', () => {
-  it('takes a quarter off a solved board per mistake and gives 0 to an unsolved one', () => {
-    expect([0, 1, 3].map((m) => connectionsScore(true, m))).toEqual([10_000, 7_500, 2_500]);
-    expect(connectionsScore(false, 2)).toBe(0);
+  it('scores every group found, solved or not, minus 500 per mistake', () => {
+    expect([0, 1, 3].map((m) => connectionsScore(4, m))).toEqual([10_000, 9_500, 8_500]);
+    // Out of mistakes: the groups found still count, even a single one.
+    expect(connectionsScore(2, 4)).toBe(3_000);
+    expect(connectionsScore(1, 4)).toBe(500);
+    expect(connectionsScore(0, 4)).toBe(0);
   });
 });

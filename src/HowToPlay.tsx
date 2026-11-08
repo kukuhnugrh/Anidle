@@ -16,7 +16,7 @@ import {
   TIMELINE_SIZE,
   type Mode,
 } from '../shared/modes';
-import { SYNOPSIS_MAX_SENTENCES } from '../shared/synopsis';
+import { SYNOPSIS_GUESSES, SYNOPSIS_MAX_SENTENCES } from '../shared/synopsis';
 import { BetaBadge } from './BetaBadge';
 import { fmtNumber } from './format';
 import { CloseIcon } from './icons';
@@ -85,9 +85,18 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
     <>Groups go from easiest (yellow) to trickiest (purple). Shuffle moves the titles around if you get stuck.</>,
   ],
   synopsis: [
-    <>{ROUND_COUNT} rounds, each the MAL synopsis of a different anime. The title, its other names and its best-known characters are hidden as ▇▇▇.</>,
-    <>The first sentence shows. Need more? Open the next one, up to {SYNOPSIS_MAX_SENTENCES} sentences; each costs points.</>,
-    <>Type a title, pick it from the list, then press Guess. One guess per round; any season, movie or remake of the same series counts. Give up shows the answer and scores 0.</>,
+    <>
+      {ROUND_COUNT} rounds, each the MAL synopsis of a different anime (with difficulty All: easy, then medium, then hard). The title, its other names and its best-known
+      characters are hidden as ▇▇▇.
+    </>,
+    <>
+      The first sentence shows. Need more? Open the next one, up to {SYNOPSIS_MAX_SENTENCES} sentences, then its year, studio and genres, then the title's first letters (N_____).
+      Each clue costs points.
+    </>,
+    <>
+      Type a title, pick it from the list, then press Guess. You get {SYNOPSIS_GUESSES} guesses per round (a wrong one costs points too); any season, movie or remake of the same
+      series counts. Give up shows the answer and scores 0.
+    </>,
   ],
   higherlower: [
     <>You see an anime and its MAL score. Does the next one score higher or lower? A right call moves it over and shows a new one.</>,
@@ -98,7 +107,7 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
   oddoneout: [
     <>
       {ODD_ONE_OUT_ROUNDS} rounds of {ODD_ONE_OUT_SIZE} anime. {ODD_ONE_OUT_SIZE - 1} of them share one thing: a genre, a theme, tags (Shounen, Seinen…), their source, their
-      studio, the year they aired, or an OP/ED artist.
+      studio, the year they aired, or an OP/ED artist. Under Links on the Beta page you choose which of these can come up.
     </>,
     <>Pick the one that doesn't belong. One pick per round; the answer shows what the others share.</>,
   ],

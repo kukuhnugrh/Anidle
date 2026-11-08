@@ -64,7 +64,7 @@ export interface UnlimitedOptions {
   genreId?: number;
   /** Empty = every difficulty. */
   difficulties?: Difficulty[];
-  /** Connections: the link kinds its groups may use (absent = every kind). */
+  /** Connections and Odd One Out: the link kinds their groups may use (absent = every kind). */
   links?: LinkKind[];
 }
 

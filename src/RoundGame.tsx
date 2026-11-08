@@ -12,7 +12,6 @@ import { RoundTitle } from './RoundTitle';
 import { roundShareText, ShareButton } from './share';
 
 type LoadStatus = 'loading' | 'ready' | 'error';
-type Round = RoundState['rounds'][number];
 
 /** Gives up on a round whose first screenshot has not decoded in this long (a screenshot is ~60 KB). */
 const PRELOAD_TIMEOUT_MS = 20_000;
@@ -56,8 +55,8 @@ function useFrames(urls: string[]) {
   return { status, retry: (i: number) => load(i, urls[i]!) };
 }
 
-/** The masked title, kept under the screenshots so every screenshot stays one click away. */
-function TitleHint({ hint }: { hint: NonNullable<Round['hint']> }) {
+/** The masked title (Guess the Anime keeps it under the screenshots so every screenshot stays one click away; Synopsis under the text). */
+export function TitleHint({ hint }: { hint: { title: string; english: string | null } }) {
   return (
     <div className="title-hint">
       <span className="field-label">Title clue</span>

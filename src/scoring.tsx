@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
 import { CHARACTER_FIELDS_PER_ROUND } from '../shared/characters';
-import { CONNECTIONS_MAX_MISTAKES, CONNECTIONS_MISTAKE_COST } from '../shared/connections';
+import { CONNECTIONS_GROUP_POINTS, CONNECTIONS_MAX_MISTAKES, CONNECTIONS_MISTAKE_COST } from '../shared/connections';
 import { HIGHER_LOWER_POINT } from '../shared/higherlower';
 import { ODD_ONE_OUT_POINTS } from '../shared/oddoneout';
-import { SYNOPSIS_CLUE_COST, SYNOPSIS_MAX_SENTENCES } from '../shared/synopsis';
+import { SYNOPSIS_EXTRA_CLUES, SYNOPSIS_GUESSES, SYNOPSIS_MAX_SENTENCES, SYNOPSIS_STEP_COST, synopsisClueCount } from '../shared/synopsis';
 import { TIMELINE_POINT } from '../shared/timeline';
 import {
   CHARACTERS_PER_ROUND,
@@ -75,22 +75,25 @@ export const SCORING_RULES: Record<Mode, ReactNode[]> = {
     <>Wrong or empty: 0.</>,
   ],
   connections: [
-    <>Every group found with no mistake: {pts(MODE_MAX_POINTS.connections)}.</>,
     <>
-      Every mistake takes {pts(CONNECTIONS_MISTAKE_COST)} off a solved board: {pts(MODE_MAX_POINTS.connections - CONNECTIONS_MISTAKE_COST * (CONNECTIONS_MAX_MISTAKES - 1))} with{' '}
-      {CONNECTIONS_MAX_MISTAKES - 1} mistakes.
+      {pts(CONNECTIONS_GROUP_POINTS)} per group found: all of them with no mistake is {pts(MODE_MAX_POINTS.connections)}.
     </>,
-    <>The {CONNECTIONS_MAX_MISTAKES}th mistake ends the board: 0.</>,
+    <>
+      Every mistake takes {pts(CONNECTIONS_MISTAKE_COST)} off: a solved board with {CONNECTIONS_MAX_MISTAKES - 1} mistakes is{' '}
+      {pts(MODE_MAX_POINTS.connections - CONNECTIONS_MISTAKE_COST * (CONNECTIONS_MAX_MISTAKES - 1))}.
+    </>,
+    <>The {CONNECTIONS_MAX_MISTAKES}th mistake ends the board, but the groups you found still count.</>,
   ],
   synopsis: [
     <>
       {ROUND_COUNT} rounds × {pts(roundMaxPoints('synopsis'))}.
     </>,
     <>
-      Right from the first sentence: {pts(roundMaxPoints('synopsis'))}. Every extra sentence takes {pts(SYNOPSIS_CLUE_COST)} off: {pts(roundMaxPoints('synopsis') - SYNOPSIS_CLUE_COST * (SYNOPSIS_MAX_SENTENCES - 1))}{' '}
-      with all {SYNOPSIS_MAX_SENTENCES} open.
+      Right from the first sentence on the first guess: {pts(roundMaxPoints('synopsis'))}. Every clue you open and every wrong guess takes {pts(SYNOPSIS_STEP_COST)} off: with
+      all {synopsisClueCount(SYNOPSIS_MAX_SENTENCES)} clues ({SYNOPSIS_MAX_SENTENCES - 1} sentences + {SYNOPSIS_EXTRA_CLUES.length} hints) and your last guess right,{' '}
+      {pts(roundMaxPoints('synopsis') - SYNOPSIS_STEP_COST * (synopsisClueCount(SYNOPSIS_MAX_SENTENCES) + SYNOPSIS_GUESSES - 1))}.
     </>,
-    <>Wrong or gave up: 0.</>,
+    <>{SYNOPSIS_GUESSES} wrong guesses or gave up: 0.</>,
   ],
   higherlower: [
     <>

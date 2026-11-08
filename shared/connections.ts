@@ -2,12 +2,18 @@
 // split into hidden groups that each share one link (a genre, theme, studio, source, year, OP/ED artist).
 // The player picks a group's titles at a time; CONNECTIONS_MAX_MISTAKES wrong picks end the board.
 import type { GenreType } from './catalog.js';
-import { CONNECTIONS_GROUPS, MODE_MAX_POINTS } from './modes.js';
+import { CONNECTIONS_GROUPS, MODE_MAX_POINTS, type Mode } from './modes.js';
 
 export const CONNECTIONS_GROUP_SIZE = 4;
 export const CONNECTIONS_MAX_MISTAKES = 4;
-/** Points off a solved board per wrong guess; running out of mistakes scores 0. */
-export const CONNECTIONS_MISTAKE_COST = MODE_MAX_POINTS.connections / CONNECTIONS_MAX_MISTAKES;
+/** Points per group found, solved board or not. */
+export const CONNECTIONS_GROUP_POINTS = MODE_MAX_POINTS.connections / CONNECTIONS_GROUPS;
+/** Points off per wrong guess: small enough that one found group still scores after the last mistake. */
+export const CONNECTIONS_MISTAKE_COST = CONNECTIONS_GROUP_POINTS / 5;
+
+/** Modes whose puzzles are drawn from links, so the player may narrow the link kinds (Links on the Beta page). */
+export const LINK_MODES = ['connections', 'oddoneout'] as const satisfies readonly Mode[];
+export const usesLinks = (mode: Mode) => (LINK_MODES as readonly Mode[]).includes(mode);
 
 export const LINK_KINDS = ['genre', 'theme', 'demographic', 'source', 'studio', 'year', 'artist'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
@@ -182,5 +188,5 @@ export function judgeGuess(groups: ReadonlyArray<readonly number[]>, guess: read
   return { group: null, oneAway };
 }
 
-/** A solved board: the full points minus CONNECTIONS_MISTAKE_COST per wrong guess; not solved: 0. */
-export const connectionsScore = (solved: boolean, mistakes: number) => (solved ? MODE_MAX_POINTS.connections - CONNECTIONS_MISTAKE_COST * mistakes : 0);
+/** CONNECTIONS_GROUP_POINTS per group found minus CONNECTIONS_MISTAKE_COST per wrong guess, never below 0. */
+export const connectionsScore = (found: number, mistakes: number) => Math.max(0, CONNECTIONS_GROUP_POINTS * found - CONNECTIONS_MISTAKE_COST * mistakes);

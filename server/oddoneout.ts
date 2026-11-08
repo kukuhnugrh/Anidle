@@ -1,8 +1,8 @@
 import type { Pool } from '../shared/catalog.js';
-import { linkLabel } from '../shared/connections.js';
+import { linkLabel, type LinkKind } from '../shared/connections.js';
 import { ODD_ONE_OUT_ROUNDS } from '../shared/modes.js';
 import { drawOddRounds, ODD_ONE_OUT_POINTS } from '../shared/oddoneout.js';
-import { groupInserts, linkCandidates, puzzleGroups } from './connections.js';
+import { groupInserts, linkCandidates, puzzleGroups, puzzleLinkKinds } from './connections.js';
 import { boardOrder, insertUnlimited, loadAnidle, readPlay, titleCard, writePlay, type PoolSpec, type PuzzleOptions, type PuzzleRow, type TitleCard } from './game.js';
 import { HttpError } from './http.js';
 
@@ -31,11 +31,17 @@ export interface OddOneOutState {
   current: number;
   finished: boolean;
   score: number | null;
+  /** The link kinds the rounds were drawn from (every kind unless the player narrowed them). */
+  links: LinkKind[];
 }
 
 export async function oddOneOutPuzzle(spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
-  const rounds = drawOddRounds(await linkCandidates(spec), (size) => Math.floor(Math.random() * size));
-  if (!rounds) throw new HttpError(404, 'This pool is too small for Odd One Out. Try a bigger pool or fewer filters.');
+  const rounds = drawOddRounds(await linkCandidates(spec, options.links), (size) => Math.floor(Math.random() * size));
+  if (!rounds)
+    throw new HttpError(
+      404,
+      options.links ? 'Not enough shared links of these types in this pool. Pick more link types, a bigger pool or fewer filters.' : 'This pool is too small for Odd One Out. Try a bigger pool or fewer filters.',
+    );
   return insertUnlimited('oddoneout', spec, options, playerKey, rounds[0]!.malIds.at(-1)!, (id) => groupInserts(id, rounds));
 }
 
@@ -68,6 +74,7 @@ async function evaluate(puzzle: PuzzleRow, picks: number[]): Promise<OddOneOutSt
     current: finished ? rounds.length : current,
     finished,
     score: finished ? rounds.reduce((sum, r) => sum + r.points, 0) : null,
+    links: puzzleLinkKinds(puzzle),
   };
 }
 

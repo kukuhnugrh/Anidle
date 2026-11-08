@@ -59,7 +59,7 @@ export interface ConnectionsState {
   links: LinkKind[];
 }
 
-/** Connections' link-kind choice from a request: absent = every kind; a list must name known kinds and at least one. */
+/** The link-kind choice of Connections and Odd One Out from a request: absent = every kind; a list must name known kinds and at least one. */
 export function parseLinkKinds(value: unknown): LinkKind[] | undefined {
   if (value == null) return undefined;
   const list = Array.isArray(value) ? value : [value];
@@ -68,6 +68,9 @@ export function parseLinkKinds(value: unknown): LinkKind[] | undefined {
   // Canonical order without repeats.
   return LINK_KINDS.filter((k) => list.includes(k));
 }
+
+/** The link kinds a puzzle was drawn from (stored in its options; every kind unless the player narrowed them). */
+export const puzzleLinkKinds = (puzzle: PuzzleRow): LinkKind[] => [...((puzzle.options ? (JSON.parse(puzzle.options) as PuzzleOptions).links : undefined) ?? LINK_KINDS)];
 
 /** A pool's shows with the links of catalog row 'traits' (Connections, Odd One Out), only of `kinds` when given. */
 export async function linkCandidates(spec: PoolSpec, kinds?: readonly LinkKind[]): Promise<BoardCandidate[]> {
@@ -129,8 +132,8 @@ async function evaluate(puzzle: PuzzleRow, stored: number[][]): Promise<Evaluate
       maxMistakes: CONNECTIONS_MAX_MISTAKES,
       solved,
       finished,
-      score: finished ? connectionsScore(solved, mistakes) : null,
-      links: [...((puzzle.options ? (JSON.parse(puzzle.options) as PuzzleOptions).links : undefined) ?? LINK_KINDS)],
+      score: finished ? connectionsScore(found.length, mistakes) : null,
+      links: puzzleLinkKinds(puzzle),
     },
     groupIds,
   };

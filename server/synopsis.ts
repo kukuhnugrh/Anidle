@@ -1,30 +1,56 @@
 import { isCorrect, maskSynopsis } from '../shared/anidle.js';
 import type { Difficulty, Pool } from '../shared/catalog.js';
 import { displayName } from '../shared/characters.js';
-import { ROUND_COUNT, roundMaxPoints } from '../shared/modes.js';
-import { SYNOPSIS_MIN_SENTENCES, synopsisPoints, synopsisSentences } from '../shared/synopsis.js';
+import { ROUND_COUNT, roundMaxPoints, roundTries } from '../shared/modes.js';
+import { titleHint } from '../shared/normalize.js';
+import { SYNOPSIS_GUESSES, SYNOPSIS_MIN_SENTENCES, synopsisClueCount, synopsisPoints, synopsisSentences } from '../shared/synopsis.js';
 import { all } from './db.js';
-import { answerInfo, assertPlayable, insertUnlimited, loadAnidle, poolTitles, readPlay, shuffled, writePlay, type AnswerInfo, type PoolSpec, type PuzzleOptions, type PuzzleRow } from './game.js';
+import {
+  answerInfo,
+  assertPlayable,
+  insertUnlimited,
+  loadAnidle,
+  poolTitles,
+  readPlay,
+  shuffled,
+  writePlay,
+  type AnswerInfo,
+  type LoadedAnime,
+  type PoolSpec,
+  type PoolTitle,
+  type PuzzleOptions,
+  type PuzzleRow,
+} from './game.js';
 import { HttpError } from './http.js';
 import type { RoundMove } from './rounds.js';
 
-// Synopsis (beta, unlimited only; shared/synopsis.ts): ROUND_COUNT rounds of one title (puzzle_round).
-// The first sentence of its masked synopsis shows; the player may open the next ones (clues) and makes
-// one guess. play.guesses holds StoredRound[] as in Guess the Anime: g = guessed mal_id (0 = gave up,
-// null = not yet), c = extra sentences opened. Only opened sentences leave the server.
+// Synopsis (beta, unlimited only; shared/synopsis.ts): ROUND_COUNT rounds of one title (puzzle_round),
+// staged easy → medium → hard like the other round modes. The first sentence of its masked synopsis
+// shows; the player may open the next ones, then the show's facts and its title's first letters (clues),
+// and has SYNOPSIS_GUESSES guesses. play.guesses holds StoredRound[]: g = the guess that ended the round
+// (right, the last wrong one, or 0 = gave up; null = still open), c = clues opened, w = wrong guesses that
+// left it open (absent in plays from before there were several guesses). Only opened clues leave the server.
 
 interface StoredRound {
   g: number | null;
   c: number;
+  w?: number[];
 }
 
 export interface SynopsisRound {
   /** Sentences opened so far (every one once the round is over). */
   sentences: string[];
-  /** Sentences the round has: the first plus total - 1 clues. */
+  /** Sentences the round has: the first plus total - 1 sentence clues, then SYNOPSIS_EXTRA_CLUES. */
   total: number;
   clues: number;
+  /** The show's year, studios and genres (tags included), once that clue is opened. */
+  facts: { year: number | null; studios: string[]; genres: string[] } | null;
+  /** The masked title ("N_____"), once that clue is opened. */
+  hint: { title: string; english: string | null } | null;
   difficulty: Difficulty;
+  /** Wrong guesses that left the round open, in order. */
+  misses: Array<{ malId: number; title: string }>;
+  /** The guess that ended the round: right, or the last wrong one. */
   guess: { malId: number; title: string } | null;
   gaveUp: boolean;
   solved: boolean;
@@ -74,24 +100,37 @@ async function maskedSentences(ids: number[]): Promise<Map<number, string[]>> {
   );
 }
 
-/** A new puzzle: ROUND_COUNT shows of the pool from different franchises whose synopsis has SYNOPSIS_MIN_SENTENCES. */
-export async function synopsisPuzzle(spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
-  const titles = shuffled(await poolTitles(spec));
-  const picked: number[] = [];
-  const franchises = new Set<number>();
-  for (let at = 0; at < Math.min(titles.length, DRAW_MAX_READS) && picked.length < ROUND_COUNT; at += DRAW_BATCH) {
-    const batch = titles.slice(at, at + DRAW_BATCH).filter((t) => !franchises.has(t.franchise));
-    if (!batch.length) continue;
+/** A random show of `spec`'s pool outside `franchises` whose synopsis has SYNOPSIS_MIN_SENTENCES, or null. */
+async function drawTitle(spec: PoolSpec, franchises: ReadonlySet<number>): Promise<PoolTitle | null> {
+  const titles = shuffled((await poolTitles(spec)).filter((t) => !franchises.has(t.franchise)));
+  for (let at = 0; at < Math.min(titles.length, DRAW_MAX_READS); at += DRAW_BATCH) {
+    const batch = titles.slice(at, at + DRAW_BATCH);
     const ids = batch.map((t) => t.malId);
     const rows = await all<{ mal_id: number; synopsis: string }>(`SELECT mal_id, synopsis FROM anime WHERE mal_id IN (${marks(ids)}) AND synopsis IS NOT NULL AND synopsis != ''`, ids);
     const long = new Set(rows.filter((r) => synopsisSentences(maskSynopsis(r.synopsis, [])).length >= SYNOPSIS_MIN_SENTENCES).map((r) => Number(r.mal_id)));
-    for (const t of batch) {
-      if (picked.length === ROUND_COUNT || franchises.has(t.franchise) || !long.has(t.malId)) continue;
-      franchises.add(t.franchise);
-      picked.push(t.malId);
-    }
+    const hit = batch.find((t) => long.has(t.malId));
+    if (hit) return hit;
   }
-  if (picked.length < ROUND_COUNT) throw new HttpError(404, 'This pool has too few titles with a synopsis. Try a bigger pool or fewer filters.');
+  return null;
+}
+
+/**
+ * A new puzzle: ROUND_COUNT shows from different franchises whose synopsis has SYNOPSIS_MIN_SENTENCES,
+ * round n from roundDifficulties (easy, medium, hard for every difficulty), widened per roundTries.
+ */
+export async function synopsisPuzzle(spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
+  const picked: number[] = [];
+  const franchises = new Set<number>();
+  for (let round = 0; round < ROUND_COUNT; round++) {
+    let title: PoolTitle | null = null;
+    for (const difficulties of roundTries(spec.difficulties, round)) {
+      title = await drawTitle({ ...spec, difficulties }, franchises);
+      if (title) break;
+    }
+    if (!title) throw new HttpError(404, 'This pool has too few titles with a synopsis. Try a bigger pool or fewer filters.');
+    franchises.add(title.franchise);
+    picked.push(title.malId);
+  }
   return insertUnlimited('synopsis', spec, options, playerKey, picked[0]!, (id) =>
     picked.map((malId, round) => ({ sql: 'INSERT INTO puzzle_round (puzzle_id, round, mal_id) VALUES (?, ?, ?)', args: [id, round, malId] })),
   );
@@ -100,31 +139,44 @@ export async function synopsisPuzzle(spec: PoolSpec, options: PuzzleOptions, pla
 interface Evaluated {
   state: SynopsisState;
   solvedRounds: number;
+  /** Each round's answer, for judging the next guess. */
+  answers: LoadedAnime[];
 }
 
 async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evaluated> {
   const ids = (await all<{ mal_id: number }>('SELECT mal_id FROM puzzle_round WHERE puzzle_id = ? ORDER BY round', [puzzle.id])).map((r) => Number(r.mal_id));
   if (ids.length !== ROUND_COUNT) throw new HttpError(500, 'Puzzle data is incomplete.');
-  const [sentences, anime] = await Promise.all([maskedSentences(ids), loadAnidle([...ids, ...stored.flatMap((s) => (s.g ? [s.g] : []))])]);
-  const rounds = ids.map((malId, i): SynopsisRound => {
+  const guessed = stored.flatMap((s) => [...(s.w ?? []), ...(s.g ? [s.g] : [])]);
+  const [sentences, anime] = await Promise.all([maskedSentences(ids), loadAnidle([...ids, ...guessed])]);
+  const named = (malId: number) => ({ malId, title: anime.get(malId)?.title ?? `#${malId}` });
+  const answers = ids.map((malId) => {
     const answer = anime.get(malId);
     if (!answer) throw new HttpError(500, 'An answer is missing from the database.');
-    const text = sentences.get(malId) ?? [];
+    return answer;
+  });
+  const rounds = answers.map((answer, i): SynopsisRound => {
+    const text = sentences.get(answer.malId) ?? [];
     const played = stored[i] ?? { g: null, c: 0 };
-    const guessed = played.g ? anime.get(played.g) : undefined;
-    const solved = guessed !== undefined && isCorrect(answer, guessed);
+    const misses = played.w ?? [];
+    const last = played.g ? anime.get(played.g) : undefined;
+    const solved = last !== undefined && isCorrect(answer, last);
     const finished = played.g !== null;
     const info = answerInfo(answer);
+    // Clues open in order: sentences 2..total, then the facts, then the title's first letters.
+    const sentenceClues = text.length - 1;
     return {
-      sentences: finished ? text : text.slice(0, 1 + played.c),
+      sentences: finished ? text : text.slice(0, 1 + Math.min(played.c, sentenceClues)),
       total: text.length,
       clues: played.c,
+      facts: played.c > sentenceClues ? { year: answer.year, studios: answer.studios, genres: [...answer.genres, ...answer.tags] } : null,
+      hint: played.c > sentenceClues + 1 ? { title: titleHint(answer.title), english: answer.titleEn ? titleHint(answer.titleEn) : null } : null,
       difficulty: info.difficulty,
-      guess: played.g ? { malId: played.g, title: guessed?.title ?? `#${played.g}` } : null,
+      misses: misses.map(named),
+      guess: played.g ? named(played.g) : null,
       gaveUp: played.g === 0,
       solved,
       finished,
-      points: synopsisPoints(solved, played.c),
+      points: synopsisPoints(solved, played.c, misses.length),
       max: roundMaxPoints('synopsis'),
       answer: finished ? info : null,
     };
@@ -143,6 +195,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       score: finished ? rounds.reduce((sum, r) => sum + r.points, 0) : null,
     },
     solvedRounds: rounds.filter((r) => r.solved).length,
+    answers,
   };
 }
 
@@ -155,21 +208,25 @@ export async function synopsisState(puzzle: PuzzleRow, playerKey: string): Promi
   return (await evaluate(puzzle, await storedRounds(puzzle.id, playerKey))).state;
 }
 
-/** One move in the current round: open the next sentence, guess (once), or give up. */
+/** One move in the current round: open the next clue, guess (a wrong one keeps the round open until the last), or give up. */
 export async function synopsisMove(puzzle: PuzzleRow, playerKey: string, round: number, move: RoundMove): Promise<SynopsisState> {
   const stored = await storedRounds(puzzle.id, playerKey);
-  const before = (await evaluate(puzzle, stored)).state;
+  const { state: before, answers } = await evaluate(puzzle, stored);
   if (before.finished) throw new HttpError(409, 'This puzzle is already finished.');
   if (round !== before.current) throw new HttpError(409, 'That round is already over or has not started.');
-  const next = Array.from({ length: ROUND_COUNT }, (_, i) => stored[i] ?? { g: null, c: 0 });
-  const played = { ...next[round]! };
+  const next = Array.from({ length: ROUND_COUNT }, (_, i): StoredRound => stored[i] ?? { g: null, c: 0 });
+  const played = { ...next[round]!, w: [...(next[round]!.w ?? [])] };
   if (move.kind === 'clue') {
-    if (played.c >= before.rounds[round]!.total - 1) throw new HttpError(409, 'Every sentence is already open.');
+    if (played.c >= synopsisClueCount(before.rounds[round]!.total)) throw new HttpError(409, 'Every clue is already open.');
     played.c++;
   } else if (move.kind === 'giveUp') played.g = 0;
   else {
     await assertPlayable(move.malId);
-    played.g = move.malId;
+    if (played.w.includes(move.malId)) throw new HttpError(409, 'You already tried that one.');
+    const guessed = (await loadAnidle([move.malId])).get(move.malId);
+    const right = guessed !== undefined && isCorrect(answers[round]!, guessed);
+    if (right || played.w.length + 1 >= SYNOPSIS_GUESSES) played.g = move.malId;
+    else played.w.push(move.malId);
   }
   next[round] = played;
   const after = await evaluate(puzzle, next);
