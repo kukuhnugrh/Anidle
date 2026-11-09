@@ -137,21 +137,38 @@ function SongPlayer({ media, loading }: { media: HTMLAudioElement | null; loadin
 const CLUE_VIDEO_TIMEOUT_MS = 20_000;
 /** The video is pulled back to the song only when it drifts further than this (seconds): every seek of a streamed video costs a round trip. */
 const MAX_DRIFT_S = 1;
+/** Blur drawn into the frames, as a share of the video's height: 5 px on a 240p clip, about what 7 px of CSS blur gave at the usual size. */
+const CLUE_BLUR_SHARE = 1 / 48;
 
 const toggleFullscreen = (target: HTMLElement | null) =>
   void (document.fullscreenElement ? document.exitFullscreen() : target?.requestFullscreen())?.catch(() => {});
 
+/** Fetches a clue clip sent encrypted (server/crypto.ts sealMedia: AES-128-CTR, counter from 0) and returns a blob: URL of the plain file. */
+async function decryptedClip(url: string, key: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Clue video: ${res.status}`);
+  const raw = Uint8Array.from(atob(key.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const aes = await crypto.subtle.importKey('raw', raw, 'AES-CTR', false, ['decrypt']);
+  const plain = await crypto.subtle.decrypt({ name: 'AES-CTR', counter: new Uint8Array(16), length: 128 }, aes, await res.arrayBuffer());
+  return URL.createObjectURL(new Blob([plain], { type: 'video/mp4' }));
+}
+
 /**
  * The theme's own video, blurred and muted, following the song: the player controls (and a click on
- * the video) play, pause and seek both, and the song never stops while the video loads or stalls. It
- * starts loading at the song's current moment (`#t=`), not at 0. Double click or the corner button =
- * fullscreen (of `stage`, so the player comes along).
+ * the video) play, pause and seek both, and the song never stops while the video loads or stalls.
+ * Double click or the corner button = fullscreen (of `stage`, so the player comes along).
+ *
+ * Kept out of reach of the network log and the element inspector, as far as a page can: a clip arrives
+ * encrypted (`videoKey`) and plays from a blob: URL revoked once loaded; the <video> is never in the page,
+ * its frames are drawn blurred into a canvas (no CSS filter to switch off), and while the video is inside
+ * a `hidden` span (it shows the anime's title) the canvas is painted black instead. A video without a key
+ * streams from /api/media as it is, starting at the song's current moment (`#t=`).
  */
-function ClueVideo({ url, audio, stage, onFail }: { url: string; audio: HTMLAudioElement | null; stage: RefObject<HTMLDivElement | null>; onFail: () => void }) {
-  const video = useRef<HTMLVideoElement>(null);
+function ClueVideo({ url, videoKey, hidden, audio, stage, onFail }: { url: string; videoKey: string | null; hidden: Array<[number, number]>; audio: HTMLAudioElement | null; stage: RefObject<HTMLDivElement | null>; onFail: () => void }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [video] = useState(() => Object.assign(document.createElement('video'), { muted: true, playsInline: true, preload: 'auto' }));
   const [shown, setShown] = useState(false);
-  // Fixed at mount: changing src later would reload the video.
-  const [src] = useState(() => (audio && audio.currentTime > 1 ? `${url}#t=${audio.currentTime.toFixed(1)}` : url));
+  const [covered, setCovered] = useState(false);
 
   useEffect(() => {
     if (shown) return;
@@ -160,37 +177,87 @@ function ClueVideo({ url, audio, stage, onFail }: { url: string; audio: HTMLAudi
   }, [shown, onFail]);
 
   useEffect(() => {
-    const v = video.current;
-    if (!audio || !v) return;
+    let blobUrl: string | null = null;
+    let gone = false;
+    // The element keeps the loaded file; the URL is only needed to start, then nothing else can open it.
+    const loaded = () => {
+      setShown(true);
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+    video.addEventListener('loadeddata', loaded, { once: true });
+    video.addEventListener('error', onFail);
+    if (videoKey) {
+      decryptedClip(url, videoKey).then((blob) => {
+        if (gone) return URL.revokeObjectURL(blob);
+        blobUrl = blob;
+        video.src = blob;
+      }, onFail);
+    } else video.src = audio && audio.currentTime > 1 ? `${url}#t=${audio.currentTime.toFixed(1)}` : url;
+    return () => {
+      gone = true;
+      video.removeEventListener('loadeddata', loaded);
+      video.removeEventListener('error', onFail);
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+    // `audio` only picks where a stream starts loading; a later one is followed below without reloading.
+  }, [video, url, videoKey, onFail]);
+
+  useEffect(() => {
+    if (!audio) return;
     const follow = () => {
-      if (v.readyState >= HTMLMediaElement.HAVE_METADATA && !v.seeking && Math.abs(v.currentTime - audio.currentTime) > MAX_DRIFT_S) v.currentTime = audio.currentTime;
-      if (audio.paused) v.pause();
-      else if (v.paused) void v.play().catch(() => {});
+      if (video.readyState >= HTMLMediaElement.HAVE_METADATA && !video.seeking && Math.abs(video.currentTime - audio.currentTime) > MAX_DRIFT_S) video.currentTime = audio.currentTime;
+      if (audio.paused) video.pause();
+      else if (video.paused) void video.play().catch(() => {});
     };
     follow();
     const events = ['play', 'pause', 'seeked', 'timeupdate'] as const;
     for (const e of events) audio.addEventListener(e, follow);
-    v.addEventListener('loadedmetadata', follow);
+    video.addEventListener('loadedmetadata', follow);
     return () => {
       for (const e of events) audio.removeEventListener(e, follow);
-      v.removeEventListener('loadedmetadata', follow);
+      video.removeEventListener('loadedmetadata', follow);
     };
-  }, [audio]);
+  }, [video, audio]);
+
+  // Every animation frame, not on timeupdate (~4 per second): a title card can be on screen for a moment.
+  useEffect(() => {
+    const c = canvas.current;
+    const ctx = c?.getContext('2d');
+    if (!c || !ctx) return;
+    let drawnAt = -1;
+    let frame = requestAnimationFrame(function draw() {
+      frame = requestAnimationFrame(draw);
+      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
+      const resized = c.width !== video.videoWidth || c.height !== video.videoHeight;
+      if (!resized && video.currentTime === drawnAt) return;
+      if (resized) [c.width, c.height] = [video.videoWidth, video.videoHeight];
+      drawnAt = video.currentTime;
+      const inSpan = hidden.some(([start, end]) => drawnAt >= start && drawnAt < end);
+      setCovered(inSpan);
+      if (inSpan) {
+        ctx.filter = 'none';
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, c.width, c.height);
+      } else {
+        ctx.filter = `blur(${c.height * CLUE_BLUR_SHARE}px) saturate(1.1)`;
+        ctx.drawImage(video, 0, 0, c.width, c.height);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [video, hidden]);
 
   return (
     <div className="clue-frame">
-      <video
-        ref={video}
+      <canvas
+        ref={canvas}
         className="clue-media"
-        src={src}
-        muted
-        preload="auto"
-        playsInline
         onClick={() => audio && (audio.paused ? void audio.play() : audio.pause())}
         onDoubleClick={() => toggleFullscreen(stage.current)}
-        onLoadedData={() => setShown(true)}
-        onError={onFail}
       />
+      {covered && <span className="clue-hidden small">Title hidden</span>}
       {!shown && <span className="clue-status small">Loading the video… the song keeps playing</span>}
       <button className="clue-fullscreen small" onClick={() => toggleFullscreen(stage.current)}>
         ⛶ Fullscreen
@@ -213,7 +280,7 @@ function ClueView({ clue, withCover, audio, stage }: { clue: Clue; withCover: bo
     </span>
   ) : null;
   if (!clue.url || videoFailed) return cover;
-  const video = <ClueVideo url={clue.url} audio={audio} stage={stage} onFail={onFail} />;
+  const video = <ClueVideo url={clue.url} videoKey={clue.key} hidden={clue.hidden} audio={audio} stage={stage} onFail={onFail} />;
   return withCover ? (
     <div className="clue-pair">
       {video}

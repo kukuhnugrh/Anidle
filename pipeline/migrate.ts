@@ -26,6 +26,9 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // The MAL user id the account is linked to: sign-in and linking match on it, never on the
   // username alone (MAL usernames can change hands).
   account: { mal_id: 'INTEGER' },
+  // Seconds of an OP/ED video showing the anime's title, hidden in the clue (step `titles`, OCR): JSON
+  // [[start, end], …]; NULL = not scanned yet. Dropped with the clip when the song's audio changes.
+  anime_theme: { title_spans: 'TEXT' },
 };
 
 /** Indexes on ADDED_COLUMNS, created once the columns exist. */

@@ -1,7 +1,7 @@
 import { isCorrect } from '../shared/anidle.js';
 import { difficultyOf, type Difficulty, type Pool } from '../shared/catalog.js';
 import { ROUND_COUNT, roundMaxPoints, SONG_CLUE_SHARE, SONG_KIND, type SongMode } from '../shared/modes.js';
-import { opaqueTag } from './crypto.js';
+import { mediaKey, opaqueTag } from './crypto.js';
 import { all } from './db.js';
 import { answerInfo, assertPlayable, loadAnidle, readPlay, writePlay, type AnswerInfo, type PuzzleRow } from './game.js';
 import { HttpError } from './http.js';
@@ -33,12 +33,17 @@ export interface SongRoundState {
   clue: {
     opened: boolean;
     /**
-     * Only once opened: the theme's video, shown blurred and muted while the song plays on: the small
-     * clip on R2 when the pipeline made one, else the source video streamed through /api/media.
+     * Only once opened: the theme's video through /api/media, shown blurred and muted while the song plays
+     * on: the small R2 clip when the pipeline made one (sent encrypted with `key`), else the source video
+     * streamed from AnimeThemes as it is (`key` null).
      */
     url: string | null;
+    /** base64url AES-128-CTR key of the clip at `url` (counter from 0); null for a plain stream. */
+    key: string | null;
     /** Only once opened: the cover, shown blurred (Ending: beside the video; both: when the video does not load). */
     cover: string | null;
+    /** Only once opened: [start, end) seconds of the video showing the anime's title (step `titles`), covered while they play. */
+    hidden: Array<[number, number]>;
   };
   /** The song's difficulty (from its own entry's members): shown from the start, like the round's label. */
   difficulty: Difficulty;
@@ -77,6 +82,8 @@ export interface SongSource {
   videoUrl: string;
   /** The 240p clue clip on R2 (pipeline steps `clips`/`daily`), when there is one. */
   clipKey: string | null;
+  /** Seconds of its video showing the title (step `titles`); null until scanned. */
+  titleSpans: Array<[number, number]> | null;
   song: SongInfo;
   /** From the members of the song's own entry. */
   difficulty: Difficulty;
@@ -91,6 +98,7 @@ export async function songSources(puzzleId: string, mode: SongMode): Promise<Son
     audio_url: string | null;
     video_url: string | null;
     clip_key: string | null;
+    title_spans: string | null;
     label: string | null;
     song_title: string | null;
     artist: string | null;
@@ -98,7 +106,7 @@ export async function songSources(puzzleId: string, mode: SongMode): Promise<Son
     entry_title: string | null;
     entry_members: number | null;
   }>(
-    `SELECT r.mal_id, r.audio_key, t.id AS theme_id, t.audio_url, t.video_url, t.clip_key, t.label, t.song_title, t.artist,
+    `SELECT r.mal_id, r.audio_key, t.id AS theme_id, t.audio_url, t.video_url, t.clip_key, t.title_spans, t.label, t.song_title, t.artist,
             e.mal_id AS entry_id, e.title AS entry_title, e.members AS entry_members
      FROM puzzle_round r LEFT JOIN anime_theme t ON t.id = r.theme_id AND t.kind = ? LEFT JOIN anime e ON e.mal_id = t.mal_id
      WHERE r.puzzle_id = ? ORDER BY r.round`,
@@ -110,16 +118,23 @@ export async function songSources(puzzleId: string, mode: SongMode): Promise<Son
     themeId: Number(r.theme_id),
     audioUrl: r.audio_url!,
     audioKey: r.audio_key,
-    // AnimeThemes extracts each audio file from a video of the same name: a.…/X.ogg ↔ v.…/X.webm.
-    videoUrl: r.video_url || r.audio_url!.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm'),
+    videoUrl: themeVideoUrl(r.video_url, r.audio_url!),
     clipKey: r.clip_key || null,
+    titleSpans: r.title_spans == null ? null : (JSON.parse(r.title_spans) as Array<[number, number]>),
     song: { label: r.label!, title: r.song_title, artist: r.artist, entryTitle: Number(r.entry_id) === Number(r.mal_id) ? null : r.entry_title },
     difficulty: difficultyOf(r.entry_members == null ? null : Number(r.entry_members)),
   }));
 }
 
+/** A theme's video: its smallest AnimeThemes video, else (none known) the one its audio was extracted from: a.…/X.ogg ↔ v.…/X.webm. */
+export const themeVideoUrl = (videoUrl: string | null, audioUrl: string) =>
+  videoUrl || audioUrl.replace('://a.animethemes.moe/', '://v.animethemes.moe/').replace(/\.ogg$/, '.webm');
+
 /** The `v` of a round's /api/media URL: changes when a round is replaced, so a cached copy of the old song is never played for the new one. */
 export const mediaTag = (puzzleId: string, round: number, source: SongSource) => opaqueTag(`${puzzleId}:${round}:${source.malId}:${source.themeId}`);
+
+/** The key a round's clue clip is encrypted with in /api/media (sealMedia). */
+export const clueKey = (puzzleId: string, round: number, source: SongSource) => mediaKey(`${puzzleId}:${round}:${source.themeId}`);
 
 export const storedSongs = async (puzzleId: string, playerKey: string): Promise<StoredSong[]> => {
   const play = await readPlay(puzzleId, playerKey);
@@ -149,8 +164,10 @@ async function evaluate(puzzle: PuzzleRow, mode: SongMode, playerKey: string, st
       difficulty: s.difficulty,
       clue: {
         opened: played.c,
-        url: played.c || finished ? (s.clipKey ? mediaUrl(s.clipKey) : media(i, 'video')) : null,
+        url: played.c || finished ? media(i, 'video') : null,
+        key: (played.c || finished) && s.clipKey ? clueKey(puzzle.id, i, s).toString('base64url') : null,
         cover: played.c || finished ? answer.cover : null,
+        hidden: played.c || finished ? (s.titleSpans ?? []) : [],
       },
       guess: played.g ? { malId: played.g, title: guessed?.title ?? `#${played.g}` } : null,
       gaveUp: played.g === 0,

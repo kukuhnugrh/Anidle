@@ -9,7 +9,7 @@ import { animeDetail, animeSynopsis, malGet, MalError } from '../server/mal.js';
 import { syncCompleted } from '../server/players.js';
 import { stepCatalog } from './catalog.js';
 import { Limiter } from './limiter.js';
-import { stepAliases, stepCharacters, stepClips, stepDaily, stepMedia, stepNicknames, stepScreenshots } from './media.js';
+import { stepAliases, stepCharacters, stepClips, stepDaily, stepMedia, stepNicknames, stepScreenshots, stepTitles } from './media.js';
 import { migrate } from './migrate.js';
 import { animeGenres } from './sources/jikanEdge.js';
 
@@ -339,7 +339,7 @@ async function stepCleanup() {
 
 // ------------------------------------------------------------------ CLI
 
-const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'catalog', 'daily', 'cleanup'] as const;
+const STEPS = ['genres', 'completed', 'popular', 'enrich', 'synopsis', 'franchise', 'media', 'characters', 'nicknames', 'aliases', 'screenshots', 'clips', 'titles', 'catalog', 'daily', 'cleanup'] as const;
 type Step = (typeof STEPS)[number];
 
 const args = process.argv.slice(2);
@@ -357,7 +357,7 @@ const steps: Step[] = !requested.length || requested.includes('all') ? [...STEPS
 if (!steps.includes('catalog')) steps.splice(steps.includes('daily') ? steps.indexOf('daily') : steps.length, 0, 'catalog');
 // Without the binary every frame, clip and song fails one by one and the run still ends green (Nov 2026: npm
 // skipped ffmpeg-static's install script until package.json allowScripts approved it), so stop right away.
-const FFMPEG_STEPS: readonly Step[] = ['media', 'characters', 'screenshots', 'clips', 'daily'];
+const FFMPEG_STEPS: readonly Step[] = ['media', 'characters', 'screenshots', 'clips', 'titles', 'daily'];
 if (steps.some((s) => FFMPEG_STEPS.includes(s)) && !(ffmpegPath && existsSync(ffmpegPath))) {
   console.error(`ffmpeg tidak ada (${ffmpegPath ?? 'platform tidak didukung'}): install script ffmpeg-static tidak jalan? Cek allowScripts di package.json lalu npm ci.`);
   process.exit(1);
@@ -378,6 +378,7 @@ for (const step of steps) {
   if (step === 'aliases') await stepAliases(flag('refresh'), limit);
   if (step === 'screenshots') await stepScreenshots(flag('refresh'), limit);
   if (step === 'clips') await stepClips(flag('refresh'), limit);
+  if (step === 'titles') await stepTitles(flag('refresh'), limit);
   if (step === 'catalog') await stepCatalog();
   if (step === 'daily') await stepDaily();
   if (step === 'cleanup') await stepCleanup();

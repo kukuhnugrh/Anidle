@@ -1,9 +1,10 @@
 import { isSongMode } from '../shared/modes.js';
 import { viewer } from '../server/accounts.js';
+import { sealMedia } from '../server/crypto.js';
 import { getPuzzle } from '../server/game.js';
 import { HttpError, queryOf, route } from '../server/http.js';
 import { mediaUrl } from '../server/media.js';
-import { mediaTag, songSources, storedSongs } from '../server/songs.js';
+import { clueKey, mediaTag, songSources, storedSongs } from '../server/songs.js';
 
 /** Response headers worth passing on from AnimeThemes (Range support lets the player seek). */
 const PASSED = ['content-type', 'content-length', 'content-range', 'accept-ranges'];
@@ -15,7 +16,9 @@ const toR2 = (key: string) => new Response(null, { status: 302, headers: { locat
  * ?puzzle=&round=&kind=audio|video&v= : streams a song round's full audio (or, once the player opened the
  * clue, the theme's video) from AnimeThemes. Same origin, so the file name, which is the anime's
  * name, never shows up in the browser. Only the exact URL the game hands out is served (v must match),
- * so the public CDN copy of a daily song cannot be bypassed with extra or altered parameters.
+ * so the public CDN copy of a daily song cannot be bypassed with extra or altered parameters. A clue
+ * clip on R2 is fetched here and sent encrypted (clueKey), so the network log holds no playable file
+ * and its R2 address never reaches the browser.
  */
 export const GET = route(async (req) => {
   const p = queryOf(req, ['puzzle', 'round', 'kind', 'v']);
@@ -30,7 +33,12 @@ export const GET = route(async (req) => {
   if (kind === 'video') {
     const played = (await storedSongs(puzzle.id, (await viewer(req)).key))[round];
     if (!played?.c && (played?.g ?? null) === null) throw new HttpError(403, 'Open the clue first.');
-    if (source.clipKey) return toR2(source.clipKey);
+    if (source.clipKey) {
+      const clip = await fetch(mediaUrl(source.clipKey), { signal: AbortSignal.timeout(30_000) });
+      if (!clip.ok) throw new HttpError(502, 'The clue video is not available right now.');
+      const sealed = sealMedia(clueKey(puzzle.id, round, source), new Uint8Array(await clip.arrayBuffer()));
+      return new Response(sealed, { headers: { 'content-type': 'application/octet-stream', 'cache-control': 'private, max-age=86400' } });
+    }
     upstream = source.videoUrl;
   } else if (kind !== 'audio') throw new HttpError(400, 'kind must be audio or video.');
   else if (source.audioKey) return toR2(source.audioKey);

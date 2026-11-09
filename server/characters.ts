@@ -125,8 +125,11 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
       difficulties.push(characterDifficultyOf(Number(s.favorites ?? 0)));
       const tried = stored[r]?.[i] ?? { n: null, a: null };
       const picked = tried.n ? names.get(tried.n) : undefined;
-      // Graded by name, not char_id: the autocomplete offers same-named characters as one entry.
-      const nameRight = picked !== undefined && displayName(picked).toLowerCase() === displayName(s.name).toLowerCase();
+      const aliases = characterAliases(s.nicknames, s.aliases, s.name);
+      // Graded by name, not char_id: the autocomplete offers same-named characters as one entry. Any
+      // "Also accepted" alias counts too: another character may be called it ("Kuroneko" for Ruri Gokou).
+      const accepted = new Set([displayName(s.name), ...aliases].map((n) => n.toLowerCase()));
+      const nameRight = picked !== undefined && accepted.has(displayName(picked).toLowerCase());
       const name = field(tried.n ? { charId: tried.n, name: displayName(picked ?? `#${tried.n}`) } : null, tried.n != null, nameRight, worth);
       const guessed = tried.a ? anime.get(tried.a) : undefined;
       const shows = showsOf.get(Number(s.char_id)) ?? [];
@@ -141,7 +144,7 @@ async function evaluate(puzzle: PuzzleRow, stored: StoredRound[]): Promise<Evalu
         answer: done
           ? {
               name: displayName(s.name),
-              aliases: characterAliases(s.nicknames, s.aliases, s.name),
+              aliases,
               anime: info,
               otherShows: shows.filter((row) => Number(row.show) !== info.malId).map((row) => ({ malId: Number(row.show), title: row.title })),
             }

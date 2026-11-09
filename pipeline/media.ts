@@ -1,20 +1,23 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import ffmpegPath from 'ffmpeg-static';
+import { createWorker, OEM, type Worker as OcrWorker } from 'tesseract.js';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { aliasOf, CHARACTER_MIN_FAVORITES, isRomaji, sameCharacterName } from '../shared/characters.js';
 import { SCREENSHOTS_PER_TITLE, shiftDate, todayUtc7, type MediaKind } from '../shared/modes.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { dailyPuzzle } from '../server/game.js';
-import { songSources } from '../server/songs.js';
+import { mediaUrl } from '../server/media.js';
+import { songSources, themeVideoUrl } from '../server/songs.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { deleteObject, putObject } from './r2.js';
 import { entryThemes, type ThemeSource } from './sources/animeThemes.js';
 import { anilistCharacters } from './sources/anilist.js';
 import { animeCharacters, characterDetail, type JikanCharacter } from './sources/jikanEdge.js';
+import { hiddenSpans, showsTitle, titleKeys } from './titleText.js';
 
 const COVER_WIDTH = 400;
 const PORTRAIT_WIDTH = 300;
@@ -153,7 +156,7 @@ async function save(malId: number, kind: MediaKind, row: { status: MediaRow['sta
 
 /**
  * Stores what AnimeThemes now lists for one MAL entry: themes upserted by id (an admin's rejection is
- * kept; the clip is dropped when the audio changed), themes it no longer lists marked missing (kept, so
+ * kept; the clip and the scanned title spans are dropped when the audio changed), themes it no longer lists marked missing (kept, so
  * old rounds still find their song; never asked again), themes_at set.
  */
 async function saveThemes(malId: number, themes: ThemeSource[]) {
@@ -165,7 +168,8 @@ async function saveThemes(malId: number, themes: ThemeSource[]) {
               ON CONFLICT (id) DO UPDATE SET mal_id = excluded.mal_id, kind = excluded.kind, seq = excluded.seq, label = excluded.label,
                 song_title = excluded.song_title, artist = excluded.artist, audio_url = excluded.audio_url, video_url = excluded.video_url,
                 status = CASE WHEN anime_theme.status = 'rejected' THEN 'rejected' ELSE 'ok' END,
-                checked_at = excluded.checked_at, clip_key = CASE WHEN anime_theme.audio_url = excluded.audio_url THEN anime_theme.clip_key END`,
+                checked_at = excluded.checked_at, clip_key = CASE WHEN anime_theme.audio_url = excluded.audio_url THEN anime_theme.clip_key END,
+                title_spans = CASE WHEN anime_theme.audio_url = excluded.audio_url THEN anime_theme.title_spans END`,
         args: [t.id, malId, t.kind, t.seq, t.label, t.title, t.artist, t.audioUrl, t.videoUrl ?? '', now],
       })),
       {
@@ -723,6 +727,111 @@ export async function stepClips(refreshAll: boolean, limit: number) {
   log('clips:', counts);
 }
 
+/** Romaji/English logos and Japanese ones. Language data is fetched once into data/tessdata (gitignored). */
+const OCR_LANGS = ['eng', 'jpn'];
+const OCR_CACHE = 'data/tessdata';
+/** Frames are read upscaled to this height: at the clip's 240p Tesseract reads almost nothing. */
+const OCR_HEIGHT = 720;
+/** The weekly run stops taking new songs after this long (~30 s per song); the rest wait for the next run. */
+const TITLES_BUDGET_MS = 60 * 60_000;
+
+interface TitleScanRow {
+  id: number;
+  label: string;
+  mal_id: number;
+  audio_url: string;
+  video_url: string;
+  clip_key: string | null;
+  /** JSON array: the song's entry's and its show's titles, English and Japanese titles, and synonyms. */
+  names: string;
+}
+
+/** Songs to scan with every name their title could appear under; `where` filters anime_theme t. */
+const titleScanRows = (where: string, args: Array<string | number>) =>
+  all<TitleScanRow>(
+    `SELECT t.id, t.label, t.mal_id, t.audio_url, t.video_url, t.clip_key,
+       (SELECT json_group_array(value) FROM (
+          SELECT value FROM json_each(json_array(e.title, e.title_en, e.title_ja, s.title, s.title_en, s.title_ja))
+          UNION ALL SELECT value FROM json_each(e.synonyms) UNION ALL SELECT value FROM json_each(s.synonyms))) AS names
+     FROM anime_theme t JOIN anime e ON e.mal_id = t.mal_id JOIN anime s ON s.mal_id = COALESCE(e.canonical_id, e.mal_id)
+     WHERE ${where}`,
+    args,
+  );
+
+/**
+ * Reads one frame per second of the song's video (its 240p clip when there is one, else the AnimeThemes
+ * video) and stores the seconds showing the anime's title as anime_theme.title_spans, which the clue
+ * covers while they play. Throws when the video cannot be read, so the song is tried again next run.
+ */
+async function scanTitles(worker: OcrWorker, row: TitleScanRow, dir: string, timeoutMs?: number): Promise<number> {
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(dir, { recursive: true });
+  const video = row.clip_key ? mediaUrl(row.clip_key) : themeVideoUrl(row.video_url, row.audio_url);
+  await ffmpeg(['-rw_timeout', '60000000', '-i', video, '-an', '-vf', `fps=1,scale=-2:${OCR_HEIGHT}:flags=lanczos,format=gray`, path.join(dir, '%05d.png')], undefined, timeoutMs);
+  const keys = titleKeys(JSON.parse(row.names) as Array<string | null>);
+  const seen: number[] = [];
+  // fps=1 numbers frame n (from 1) for second n - 1.
+  for (const [second, frame] of (await readdir(dir)).sort().entries()) {
+    const { data } = await worker.recognize(path.join(dir, frame));
+    if (showsTitle(data.text, keys)) seen.push(second);
+  }
+  const spans = hiddenSpans(seen);
+  await run('UPDATE anime_theme SET title_spans = ? WHERE id = ?', [JSON.stringify(spans), row.id]);
+  return spans.length;
+}
+
+async function ocrWorker(): Promise<OcrWorker> {
+  await mkdir(OCR_CACHE, { recursive: true });
+  const worker = await createWorker(OCR_LANGS, OEM.LSTM_ONLY, { cachePath: OCR_CACHE });
+  // Otherwise every frame with a sliver of a line prints "Image too small to scale!!" to the run log.
+  await worker.setParameters({ debug_file: '/dev/null' });
+  return worker;
+}
+
+/**
+ * Title cards in clue videos: scans every song with a clip (the daily pool's, see stepClips) that has not
+ * been scanned yet, most popular show first, for TITLES_BUDGET_MS at most; step `daily` scans each daily
+ * round's song whatever its clip. OCR reads printed titles ("SWORD ART ONLINE"); hand-drawn or heavily
+ * stylized logos usually slip through.
+ */
+export async function stepTitles(refreshAll: boolean, limit: number) {
+  const queue = (
+    await titleScanRows(
+      `t.status = 'ok' AND t.clip_key <> '' AND (? OR t.title_spans IS NULL) AND s.excluded IS NULL ORDER BY s.members DESC, t.kind DESC, t.id`,
+      [refreshAll ? 1 : 0],
+    )
+  )
+    .slice(0, limit)
+    .reverse();
+  const total = queue.length;
+  log(`titles: ${total} lagu`);
+  const counts = { scanned: 0, withTitle: 0, skipped: 0 };
+  const until = Date.now() + TITLES_BUDGET_MS;
+  const dir = await mkdtemp(path.join(tmpdir(), 'anidle-titles-'));
+  let done = 0;
+  // OCR is the slow part and uses one core per worker.
+  const lanes = Array.from({ length: 3 }, async (_, w) => {
+    const worker = await ocrWorker();
+    try {
+      for (let row = queue.pop(); row && Date.now() < until; row = queue.pop()) {
+        try {
+          if (await scanTitles(worker, row, path.join(dir, String(w)))) counts.withTitle++;
+          counts.scanned++;
+        } catch (err) {
+          counts.skipped++;
+          log(`titles: ${row.mal_id} ${row.label} ${errorText(err)}`);
+        }
+        if (++done % 25 === 0) log(`titles: ${done}/${total}`, counts);
+      }
+    } finally {
+      await worker.terminate();
+    }
+  });
+  await Promise.all(lanes);
+  await rm(dir, { recursive: true, force: true });
+  log('titles:', counts, queue.length ? `${queue.length} lagu menunggu run berikutnya` : '');
+}
+
 /** Daily song copies on R2 are kept this long; older days' rounds stream from AnimeThemes again. */
 const SONG_COPY_DAYS = 7;
 /**
@@ -741,15 +850,17 @@ const DAILY_CLIP_MS = 10 * 60_000;
  * Gets the Opening and Ending of today and tomorrow (UTC+7) ready before players arrive, so a late or skipped
  * scheduled run does not matter: creates the day's puzzles if nobody has yet, copies each round's full song to
  * R2 re-encoded (puzzle_round.audio_key, v1/song/<hash>.m4a, so the file name gives nothing away) and makes any
- * missing clue clip. Players then stream ~1 MB from Cloudflare instead of ~3.5 MB from AnimeThemes. Copies older
- * than SONG_COPY_DAYS are removed (R2's free 10 GB); a round without a copy streams through /api/media.
+ * missing clue clip, then scans each song's video for the anime's title (stepTitles). Players then stream ~1 MB
+ * from Cloudflare instead of ~3.5 MB from AnimeThemes. Copies older than SONG_COPY_DAYS are removed (R2's free
+ * 10 GB); a round without a copy streams through /api/media.
  * Every song is copied before any clip is made: a round plays without its clip, not without its song.
  */
 export async function stepDaily() {
   const today = todayUtc7();
-  const counts = { songs: 0, clips: 0, kept: 0, failed: 0, removed: 0 };
+  const counts = { songs: 0, clips: 0, scanned: 0, kept: 0, failed: 0, removed: 0 };
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-daily-'));
   const clips = new Map<number, { label: string; videoUrl: string }>();
+  const unscanned = new Map<number, string>();
   for (const date of [today, shiftDate(today, 1)]) {
     for (const mode of ['opening', 'ending'] as const) {
       const puzzle = await dailyPuzzle(mode, date);
@@ -757,6 +868,7 @@ export async function stepDaily() {
       for (const [round, source] of sources.entries()) {
         const label = `${date} ${mode} ronde ${round + 1} (${source.malId})`;
         if (!source.clipKey && source.videoUrl) clips.set(source.themeId, { label, videoUrl: source.videoUrl });
+        if (!source.titleSpans) unscanned.set(source.themeId, label);
         if (source.audioKey) {
           counts.kept++;
           continue;
@@ -784,6 +896,23 @@ export async function stepDaily() {
     } catch (err) {
       counts.failed++;
       log(`daily: ${label} klip: ${errorText(err)}`);
+    }
+  }
+  if (unscanned.size) {
+    // After the clips: a song clipped just now is read from its 1.5 MB clip, not the 30–60 MB video.
+    const worker = await ocrWorker();
+    try {
+      for (const row of await titleScanRows(`t.id IN (${[...unscanned.keys()].map(() => '?').join(',')})`, [...unscanned.keys()])) {
+        try {
+          await scanTitles(worker, row, path.join(dir, 'frames'), DAILY_CLIP_MS);
+          counts.scanned++;
+        } catch (err) {
+          counts.failed++;
+          log(`daily: ${unscanned.get(Number(row.id))} judul: ${errorText(err)}`);
+        }
+      }
+    } finally {
+      await worker.terminate();
     }
   }
   await rm(dir, { recursive: true, force: true });
