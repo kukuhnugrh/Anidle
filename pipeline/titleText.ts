@@ -13,8 +13,11 @@ const isCjk = (key: string) => /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Kata
 const MIN_LATIN = 5;
 const MIN_CJK = 3;
 
-/** Edits allowed in a name of this key: Latin one per 5 characters, CJK one per 6 (OCR noise there is random kanji). */
-const allowedEdits = (key: string) => Math.floor(key.length / (isCjk(key) ? 6 : 5));
+/**
+ * Edits allowed in a name of this key: Latin one per 4 characters (a glowing logo reads "Charlate" or
+ * "Charloge" for Charlotte), CJK one per 6 (OCR noise there is random kanji).
+ */
+const allowedEdits = (key: string) => Math.floor(key.length / (isCjk(key) ? 6 : 4));
 
 /** The searchable keys of a show's names, once each. */
 export function titleKeys(names: Iterable<string | null | undefined>): string[] {
@@ -49,9 +52,9 @@ export function showsTitle(ocrText: string, keys: readonly string[]): boolean {
 }
 
 /**
- * Seconds of video to hide from the seconds whose frame showed the title (frames are read once a second).
- * The card may start right after the previous frame and end right before the next one, and OCR misses
- * some frames of a card it reads in others, so each grows by `pad` on both sides; overlapping ones
+ * Seconds of video to hide from the moments whose frame showed the title (frames are read a few times a
+ * second). The card may start right after the previous frame and end right before the next one, and OCR
+ * misses some frames of a card it reads in others, so each grows by `pad` on both sides; overlapping ones
  * merge. [start, end) pairs, ascending.
  */
 export function hiddenSpans(seconds: readonly number[], pad = 1.5): Array<[number, number]> {

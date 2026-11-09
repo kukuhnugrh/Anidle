@@ -732,7 +732,12 @@ const OCR_LANGS = ['eng', 'jpn'];
 const OCR_CACHE = 'data/tessdata';
 /** Frames are read upscaled to this height: at the clip's 240p Tesseract reads almost nothing. */
 const OCR_HEIGHT = 720;
-/** The weekly run stops taking new songs after this long (~30 s per song); the rest wait for the next run. */
+/**
+ * Frames read per second. An animated logo reads in some frames and not others: at 1 per second Charlotte's
+ * OP1 matched one frame of its 5-second title card, at 2 three, spread over all of it.
+ */
+const OCR_FPS = 2;
+/** The weekly run stops taking new songs after this long (~70 s per song); the rest wait for the next run. */
 const TITLES_BUDGET_MS = 60 * 60_000;
 
 interface TitleScanRow {
@@ -767,13 +772,13 @@ async function scanTitles(worker: OcrWorker, row: TitleScanRow, dir: string, tim
   await rm(dir, { recursive: true, force: true });
   await mkdir(dir, { recursive: true });
   const video = row.clip_key ? mediaUrl(row.clip_key) : themeVideoUrl(row.video_url, row.audio_url);
-  await ffmpeg(['-rw_timeout', '60000000', '-i', video, '-an', '-vf', `fps=1,scale=-2:${OCR_HEIGHT}:flags=lanczos,format=gray`, path.join(dir, '%05d.png')], undefined, timeoutMs);
+  await ffmpeg(['-rw_timeout', '60000000', '-i', video, '-an', '-vf', `fps=${OCR_FPS},scale=-2:${OCR_HEIGHT}:flags=lanczos,format=gray`, path.join(dir, '%05d.png')], undefined, timeoutMs);
   const keys = titleKeys(JSON.parse(row.names) as Array<string | null>);
   const seen: number[] = [];
-  // fps=1 numbers frame n (from 1) for second n - 1.
-  for (const [second, frame] of (await readdir(dir)).sort().entries()) {
+  // The fps filter numbers frame n (from 1) for second (n - 1) / OCR_FPS.
+  for (const [i, frame] of (await readdir(dir)).sort().entries()) {
     const { data } = await worker.recognize(path.join(dir, frame));
-    if (showsTitle(data.text, keys)) seen.push(second);
+    if (showsTitle(data.text, keys)) seen.push(i / OCR_FPS);
   }
   const spans = hiddenSpans(seen);
   await run('UPDATE anime_theme SET title_spans = ? WHERE id = ?', [JSON.stringify(spans), row.id]);

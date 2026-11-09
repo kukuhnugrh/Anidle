@@ -16,10 +16,12 @@ describe('showsTitle', () => {
     expect(titleKeys(['SnK', 'K', 'Mob'])).toEqual([]);
   });
 
-  it('allows one edit per five Latin characters, not more', () => {
-    const keys = titleKeys(['Naruto']);
-    expect(showsTitle('NARUT0', keys)).toBe(true);
-    expect(showsTitle('NAR0T0', keys)).toBe(false);
+  it('allows one edit per four Latin characters, not more', () => {
+    const charlotte = titleKeys(['Charlotte']);
+    expect(showsTitle('* a vd Charlate |', charlotte)).toBe(true);
+    expect(showsTitle('ang 3 Charloggd', charlotte)).toBe(false);
+    expect(showsTitle('NARUT0', titleKeys(['Naruto']))).toBe(true);
+    expect(showsTitle('NAR0T0', titleKeys(['Naruto']))).toBe(false);
   });
 
   it('needs short CJK names exactly', () => {
