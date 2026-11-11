@@ -12,6 +12,7 @@ import { all, db, nowIso, run } from '../server/db.js';
 import { dailyPuzzle } from '../server/game.js';
 import { mediaUrl } from '../server/media.js';
 import { songSources, themeVideoUrl } from '../server/songs.js';
+import { DETECT_FILTER, DETECT_SIZE, faceDetector } from './faces.js';
 import { Limiter, sleep, UpstreamError } from './limiter.js';
 import { deleteObject, putObject } from './r2.js';
 import { entryThemes, type ThemeSource } from './sources/animeThemes.js';
@@ -508,20 +509,18 @@ export async function stepAliases(refreshAll: boolean, limit: number) {
   log('aliases:', counts);
 }
 
-/**
- * Seconds into the opening to try, in order: spread over the song so the screenshots show different
- * scenes, away from the title card at the start (frames showing the title are skipped anyway).
- */
-const SHOT_TIMES = [45, 70, 22, 58, 82, 32, 12, 64];
 const SCREENSHOT_WIDTH = 960;
+/** Frames read per second of the video to choose from (one pass over the whole video, at most SHOT_SECONDS of it). */
+const SHOT_FPS = 0.5;
+const SHOT_SECONDS = 120;
+/** Frames before this are left out: black lead-in and the title card. */
+const SHOT_SKIP_S = 5;
+/** Two screenshots of a show are at least this far apart, so they show different scenes. */
+const SHOT_GAP_S = 8;
+/** Reading a 30–60 MB video takes minutes when AnimeThemes is slow; past this the show waits for the next run. */
+const SHOT_VIDEO_MS = 10 * 60_000;
 /** The weekly run stops taking new shows after this long; the rest wait for the next run. */
 const SCREENSHOTS_BUDGET_MS = 60 * 60_000;
-const r2Host = new Limiter('r2', [{ ms: 1000, max: 10 }]);
-
-interface Frame {
-  out: Uint8Array<ArrayBuffer>;
-  at: number;
-}
 
 /**
  * Whether a screenshot (any image ffmpeg reads) shows one of the names (titleKeys): read upscaled to
@@ -534,35 +533,57 @@ async function imageShowsTitle(worker: OcrWorker, image: Uint8Array, keys: reado
   return showsTitle(data.text, keys);
 }
 
+/** Neither near-black/near-white nor flat: signalstats mean and 10–90 % luma spread. */
+async function wellLit(image: Uint8Array): Promise<boolean> {
+  const { log: stats } = await ffmpeg(['-i', 'pipe:0', '-vf', 'signalstats,metadata=print', '-f', 'null', '-'], image);
+  const stat = (name: string) => Number(stats.match(new RegExp(`signalstats\\.${name}=([\\d.]+)`))?.[1] ?? NaN);
+  const mean = stat('YAVG');
+  return mean >= 40 && mean <= 220 && stat('YHIGH') - stat('YLOW') >= 50;
+}
+
+interface VideoFrame {
+  at: number;
+  /** WebP SCREENSHOT_WIDTH wide, in `dir`. */
+  file: string;
+  /** Largest face's share of the frame (faceDetector), 0 = none. */
+  face: number;
+}
+
 /**
- * One frame of the opening's video at the first of `times` that is neither near-black/near-white nor
- * flat (signalstats mean and 10–90 % luma spread) and passes `accept`; ffmpeg seeks over HTTP. The video
- * host answers 5xx under load and a cut-off read fails decoding, so an ffmpeg failure is retried and, if
- * it persists, reported as transient (the title is skipped, not marked broken).
+ * Every frame of the video at SHOT_FPS, in one read: saved as WebP screenshots in `dir` and scored for
+ * faces. The video host answers 5xx under load and a cut-off read fails decoding, so an ffmpeg failure is
+ * retried and, if it persists, reported as transient (the show is skipped, not marked broken).
  */
-async function pickFrame(videoUrl: string, times: number[], accept: (frame: Uint8Array) => Promise<boolean>): Promise<Frame | null> {
-  for (const at of times) {
-    let result: FfmpegResult | null = null;
-    for (let attempt = 1; !result; attempt++) {
-      try {
-        result = await ffmpeg([
-          '-ss', String(at), '-rw_timeout', '60000000', '-i', videoUrl, '-frames:v', '1',
-          '-vf', `scale='min(${SCREENSHOT_WIDTH},iw)':-2,signalstats,metadata=print`,
-          '-c:v', 'libwebp', '-quality', '80', '-f', 'image2pipe', 'pipe:1',
-        ]);
-      } catch (err) {
-        if (!(err instanceof MediaError)) throw err;
-        if (attempt >= 3) throw new Error(err.message);
-        await sleep(10_000 * attempt);
-      }
+async function videoFrames(videoUrl: string, dir: string, detect: (rgb: Uint8Array) => Promise<number>): Promise<VideoFrame[]> {
+  let result: FfmpegResult | null = null;
+  for (let attempt = 1; !result; attempt++) {
+    await rm(dir, { recursive: true, force: true });
+    await mkdir(dir, { recursive: true });
+    try {
+      result = await ffmpeg(
+        [
+          '-rw_timeout', '60000000', '-t', String(SHOT_SECONDS), '-i', videoUrl, '-an',
+          '-filter_complex', `[0:v]fps=${SHOT_FPS},split[a][b];[a]scale='min(${SCREENSHOT_WIDTH},iw)':-2[full];[b]${DETECT_FILTER}[det]`,
+          '-map', '[full]', '-c:v', 'libwebp', '-quality', '80', path.join(dir, '%04d.webp'),
+          '-map', '[det]', '-f', 'rawvideo', 'pipe:1',
+        ],
+        undefined,
+        SHOT_VIDEO_MS,
+      );
+    } catch (err) {
+      if (!(err instanceof MediaError)) throw err;
+      if (attempt >= 3) throw new Error(err.message);
+      await sleep(10_000 * attempt);
     }
-    const stat = (name: string) => Number(result.log.match(new RegExp(`signalstats\\.${name}=([\\d.]+)`))?.[1] ?? NaN);
-    const mean = stat('YAVG');
-    const spread = stat('YHIGH') - stat('YLOW');
-    // A clip shorter than `at` yields no frame at all.
-    if (result.out.length > 8_000 && mean >= 40 && mean <= 220 && spread >= 50 && (await accept(result.out))) return { out: result.out, at };
   }
-  return null;
+  const size = DETECT_SIZE * DETECT_SIZE * 3;
+  const files = (await readdir(dir)).sort();
+  const frames: VideoFrame[] = [];
+  for (const [i, file] of files.entries()) {
+    if ((i + 1) * size > result.out.length) break;
+    frames.push({ at: i / SHOT_FPS, file: path.join(dir, file), face: await detect(result.out.subarray(i * size, (i + 1) * size)) });
+  }
+  return frames;
 }
 
 interface StoredShot {
@@ -609,12 +630,15 @@ async function shotSources(ids?: number[]): Promise<ShotSources> {
 }
 
 /**
- * Fills one show's SCREENSHOTS_PER_TITLE slots (--refresh: from scratch) and reads every frame not read yet
- * (anime_screenshot.checked_at) for the show's title: one showing it ("SAKAMOTO DAYS" on the title card)
- * is replaced by another frame of the video, or kept when none qualifies (puzzles already made need all
- * three). New frames showing the title are never taken. Returns the show's resulting status.
+ * Picks one show's SCREENSHOTS_PER_TITLE frames (shows whose stored frames predate this choice,
+ * anime_screenshot.checked_at NULL, or are due; --refresh: every show from scratch). The whole video is read
+ * once (videoFrames) and frames go best first: the largest character face, then (faceless) nearest the middle
+ * of the opening, at least SHOT_GAP_S apart, skipping dark, flat and title-showing ones ("SAKAMOTO DAYS").
+ * Slot 0, the screenshot a round opens with, gets the smallest face of the three and slot 2 the largest, so
+ * each clue helps more. New frames replace the stored ones slot by slot; a slot without one keeps its old
+ * frame (puzzles already made need all three). Returns the show's resulting status.
  */
-async function shootShow(id: number, src: ShotSources, worker: OcrWorker, refreshAll: boolean): Promise<'ok' | 'missing' | 'broken'> {
+async function shootShow(id: number, src: ShotSources, ctx: { worker: OcrWorker; detect: (rgb: Uint8Array) => Promise<number>; dir: string }, refreshAll: boolean): Promise<'ok' | 'missing' | 'broken'> {
   const video = src.videos.get(id)?.[0]?.video_url ?? null;
   if (!video) {
     await save(id, 'shots', { status: 'missing', error: 'tidak ada video opening/ending' });
@@ -622,40 +646,37 @@ async function shootShow(id: number, src: ShotSources, worker: OcrWorker, refres
   }
   const keys = src.names.get(id) ?? [];
   try {
-    const old = refreshAll ? [] : (src.stored.get(id) ?? []);
-    const titled: StoredShot[] = [];
-    for (const s of old) if (!s.checked_at && (await imageShowsTitle(worker, await download(r2Host, mediaUrl(s.r2_key)), keys))) titled.push(s);
-    const kept = old.filter((s) => !titled.includes(s));
-    const used = new Set(old.map((s) => Number(s.at_seconds)));
-    const fresh: Array<{ slot: number; key: string; at: number }> = [];
-    for (let slot = 0; slot < SCREENSHOTS_PER_TITLE; slot++) {
-      if (kept.some((k) => Number(k.slot) === slot)) continue;
-      const frame = await pickFrame(
-        video,
-        SHOT_TIMES.filter((t) => !used.has(t)),
-        async (out) => !(await imageShowsTitle(worker, out, keys)),
-      );
-      if (!frame) break;
-      used.add(frame.at);
-      const key = contentKey('shot', frame.out, 'webp');
-      await putObject(key, frame.out, 'image/webp');
-      fresh.push({ slot, key, at: frame.at });
+    const frames = (await videoFrames(video, ctx.dir, ctx.detect))
+      .filter((f) => f.at >= SHOT_SKIP_S)
+      .sort((a, b) => b.face - a.face || Math.abs(a.at - 45) - Math.abs(b.at - 45));
+    const chosen: Array<VideoFrame & { image: Uint8Array<ArrayBuffer> }> = [];
+    for (const f of frames) {
+      if (chosen.length === SCREENSHOTS_PER_TITLE) break;
+      if (chosen.some((c) => Math.abs(c.at - f.at) < SHOT_GAP_S)) continue;
+      const image = new Uint8Array(await readFile(f.file));
+      if (image.length > 8_000 && (await wellLit(image)) && !(await imageShowsTitle(ctx.worker, image, keys))) chosen.push({ ...f, image });
     }
-    const replaced = titled.filter((t) => fresh.some((f) => f.slot === Number(t.slot)));
-    const stuck = titled.filter((t) => !replaced.includes(t));
-    if (stuck.length) log(`screenshots: ${id} slot ${stuck.map((s) => s.slot).join(', ')} menampilkan judul, tidak ada frame pengganti`);
+    chosen.sort((a, b) => a.face - b.face);
+    const fresh: Array<{ slot: number; key: string; at: number }> = [];
+    for (const [slot, c] of chosen.entries()) {
+      const key = contentKey('shot', c.image, 'webp');
+      await putObject(key, c.image, 'image/webp');
+      fresh.push({ slot, key, at: c.at });
+    }
+    const old = refreshAll ? [] : (src.stored.get(id) ?? []);
+    const kept = old.filter((s) => Number(s.slot) >= fresh.length);
+    const replaced = old.filter((s) => Number(s.slot) < fresh.length && !fresh.some((f) => f.key === s.r2_key));
     const now = nowIso();
-    // Frames found are kept even when too few, so a later run only looks for the rest.
     await db().batch(
       [
         ...(refreshAll ? [{ sql: 'DELETE FROM anime_screenshot WHERE mal_id = ?', args: [id] }] : []),
         ...fresh.map((f) => ({ sql: 'INSERT OR REPLACE INTO anime_screenshot (mal_id, slot, r2_key, at_seconds, checked_at) VALUES (?, ?, ?, ?, ?)', args: [id, f.slot, f.key, f.at, now] })),
-        ...[...kept, ...stuck].filter((s) => !s.checked_at).map((s) => ({ sql: 'UPDATE anime_screenshot SET checked_at = ? WHERE mal_id = ? AND slot = ?', args: [now, id, s.slot] })),
+        ...kept.map((s) => ({ sql: 'UPDATE anime_screenshot SET checked_at = ? WHERE mal_id = ? AND slot = ?', args: [now, id, s.slot] })),
       ],
       'write',
     );
-    for (const s of replaced) await deleteObject(s.r2_key);
-    const found = kept.length + stuck.length + fresh.length;
+    for (const s of replaced) if (!(await all('SELECT 1 FROM anime_screenshot WHERE r2_key = ? LIMIT 1', [s.r2_key])).length) await deleteObject(s.r2_key);
+    const found = fresh.length + kept.length;
     if (found < SCREENSHOTS_PER_TITLE) {
       await save(id, 'shots', { status: 'missing', source: video, error: `hanya ${found} frame yang layak` });
       return 'missing';
@@ -673,11 +694,10 @@ async function shootShow(id: number, src: ShotSources, worker: OcrWorker, refres
  * Screenshot mode: SCREENSHOTS_PER_TITLE frames per show from a video of its own songs (anime_theme, step
  * `media`): the first opening of the show's own entry, else of its most popular merged entry, and the ending
  * the same way for shows without any opening video (most movies). The smallest file AnimeThemes has, WebP
- * 960 wide at v1/shot/<hash>.webp; frames showing the show's title are skipped (shootShow). Frames already
- * stored are kept, so a show that had fewer only fetches the rest, and frames stored before the title check
- * are read once. Seeking a 1080p video over HTTP costs ~25 s and a few MB per frame, so shows go most
- * popular first (easy, medium, then hard, which round 3 of the daily needs), for SCREENSHOTS_BUDGET_MS at
- * most, and a run with --limit picks up where the last one stopped.
+ * 960 wide at v1/shot/<hash>.webp, chosen for character faces (shootShow). Reading a video costs 30–60 MB
+ * and up to minutes, so shows go most popular first (easy, medium, then hard, which round 3 of the daily
+ * needs), for SCREENSHOTS_BUDGET_MS at most unless --limit sets the amount instead, and the next run picks up
+ * where this one stopped.
  */
 export async function stepScreenshots(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
@@ -687,22 +707,24 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const queue = anime
     .map((a) => Number(a.mal_id))
-    // Besides the due ones: shows with frames stored before the title check (an admin's rejection stands).
+    // Besides the due ones: shows with frames chosen before faces counted (an admin's rejection stands).
     .filter((id) => isDue(byId.get(id), refreshAll, stale) || (byId.get(id)?.status !== 'rejected' && (src.stored.get(id) ?? []).some((s) => !s.checked_at)))
     .slice(0, limit)
     .reverse();
   const total = queue.length;
   log(`screenshots: ${total} judul`);
   const counts = { ok: 0, missing: 0, broken: 0, skipped: 0 };
-  const until = Date.now() + SCREENSHOTS_BUDGET_MS;
+  const until = Number.isFinite(limit) ? Infinity : Date.now() + SCREENSHOTS_BUDGET_MS;
+  const detect = await faceDetector();
+  const root = await mkdtemp(path.join(tmpdir(), 'anidle-shots-'));
   let done = 0;
-  // Video seeks are the heavy part; a few in parallel keeps AnimeThemes' file host comfortable.
-  const workers = Array.from({ length: 3 }, async () => {
-    const worker = await ocrWorker();
+  // Whole-video reads are the heavy part; a few in parallel keeps AnimeThemes' file host comfortable.
+  const workers = Array.from({ length: 3 }, async (_, w) => {
+    const ctx = { worker: await ocrWorker(), detect, dir: path.join(root, String(w)) };
     try {
       for (let id = queue.pop(); id !== undefined && Date.now() < until; id = queue.pop()) {
         try {
-          counts[await shootShow(id, src, worker, refreshAll)]++;
+          counts[await shootShow(id, src, ctx, refreshAll)]++;
         } catch (err) {
           counts.skipped++;
           log(`screenshots: ${id} dilewati (${errorText(err)})`);
@@ -710,10 +732,11 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
         if (++done % 25 === 0) log(`screenshots: ${done}/${total}`, counts);
       }
     } finally {
-      await worker.terminate();
+      await ctx.worker.terminate();
     }
   });
   await Promise.all(workers);
+  await rm(root, { recursive: true, force: true });
   log('screenshots:', counts, queue.length ? `${queue.length} judul menunggu run berikutnya` : '');
 }
 
@@ -1005,11 +1028,11 @@ export async function stepDaily() {
   const shots = await shotSources(shows);
   const unread = shows.filter((id) => (shots.stored.get(id) ?? []).some((s) => !s.checked_at));
   if (unread.length) {
-    const worker = await ocrWorker();
+    const ctx = { worker: await ocrWorker(), detect: await faceDetector(), dir: path.join(dir, 'shots') };
     try {
       for (const id of unread) {
         try {
-          await shootShow(id, shots, worker, false);
+          await shootShow(id, shots, ctx, false);
           counts.shots++;
         } catch (err) {
           counts.failed++;
@@ -1017,7 +1040,7 @@ export async function stepDaily() {
         }
       }
     } finally {
-      await worker.terminate();
+      await ctx.worker.terminate();
     }
   }
   await rm(dir, { recursive: true, force: true });
