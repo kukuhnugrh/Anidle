@@ -137,8 +137,8 @@ function SongPlayer({ media, loading }: { media: HTMLAudioElement | null; loadin
 const CLUE_VIDEO_TIMEOUT_MS = 20_000;
 /** The video is pulled back to the song only when it drifts further than this (seconds): every seek of a streamed video costs a round trip. */
 const MAX_DRIFT_S = 1;
-/** Blur drawn into the frames, as a share of the video's height: 5 px on a 240p clip, about what 7 px of CSS blur gave at the usual size. */
-const CLUE_BLUR_SHARE = 1 / 48;
+/** Blur drawn into the frames, as a share of the video's height: 4 px on a 240p clip, about what 6 px of CSS blur gives at the usual size. */
+const CLUE_BLUR_SHARE = 1 / 60;
 
 const toggleFullscreen = (target: HTMLElement | null) =>
   void (document.fullscreenElement ? document.exitFullscreen() : target?.requestFullscreen())?.catch(() => {});

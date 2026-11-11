@@ -760,7 +760,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 .clip-body { flex: 1; display: grid; gap: 6px; min-width: 0; }
 .seek { width: 100%; padding: 0; accent-color: var(--accent); background: transparent; border: 0; box-shadow: none; cursor: pointer; }
 .seek:focus { box-shadow: none; }
-.clue-media { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--ink); filter: blur(7px) saturate(1.1); transform: scale(1.06); transition: filter .5s; }
+.clue-media { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--ink); filter: blur(6px) saturate(1.1); transform: scale(1.06); transition: filter .5s; }
 .clue-media.cover { aspect-ratio: 225 / 320; filter: blur(4px) saturate(1.1); transform: scale(1.04); }
 /* The game's clue canvas holds frames already blurred (SongGame ClueVideo); the CSS blur is for <video>/<img>. */
 canvas.clue-media { filter: none; }
