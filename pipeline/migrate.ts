@@ -29,6 +29,8 @@ const ADDED_COLUMNS: Record<string, Record<string, string>> = {
   // Seconds of an OP/ED video showing the anime's title, hidden in the clue (step `titles`, OCR): JSON
   // [[start, end], …]; NULL = not scanned yet. Dropped with the clip when the song's audio changes.
   anime_theme: { title_spans: 'TEXT' },
+  // When a screenshot was read for the show's title (step `screenshots`); NULL = stored before that check.
+  anime_screenshot: { checked_at: 'TEXT' },
 };
 
 /** Indexes on ADDED_COLUMNS, created once the columns exist. */

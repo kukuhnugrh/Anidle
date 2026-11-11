@@ -510,10 +510,13 @@ export async function stepAliases(refreshAll: boolean, limit: number) {
 
 /**
  * Seconds into the opening to try, in order: spread over the song so the screenshots show different
- * scenes, away from the title card at the start.
+ * scenes, away from the title card at the start (frames showing the title are skipped anyway).
  */
 const SHOT_TIMES = [45, 70, 22, 58, 82, 32, 12, 64];
 const SCREENSHOT_WIDTH = 960;
+/** The weekly run stops taking new shows after this long; the rest wait for the next run. */
+const SCREENSHOTS_BUDGET_MS = 60 * 60_000;
+const r2Host = new Limiter('r2', [{ ms: 1000, max: 10 }]);
 
 interface Frame {
   out: Uint8Array<ArrayBuffer>;
@@ -521,12 +524,23 @@ interface Frame {
 }
 
 /**
- * One frame of the opening's video at the first of `times` that is neither near-black/near-white nor
- * flat (signalstats mean and 10–90 % luma spread); ffmpeg seeks over HTTP. The video host answers 5xx
- * under load and a cut-off read fails decoding, so an ffmpeg failure is retried and, if it persists,
- * reported as transient (the title is skipped, not marked broken).
+ * Whether a screenshot (any image ffmpeg reads) shows one of the names (titleKeys): read upscaled to
+ * OCR_HEIGHT in gray, like the clue videos (stepTitles).
  */
-async function pickFrame(videoUrl: string, times: number[]): Promise<Frame | null> {
+async function imageShowsTitle(worker: OcrWorker, image: Uint8Array, keys: readonly string[]): Promise<boolean> {
+  if (!keys.length) return false;
+  const { out } = await ffmpeg(['-i', 'pipe:0', '-vf', `scale=-2:${OCR_HEIGHT}:flags=lanczos,format=gray`, '-c:v', 'png', '-f', 'image2pipe', 'pipe:1'], image);
+  const { data } = await worker.recognize(Buffer.from(out));
+  return showsTitle(data.text, keys);
+}
+
+/**
+ * One frame of the opening's video at the first of `times` that is neither near-black/near-white nor
+ * flat (signalstats mean and 10–90 % luma spread) and passes `accept`; ffmpeg seeks over HTTP. The video
+ * host answers 5xx under load and a cut-off read fails decoding, so an ffmpeg failure is retried and, if
+ * it persists, reported as transient (the title is skipped, not marked broken).
+ */
+async function pickFrame(videoUrl: string, times: number[], accept: (frame: Uint8Array) => Promise<boolean>): Promise<Frame | null> {
   for (const at of times) {
     let result: FfmpegResult | null = null;
     for (let attempt = 1; !result; attempt++) {
@@ -546,99 +560,161 @@ async function pickFrame(videoUrl: string, times: number[]): Promise<Frame | nul
     const mean = stat('YAVG');
     const spread = stat('YHIGH') - stat('YLOW');
     // A clip shorter than `at` yields no frame at all.
-    if (result.out.length > 8_000 && mean >= 40 && mean <= 220 && spread >= 50) return { out: result.out, at };
+    if (result.out.length > 8_000 && mean >= 40 && mean <= 220 && spread >= 50 && (await accept(result.out))) return { out: result.out, at };
   }
   return null;
+}
+
+interface StoredShot {
+  mal_id: number;
+  slot: number;
+  r2_key: string;
+  at_seconds: number;
+  checked_at: string | null;
+}
+
+/** What one show's screenshots are made from: its song videos (best first), its stored frames, and the names its title card could read. */
+interface ShotSources {
+  videos: Map<number, Array<{ video_url: string }>>;
+  stored: Map<number, StoredShot[]>;
+  names: Map<number, string[]>;
+}
+
+/** ShotSources for `ids` (every show when omitted). */
+async function shotSources(ids?: number[]): Promise<ShotSources> {
+  const only = ids ? `IN (${ids.map(() => '?').join(',')})` : null;
+  const args = ids ?? [];
+  // Each show's song videos in the order they are tried: openings before endings, the show's own entry before
+  // its merged ones (most popular first), then OP1 before OP1-TV before OP2.
+  const videos = await all<{ show: number; video_url: string }>(
+    `SELECT COALESCE(e.canonical_id, e.mal_id) AS show, t.video_url FROM anime_theme t JOIN anime e ON e.mal_id = t.mal_id
+     WHERE t.status = 'ok' AND t.video_url <> '' AND e.excluded IS NULL${only ? ` AND COALESCE(e.canonical_id, e.mal_id) ${only}` : ''}
+     ORDER BY t.kind = 'ed', e.canonical_id IS NOT NULL AND e.canonical_id <> e.mal_id, e.members DESC, t.seq, length(t.label)`,
+    args,
+  );
+  const stored = await all<StoredShot>(`SELECT mal_id, slot, r2_key, at_seconds, checked_at FROM anime_screenshot${only ? ` WHERE mal_id ${only}` : ''} ORDER BY slot`, args);
+  // A frame can come from any entry of the show (a season's opening), so every entry's names count.
+  const names = await all<{ show: number; names: string }>(
+    `SELECT show, json_group_array(value) AS names FROM (
+       SELECT COALESCE(e.canonical_id, e.mal_id) AS show, n.value FROM anime e, json_each(json_array(e.title, e.title_en, e.title_ja)) n
+       UNION ALL SELECT COALESCE(e.canonical_id, e.mal_id), n.value FROM anime e, json_each(e.synonyms) n)
+     WHERE value IS NOT NULL${only ? ` AND show ${only}` : ''} GROUP BY show`,
+    args,
+  );
+  return {
+    videos: Map.groupBy(videos, (v) => Number(v.show)),
+    stored: Map.groupBy(stored, (s) => Number(s.mal_id)),
+    names: new Map(names.map((row) => [Number(row.show), titleKeys(JSON.parse(row.names) as string[])])),
+  };
+}
+
+/**
+ * Fills one show's SCREENSHOTS_PER_TITLE slots (--refresh: from scratch) and reads every frame not read yet
+ * (anime_screenshot.checked_at) for the show's title: one showing it ("SAKAMOTO DAYS" on the title card)
+ * is replaced by another frame of the video, or kept when none qualifies (puzzles already made need all
+ * three). New frames showing the title are never taken. Returns the show's resulting status.
+ */
+async function shootShow(id: number, src: ShotSources, worker: OcrWorker, refreshAll: boolean): Promise<'ok' | 'missing' | 'broken'> {
+  const video = src.videos.get(id)?.[0]?.video_url ?? null;
+  if (!video) {
+    await save(id, 'shots', { status: 'missing', error: 'tidak ada video opening/ending' });
+    return 'missing';
+  }
+  const keys = src.names.get(id) ?? [];
+  try {
+    const old = refreshAll ? [] : (src.stored.get(id) ?? []);
+    const titled: StoredShot[] = [];
+    for (const s of old) if (!s.checked_at && (await imageShowsTitle(worker, await download(r2Host, mediaUrl(s.r2_key)), keys))) titled.push(s);
+    const kept = old.filter((s) => !titled.includes(s));
+    const used = new Set(old.map((s) => Number(s.at_seconds)));
+    const fresh: Array<{ slot: number; key: string; at: number }> = [];
+    for (let slot = 0; slot < SCREENSHOTS_PER_TITLE; slot++) {
+      if (kept.some((k) => Number(k.slot) === slot)) continue;
+      const frame = await pickFrame(
+        video,
+        SHOT_TIMES.filter((t) => !used.has(t)),
+        async (out) => !(await imageShowsTitle(worker, out, keys)),
+      );
+      if (!frame) break;
+      used.add(frame.at);
+      const key = contentKey('shot', frame.out, 'webp');
+      await putObject(key, frame.out, 'image/webp');
+      fresh.push({ slot, key, at: frame.at });
+    }
+    const replaced = titled.filter((t) => fresh.some((f) => f.slot === Number(t.slot)));
+    const stuck = titled.filter((t) => !replaced.includes(t));
+    if (stuck.length) log(`screenshots: ${id} slot ${stuck.map((s) => s.slot).join(', ')} menampilkan judul, tidak ada frame pengganti`);
+    const now = nowIso();
+    // Frames found are kept even when too few, so a later run only looks for the rest.
+    await db().batch(
+      [
+        ...(refreshAll ? [{ sql: 'DELETE FROM anime_screenshot WHERE mal_id = ?', args: [id] }] : []),
+        ...fresh.map((f) => ({ sql: 'INSERT OR REPLACE INTO anime_screenshot (mal_id, slot, r2_key, at_seconds, checked_at) VALUES (?, ?, ?, ?, ?)', args: [id, f.slot, f.key, f.at, now] })),
+        ...[...kept, ...stuck].filter((s) => !s.checked_at).map((s) => ({ sql: 'UPDATE anime_screenshot SET checked_at = ? WHERE mal_id = ? AND slot = ?', args: [now, id, s.slot] })),
+      ],
+      'write',
+    );
+    for (const s of replaced) await deleteObject(s.r2_key);
+    const found = kept.length + stuck.length + fresh.length;
+    if (found < SCREENSHOTS_PER_TITLE) {
+      await save(id, 'shots', { status: 'missing', source: video, error: `hanya ${found} frame yang layak` });
+      return 'missing';
+    }
+    await save(id, 'shots', { status: 'ok', source: video });
+    return 'ok';
+  } catch (err) {
+    if (!isSourceFault(err)) throw err;
+    await save(id, 'shots', { status: 'broken', source: video, error: errorText(err) });
+    return 'broken';
+  }
 }
 
 /**
  * Screenshot mode: SCREENSHOTS_PER_TITLE frames per show from a video of its own songs (anime_theme, step
  * `media`): the first opening of the show's own entry, else of its most popular merged entry, and the ending
  * the same way for shows without any opening video (most movies). The smallest file AnimeThemes has, WebP
- * 960 wide at v1/shot/<hash>.webp. Frames already stored are kept, so a show that had fewer only fetches the
- * rest. Seeking a 1080p video over HTTP costs ~25 s and a few MB per frame, so shows go most popular first
- * (easy, medium, then hard, which round 3 of the daily needs) and a run with --limit picks up where the last
- * one stopped.
+ * 960 wide at v1/shot/<hash>.webp; frames showing the show's title are skipped (shootShow). Frames already
+ * stored are kept, so a show that had fewer only fetches the rest, and frames stored before the title check
+ * are read once. Seeking a 1080p video over HTTP costs ~25 s and a few MB per frame, so shows go most
+ * popular first (easy, medium, then hard, which round 3 of the daily needs), for SCREENSHOTS_BUDGET_MS at
+ * most, and a run with --limit picks up where the last one stopped.
  */
 export async function stepScreenshots(refreshAll: boolean, limit: number) {
   const anime = await all<{ mal_id: number }>(`SELECT mal_id FROM anime a WHERE excluded IS NULL AND ${CANONICAL_SQL} ORDER BY members DESC`);
   const rows = await all<MediaRow>(`SELECT mal_id, kind, status, source_url, checked_at FROM anime_media WHERE kind = 'shots'`);
   const byId = new Map(rows.map((r) => [Number(r.mal_id), r]));
-  const stored = Map.groupBy(await all<{ mal_id: number; slot: number; at_seconds: number }>('SELECT mal_id, slot, at_seconds FROM anime_screenshot ORDER BY slot'), (s) => Number(s.mal_id));
-  // Each show's song videos in the order they are tried: openings before endings, the show's own entry before
-  // its merged ones (most popular first), then OP1 before OP1-TV before OP2.
-  const videos = Map.groupBy(
-    await all<{ show: number; video_url: string }>(
-      `SELECT COALESCE(e.canonical_id, e.mal_id) AS show, t.video_url FROM anime_theme t JOIN anime e ON e.mal_id = t.mal_id
-       WHERE t.status = 'ok' AND t.video_url <> '' AND e.excluded IS NULL
-       ORDER BY t.kind = 'ed', e.canonical_id IS NOT NULL AND e.canonical_id <> e.mal_id, e.members DESC, t.seq, length(t.label)`,
-    ),
-    (v) => Number(v.show),
-  );
+  const src = await shotSources();
   const stale = new Date(Date.now() - RECHECK_DAYS * 86_400_000).toISOString();
   const queue = anime
     .map((a) => Number(a.mal_id))
-    .filter((id) => isDue(byId.get(id), refreshAll, stale))
+    // Besides the due ones: shows with frames stored before the title check (an admin's rejection stands).
+    .filter((id) => isDue(byId.get(id), refreshAll, stale) || (byId.get(id)?.status !== 'rejected' && (src.stored.get(id) ?? []).some((s) => !s.checked_at)))
     .slice(0, limit)
     .reverse();
   const total = queue.length;
   log(`screenshots: ${total} judul`);
   const counts = { ok: 0, missing: 0, broken: 0, skipped: 0 };
+  const until = Date.now() + SCREENSHOTS_BUDGET_MS;
   let done = 0;
   // Video seeks are the heavy part; a few in parallel keeps AnimeThemes' file host comfortable.
   const workers = Array.from({ length: 3 }, async () => {
-    for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
-      try {
-        const video = videos.get(id)?.[0]?.video_url ?? null;
-        if (!video) {
-          await save(id, 'shots', { status: 'missing', error: 'tidak ada video opening/ending' });
-          counts.missing++;
-        } else {
-          try {
-            // --refresh starts over; otherwise stored frames stay and only the missing slots are fetched.
-            const kept = refreshAll ? [] : (stored.get(id) ?? []).map((s) => ({ slot: Number(s.slot), at: Number(s.at_seconds) }));
-            const used = new Set(kept.map((k) => k.at));
-            const fresh: Array<{ slot: number; key: string; at: number }> = [];
-            for (let slot = 0; slot < SCREENSHOTS_PER_TITLE; slot++) {
-              if (kept.some((k) => k.slot === slot)) continue;
-              const frame = await pickFrame(video, SHOT_TIMES.filter((t) => !used.has(t)));
-              if (!frame) break;
-              used.add(frame.at);
-              const key = contentKey('shot', frame.out, 'webp');
-              await putObject(key, frame.out, 'image/webp');
-              fresh.push({ slot, key, at: frame.at });
-            }
-            // Frames found are kept even when too few, so a later run only looks for the rest.
-            await db().batch(
-              [
-                ...(refreshAll ? [{ sql: 'DELETE FROM anime_screenshot WHERE mal_id = ?', args: [id] }] : []),
-                ...fresh.map((f) => ({ sql: 'INSERT OR REPLACE INTO anime_screenshot (mal_id, slot, r2_key, at_seconds) VALUES (?, ?, ?, ?)', args: [id, f.slot, f.key, f.at] })),
-              ],
-              'write',
-            );
-            const found = kept.length + fresh.length;
-            if (found < SCREENSHOTS_PER_TITLE) {
-              await save(id, 'shots', { status: 'missing', source: video, error: `hanya ${found} frame yang layak` });
-              counts.missing++;
-            } else {
-              await save(id, 'shots', { status: 'ok', source: video });
-              counts.ok++;
-            }
-          } catch (err) {
-            if (!isSourceFault(err)) throw err;
-            await save(id, 'shots', { status: 'broken', source: video, error: errorText(err) });
-            counts.broken++;
-          }
+    const worker = await ocrWorker();
+    try {
+      for (let id = queue.pop(); id !== undefined && Date.now() < until; id = queue.pop()) {
+        try {
+          counts[await shootShow(id, src, worker, refreshAll)]++;
+        } catch (err) {
+          counts.skipped++;
+          log(`screenshots: ${id} dilewati (${errorText(err)})`);
         }
-      } catch (err) {
-        counts.skipped++;
-        log(`screenshots: ${id} dilewati (${errorText(err)})`);
+        if (++done % 25 === 0) log(`screenshots: ${done}/${total}`, counts);
       }
-      if (++done % 25 === 0) log(`screenshots: ${done}/${total}`, counts);
+    } finally {
+      await worker.terminate();
     }
   });
   await Promise.all(workers);
-  log('screenshots:', counts);
+  log('screenshots:', counts, queue.length ? `${queue.length} judul menunggu run berikutnya` : '');
 }
 
 const CLIP_HEIGHT = 240;
@@ -859,10 +935,11 @@ const DAILY_CLIP_MS = 10 * 60_000;
  * from Cloudflare instead of ~3.5 MB from AnimeThemes. Copies older than SONG_COPY_DAYS are removed (R2's free
  * 10 GB); a round without a copy streams through /api/media.
  * Every song is copied before any clip is made: a round plays without its clip, not without its song.
+ * Guess the Anime of the same days gets its screenshots read for the title (shootShow) the same way.
  */
 export async function stepDaily() {
   const today = todayUtc7();
-  const counts = { songs: 0, clips: 0, scanned: 0, kept: 0, failed: 0, removed: 0 };
+  const counts = { songs: 0, clips: 0, scanned: 0, shots: 0, kept: 0, failed: 0, removed: 0 };
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-daily-'));
   const clips = new Map<number, { label: string; videoUrl: string }>();
   const unscanned = new Map<number, string>();
@@ -914,6 +991,29 @@ export async function stepDaily() {
         } catch (err) {
           counts.failed++;
           log(`daily: ${unscanned.get(Number(row.id))} judul: ${errorText(err)}`);
+        }
+      }
+    } finally {
+      await worker.terminate();
+    }
+  }
+  const shows: number[] = [];
+  for (const date of [today, shiftDate(today, 1)]) {
+    const puzzle = await dailyPuzzle('screenshot', date);
+    shows.push(...(await all<{ mal_id: number }>('SELECT mal_id FROM puzzle_round WHERE puzzle_id = ?', [puzzle.id])).map((r) => Number(r.mal_id)));
+  }
+  const shots = await shotSources(shows);
+  const unread = shows.filter((id) => (shots.stored.get(id) ?? []).some((s) => !s.checked_at));
+  if (unread.length) {
+    const worker = await ocrWorker();
+    try {
+      for (const id of unread) {
+        try {
+          await shootShow(id, shots, worker, false);
+          counts.shots++;
+        } catch (err) {
+          counts.failed++;
+          log(`daily: screenshot ${id}: ${errorText(err)}`);
         }
       }
     } finally {
