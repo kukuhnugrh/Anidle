@@ -67,6 +67,8 @@ export interface PoolSpec {
   media?: PoolMediaKind;
   /** Song modes: only shows with a usable song of this kind whose entry is of one of `difficulties`. */
   song?: ThemeKind;
+  /** With `song`: only songs the pipeline has fully prepared (CatalogSong.ready). */
+  readySongs?: boolean;
   /** Only these MAL media types (Character mode: TV, so movies and specials don't repeat a show's cast). */
   mediaTypes?: readonly string[];
 }
@@ -147,13 +149,13 @@ export interface PoolTitle {
  */
 export async function poolTitles(spec: PoolSpec): Promise<PoolTitle[]> {
   const [shows, inSource] = await Promise.all([catalogShows(), poolSource(spec)]);
-  const { genreId, difficulties, song, media, mediaTypes } = spec;
+  const { genreId, difficulties, song, readySongs, media, mediaTypes } = spec;
   const out: PoolTitle[] = [];
   for (const [id, show] of shows) {
     if (!inSource(id, show) || (genreId && !show.genres.includes(genreId))) continue;
     // Song modes: a usable song of that kind whose own entry is of one of the difficulties; else the show's difficulty.
     const fits = song
-      ? Object.values(show.songs).some((t) => t.kind === song && (!difficulties.length || difficulties.includes(t.difficulty)))
+      ? Object.values(show.songs).some((t) => t.kind === song && (!readySongs || t.ready) && (!difficulties.length || difficulties.includes(t.difficulty)))
       : !difficulties.length || difficulties.includes(show.difficulty);
     if (!fits) continue;
     if (media && !show.media[media]) continue;
@@ -346,15 +348,42 @@ export interface DrawnRound {
 
 /**
  * One usable song of `kind` from show `malId` whose entry is of one of `difficulties` (empty = any),
- * chosen by `pick` among them in id order (deterministic for a daily seed; theme ids are integer keys,
- * which Object.entries lists in ascending order).
+ * only ready ones with `readyOnly`, chosen by `pick` among them in id order (deterministic for a daily
+ * seed; theme ids are integer keys, which Object.entries lists in ascending order).
  */
-async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly Difficulty[], pick: (size: number) => number): Promise<number> {
+async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly Difficulty[], readyOnly: boolean, pick: (size: number) => number): Promise<number> {
   const songs = Object.entries((await catalogShows()).get(malId)?.songs ?? {}).filter(
-    ([, song]) => song.kind === kind && (!difficulties.length || difficulties.includes(song.difficulty)),
+    ([, song]) => song.kind === kind && (!readyOnly || song.ready) && (!difficulties.length || difficulties.includes(song.difficulty)),
   );
   if (!songs.length) throw new HttpError(500, 'A show has no song left to play.');
   return Number(songs[pick(songs.length)]![0]);
+}
+
+/**
+ * Unlimited song rounds draw among ready songs (CatalogSong.ready: title hidden, clip encrypted) while
+ * at least READY_MIN_TITLES shows of the round's pool, and READY_MIN_SHARE of them, have one, so a pool
+ * the pipeline has barely prepared yet (a genre, a small list, hard songs during a backfill) does not
+ * repeat the same few shows.
+ */
+const READY_MIN_TITLES = 50;
+const READY_MIN_SHARE = 0.25;
+
+/** Titles a round draws from; `ready`: only shows with a ready song, whose ready songs are drawn. */
+interface RoundPool {
+  titles: PoolTitle[];
+  ready: boolean;
+}
+
+/**
+ * The pools a round of `spec` draws from, in order: with `preferReady` (unlimited song modes), the shows
+ * with a ready song first when there are enough of them (READY_MIN_TITLES); then every show of the pool.
+ */
+async function roundPools(spec: PoolSpec, preferReady: boolean): Promise<RoundPool[]> {
+  const every = poolTitles(spec);
+  if (!preferReady || !spec.song) return [{ titles: await every, ready: false }];
+  const [ready, titles] = await Promise.all([poolTitles({ ...spec, readySongs: true }), every]);
+  const enough = ready.length >= Math.max(READY_MIN_TITLES, titles.length * READY_MIN_SHARE);
+  return enough ? [{ titles: ready, ready: true }, { titles, ready: false }] : [{ titles, ready: false }];
 }
 
 /**
@@ -362,17 +391,23 @@ async function drawTheme(malId: number, kind: ThemeKind, difficulties: readonly 
  * roundDifficulties() slice of the pool (easy, medium, hard for every difficulty); a slice that is too
  * small (media still being copied) widens per roundTries(), never to easy after round 1. Song modes stage
  * by the song's own entry instead of the show: the round's show has a song of that difficulty, and that
- * song is drawn among them. Character mode instead keeps the whole pool for every round and asks for a
- * character of CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by the character's own
- * popularity), so only shows with such a character qualify. Titles in `avoid` (recent daily answers)
- * are only reused when nothing else is left.
+ * song is drawn among them; with `preferReady` (unlimited) ready songs go first (roundPools). Character
+ * mode instead keeps the whole pool for every round and asks for a character of
+ * CHARACTER_ROUND_DIFFICULTIES[round] (easy, medium, hard by the character's own popularity), so only
+ * shows with such a character qualify. Titles in `avoid` (recent daily answers) are only reused when
+ * nothing else is left.
  */
-export async function drawRounds(mode: DailyMode, spec: PoolSpec, draw: Draw, avoid: ReadonlySet<number> = new Set()): Promise<DrawnRound[]> {
+export async function drawRounds(
+  mode: DailyMode,
+  spec: PoolSpec,
+  draw: Draw,
+  { avoid = new Set(), preferReady = false }: { avoid?: ReadonlySet<number>; preferReady?: boolean } = {},
+): Promise<DrawnRound[]> {
   const { rounds, perRound } = SHAPE[mode];
-  const pools = new Map<string, Promise<PoolTitle[]>>();
-  const titlesOf = (difficulties: readonly Difficulty[]) => {
+  const pools = new Map<string, Promise<RoundPool[]>>();
+  const poolsOf = (difficulties: readonly Difficulty[]) => {
     const key = [...difficulties].sort().join();
-    if (!pools.has(key)) pools.set(key, poolTitles({ ...spec, difficulties }));
+    if (!pools.has(key)) pools.set(key, roundPools({ ...spec, difficulties }, preferReady));
     return pools.get(key)!;
   };
   const shows = mode === 'character' ? await catalogShows() : null;
@@ -380,23 +415,25 @@ export async function drawRounds(mode: DailyMode, spec: PoolSpec, draw: Draw, av
   const out: DrawnRound[] = [];
   for (let round = 0; round < rounds; round++) {
     const tries = rounds > 1 && !shows ? roundTries(spec.difficulties, round) : [spec.difficulties];
-    const staged = tries[0]!;
     const wanted = CHARACTER_ROUND_DIFFICULTIES[round]!;
     const roundDraw = (n: number, size: number) => draw(round, n, size);
-    let picked: PoolTitle[] | null = null;
-    let pickedFrom = staged;
+    let picked: { titles: PoolTitle[]; from: readonly Difficulty[]; ready: boolean } | null = null;
     for (const difficulties of tries) {
-      const titles = await titlesOf(difficulties);
-      const pool = shows ? titles.filter((t) => shows.get(t.malId)?.characters.includes(wanted)) : titles;
-      picked = pickTitles(pool.filter((t) => !avoid.has(t.malId)), perRound, roundDraw, used) ?? pickTitles(pool, perRound, roundDraw, used);
-      pickedFrom = difficulties;
+      for (const { titles, ready } of await poolsOf(difficulties)) {
+        const pool = shows ? titles.filter((t) => shows.get(t.malId)?.characters.includes(wanted)) : titles;
+        const found = pickTitles(pool.filter((t) => !avoid.has(t.malId)), perRound, roundDraw, used) ?? pickTitles(pool, perRound, roundDraw, used);
+        if (found) {
+          picked = { titles: found, from: difficulties, ready };
+          break;
+        }
+      }
       if (picked) break;
     }
     if (!picked) throw new HttpError(404, 'This pool is too small for this mode.');
-    for (const t of picked) used.add(t.franchise);
+    for (const t of picked.titles) used.add(t.franchise);
     // Draw index past the title draws (n < 50), so the song choice is its own random number.
-    const themeId = spec.song ? await drawTheme(picked[0]!.malId, spec.song, pickedFrom, (size) => draw(round, 500, size)) : null;
-    out.push({ malIds: picked.map((t) => t.malId), themeId });
+    const themeId = spec.song ? await drawTheme(picked.titles[0]!.malId, spec.song, picked.from, picked.ready, (size) => draw(round, 500, size)) : null;
+    out.push({ malIds: picked.titles.map((t) => t.malId), themeId });
   }
   return out;
 }
@@ -465,7 +502,7 @@ export async function dailyPuzzle(mode: DailyMode, date: string): Promise<Puzzle
     Number(seedOf(mode === 'anidle' ? (n ? `${day}:${mode}:${n}` : `${day}:${mode}`) : `${day}:${mode}:${round}:${n}`) % BigInt(size));
   // Staged modes (Opening, Ending, Guess the Anime) go easy, medium, hard round by round; Anidle and Character stay easy + medium.
   const difficulties = isRoundMode(mode) || isSongMode(mode) ? [] : DAILY_DIFFICULTIES;
-  const answers = await drawRounds(mode, poolSpec('semua', null, mode, { difficulties }), seeded, recent);
+  const answers = await drawRounds(mode, poolSpec('semua', null, mode, { difficulties }), seeded, { avoid: recent });
 
   // Concurrent first requests race here; UNIQUE(date, mode) keeps exactly one puzzle, and both
   // requests drew the same answers, so the answer rows go to whichever puzzle row won.
@@ -477,7 +514,7 @@ export async function dailyPuzzle(mode: DailyMode, date: string): Promise<Puzzle
 }
 
 export async function unlimitedPuzzle(mode: DailyMode, spec: PoolSpec, options: PuzzleOptions, playerKey: string): Promise<PuzzleRow> {
-  const answers = await drawRounds(mode, spec, randomDraw);
+  const answers = await drawRounds(mode, spec, randomDraw, { preferReady: true });
   return insertUnlimited(mode, spec, options, playerKey, answers[0]!.malIds[0]!, (id) => answerInserts(id, mode, answers, randomDraw));
 }
 
@@ -516,8 +553,8 @@ export function shuffled<T>(list: readonly T[]): T[] {
 
 /**
  * Puts another title from the same pool and round difficulty into `round` of an unlimited puzzle that
- * stores one title per round (song and staged modes); song modes also draw that title's song, and the
- * old song's R2 copy no longer applies. The caller checks the round is untouched.
+ * stores one title per round (song and staged modes); song modes also draw that title's song (ready ones
+ * first, as drawRounds), and the old song's R2 copy no longer applies. The caller checks the round is untouched.
  */
 export async function swapRoundTitle(puzzle: PuzzleRow, account: Account | null, round: number): Promise<void> {
   if (!Number.isInteger(round) || round < 0 || round >= ROUND_COUNT) throw new HttpError(400, 'Unknown round.');
@@ -527,14 +564,21 @@ export async function swapRoundTitle(puzzle: PuzzleRow, account: Account | null,
   const franchises = new Set([...(await loadAnidle([...taken])).values()].map((a) => a.franchiseId ?? -a.malId));
   const spec = poolSpec(puzzle.pool, account, puzzle.mode, options);
   const difficulties = roundDifficulties(spec.difficulties, round);
-  const titles = (await poolTitles({ ...spec, difficulties })).filter((t) => !taken.has(t.malId));
-  const replacement = pickTitles(titles, 1, (_n, size) => Math.floor(Math.random() * size), franchises)?.[0];
+  let replacement: { title: PoolTitle; ready: boolean } | null = null;
+  for (const { titles, ready } of await roundPools({ ...spec, difficulties }, true)) {
+    const title = pickTitles(titles.filter((t) => !taken.has(t.malId)), 1, (_n, size) => Math.floor(Math.random() * size), franchises)?.[0];
+    if (title) {
+      replacement = { title, ready };
+      break;
+    }
+  }
   if (!replacement) throw new HttpError(404, 'No other title left in this pool.');
-  const themeId = spec.song ? await drawTheme(replacement.malId, spec.song, difficulties, (size) => Math.floor(Math.random() * size)) : null;
+  const malId = replacement.title.malId;
+  const themeId = spec.song ? await drawTheme(malId, spec.song, difficulties, replacement.ready, (size) => Math.floor(Math.random() * size)) : null;
   await db().batch(
     [
-      { sql: 'UPDATE puzzle_round SET mal_id = ?, theme_id = ?, audio_key = NULL WHERE puzzle_id = ? AND round = ?', args: [replacement.malId, themeId, puzzle.id, round] },
-      ...(round === 0 ? [{ sql: 'UPDATE puzzle SET answer_id = ? WHERE id = ?', args: [replacement.malId, puzzle.id] }] : []),
+      { sql: 'UPDATE puzzle_round SET mal_id = ?, theme_id = ?, audio_key = NULL WHERE puzzle_id = ? AND round = ?', args: [malId, themeId, puzzle.id, round] },
+      ...(round === 0 ? [{ sql: 'UPDATE puzzle SET answer_id = ? WHERE id = ?', args: [malId, puzzle.id] }] : []),
     ],
     'write',
   );

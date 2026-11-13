@@ -8,6 +8,7 @@ import { createWorker, OEM, type Worker as OcrWorker } from 'tesseract.js';
 import { CANONICAL_SQL, MEDIUM_MIN_MEMBERS } from '../shared/catalog.js';
 import { aliasOf, CHARACTER_MIN_FAVORITES, isRomaji, sameCharacterName } from '../shared/characters.js';
 import { SCREENSHOTS_PER_TITLE, shiftDate, todayUtc7, type MediaKind } from '../shared/modes.js';
+import { USABLE_THEME_SQL } from '../server/catalog.js';
 import { all, db, nowIso, run } from '../server/db.js';
 import { dailyPuzzle } from '../server/game.js';
 import { mediaUrl } from '../server/media.js';
@@ -741,6 +742,8 @@ export async function stepScreenshots(refreshAll: boolean, limit: number) {
 }
 
 const CLIP_HEIGHT = 240;
+/** The weekly run stops taking new songs after this long; the rest wait for the next run. */
+const CLIPS_BUDGET_MS = 60 * 60_000;
 
 /**
  * One theme's clue clip: encoded from `videoUrl`, uploaded, and recorded as its anime_theme.clip_key ('' when
@@ -782,22 +785,19 @@ export async function makeClip(themeId: number, videoUrl: string, file: string, 
 
 /**
  * The OP/ED clue as a small clip: the theme's video re-encoded to 240p H.264 without sound (the song
- * keeps playing and the clip follows it), ~1.5 MB instead of 30–60 MB, at v1/clip/<hash>.mp4. It is
- * shown blurred, so the low resolution does not show. R2's free 10 GB sets the scope: the first OP and
- * first ED of the canonical entry of easy + medium shows (the daily pool) only; every other song streams
- * its video_url through /api/media (step `daily` still clips each daily round's song). A video the
- * encoder rejects gets clip_key '' (streamed instead), retried with --refresh.
+ * keeps playing and the clip follows it), ~1.3 MB instead of 30–60 MB, at v1/clip/<hash>.mp4, sent to the
+ * page encrypted. It is shown blurred, so the low resolution does not show. R2's free 10 GB sets the scope:
+ * every easy and medium song (its own entry's members, like the catalog), ~4,500 songs ≈ 6 GB; hard songs
+ * stream their video_url through /api/media (step `daily` still clips each daily round's song). Most popular
+ * entry first, for CLIPS_BUDGET_MS at most unless --limit sets the amount instead. A video the encoder
+ * rejects gets clip_key '' (streamed instead), retried with --refresh.
  */
 export async function stepClips(refreshAll: boolean, limit: number) {
   const queue = (
-    await all<{ id: number; mal_id: number; label: string; video_url: string }>(
-      `SELECT id, mal_id, label, video_url FROM (
-         SELECT t.id, t.mal_id, t.kind, t.label, t.video_url, t.clip_key, a.members,
-           ROW_NUMBER() OVER (PARTITION BY t.mal_id, t.kind ORDER BY t.seq, length(t.label), t.id) AS n
-         FROM anime_theme t JOIN anime a ON a.mal_id = t.mal_id
-         WHERE t.status = 'ok' AND a.excluded IS NULL AND ${CANONICAL_SQL} AND a.members >= ?)
-       WHERE n = 1 AND video_url <> '' AND (? OR clip_key IS NULL)
-       ORDER BY members DESC, kind DESC`,
+    await all<{ id: number; mal_id: number; label: string; video_url: string | null; audio_url: string }>(
+      `SELECT t.id, t.mal_id, t.label, t.video_url, t.audio_url FROM ${USABLE_THEME_SQL}
+         AND e.members >= ? AND (? OR t.clip_key IS NULL)
+       ORDER BY e.members DESC, t.kind DESC, t.seq, t.id`,
       [MEDIUM_MIN_MEMBERS, refreshAll ? 1 : 0],
     )
   )
@@ -806,14 +806,16 @@ export async function stepClips(refreshAll: boolean, limit: number) {
   const total = queue.length;
   log(`clips: ${total} lagu`);
   const counts = { ok: 0, failed: 0, skipped: 0 };
+  const until = Number.isFinite(limit) ? Infinity : Date.now() + CLIPS_BUDGET_MS;
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-clip-'));
   let done = 0;
   // Each clip reads the whole 30–60 MB video; two at a time keeps AnimeThemes' file host comfortable.
   const workers = Array.from({ length: 2 }, async (_, w) => {
     const file = path.join(dir, `clip-${w}.mp4`);
-    for (let row = queue.pop(); row; row = queue.pop()) {
+    // The budget is checked before taking a song, so none is dropped from the "waiting" count.
+    for (let row; Date.now() < until && (row = queue.pop()); ) {
       try {
-        counts[await makeClip(Number(row.id), row.video_url, file)]++;
+        counts[await makeClip(Number(row.id), themeVideoUrl(row.video_url, row.audio_url), file)]++;
       } catch (err) {
         counts.skipped++;
         log(`clips: ${row.mal_id} ${row.label} ${errorText(err)}`);
@@ -823,7 +825,7 @@ export async function stepClips(refreshAll: boolean, limit: number) {
   });
   await Promise.all(workers);
   await rm(dir, { recursive: true, force: true });
-  log('clips:', counts);
+  log('clips:', counts, queue.length ? `${queue.length} lagu menunggu run berikutnya` : '');
 }
 
 /** Romaji/English logos and Japanese ones. Language data is fetched once into data/tessdata (gitignored). */
@@ -838,6 +840,8 @@ const OCR_HEIGHT = 720;
 const OCR_FPS = 2;
 /** The weekly run stops taking new songs after this long (~70 s per song); the rest wait for the next run. */
 const TITLES_BUDGET_MS = 60 * 60_000;
+/** A song without a clip is read from AnimeThemes, minutes on a slow day; past this it waits for the next run. */
+const TITLES_VIDEO_MS = 10 * 60_000;
 
 interface TitleScanRow {
   id: number;
@@ -893,15 +897,16 @@ async function ocrWorker(): Promise<OcrWorker> {
 }
 
 /**
- * Title cards in clue videos: scans every song with a clip (the daily pool's, see stepClips) that has not
- * been scanned yet, most popular show first, for TITLES_BUDGET_MS at most; step `daily` scans each daily
- * round's song whatever its clip. OCR reads printed titles ("SWORD ART ONLINE"); hand-drawn or heavily
- * stylized logos usually slip through.
+ * Title cards in clue videos: scans every usable song not scanned yet (its clip when it has one, else the
+ * AnimeThemes video), most popular entry first, so easy and medium songs are ready for unlimited puzzles
+ * soonest (CatalogSong.ready), for TITLES_BUDGET_MS at most unless --limit sets the amount instead; step
+ * `daily` scans each daily round's song right away. OCR reads printed titles ("SWORD ART ONLINE"); hand-drawn
+ * or heavily stylized logos usually slip through.
  */
 export async function stepTitles(refreshAll: boolean, limit: number) {
   const queue = (
     await titleScanRows(
-      `t.status = 'ok' AND t.clip_key <> '' AND (? OR t.title_spans IS NULL) AND s.excluded IS NULL ORDER BY s.members DESC, t.kind DESC, t.id`,
+      `t.status = 'ok' AND e.excluded IS NULL AND s.excluded IS NULL AND (? OR t.title_spans IS NULL) ORDER BY e.members DESC, t.kind DESC, t.id`,
       [refreshAll ? 1 : 0],
     )
   )
@@ -910,16 +915,16 @@ export async function stepTitles(refreshAll: boolean, limit: number) {
   const total = queue.length;
   log(`titles: ${total} lagu`);
   const counts = { scanned: 0, withTitle: 0, skipped: 0 };
-  const until = Date.now() + TITLES_BUDGET_MS;
+  const until = Number.isFinite(limit) ? Infinity : Date.now() + TITLES_BUDGET_MS;
   const dir = await mkdtemp(path.join(tmpdir(), 'anidle-titles-'));
   let done = 0;
   // OCR is the slow part and uses one core per worker.
   const lanes = Array.from({ length: 3 }, async (_, w) => {
     const worker = await ocrWorker();
     try {
-      for (let row = queue.pop(); row && Date.now() < until; row = queue.pop()) {
+      for (let row; Date.now() < until && (row = queue.pop()); ) {
         try {
-          if (await scanTitles(worker, row, path.join(dir, String(w)))) counts.withTitle++;
+          if (await scanTitles(worker, row, path.join(dir, String(w)), TITLES_VIDEO_MS)) counts.withTitle++;
           counts.scanned++;
         } catch (err) {
           counts.skipped++;

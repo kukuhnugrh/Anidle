@@ -25,6 +25,27 @@ export type PoolMediaKind = Exclude<MediaKind, 'cover'>;
 export interface CatalogSong {
   kind: ThemeKind;
   difficulty: Difficulty;
+  /** The pipeline did all it does for its clue (catalogSong); unlimited puzzles draw these first. Absent = not yet. */
+  ready?: true;
+}
+
+/** A usable song's row as the catalog reads it: `scanned` is anime_theme.title_spans IS NOT NULL. */
+export interface CatalogSongRow {
+  kind: ThemeKind;
+  members: number | null;
+  clip_key: string | null;
+  scanned: number;
+}
+
+/**
+ * A song's CatalogSong. Ready: its video was scanned for the anime's title (step `titles`) and, unless it
+ * is hard, a clue clip was made for it (step `clips`; '' = the encoder failed, so it streams). Hard songs
+ * get no clip (R2's free 10 GB), so the scan is all they get.
+ */
+export function catalogSong(row: CatalogSongRow): CatalogSong {
+  const difficulty = difficultyOf(row.members == null ? null : Number(row.members));
+  const ready = Boolean(row.scanned) && (row.clip_key !== null || difficulty === 'hard');
+  return ready ? { kind: row.kind, difficulty, ready: true } : { kind: row.kind, difficulty };
 }
 
 /** What pools filter on for one show: an anime row that is canonical and not excluded. */
@@ -139,15 +160,15 @@ export async function setCatalogMedia(showId: number, kind: PoolMediaKind, ok: b
 
 /** Follows an admin's reject/restore of a song in the catalog, without a rebuild (songs of excluded entries are never in it). */
 export async function setCatalogSong(themeId: number, ok: boolean): Promise<void> {
-  const theme = await one<{ show: number; kind: ThemeKind; members: number | null }>(
-    `SELECT COALESCE(e.canonical_id, e.mal_id) AS show, t.kind, e.members FROM anime_theme t JOIN anime e ON e.mal_id = t.mal_id
-     WHERE t.id = ? AND e.excluded IS NULL`,
+  const theme = await one<CatalogSongRow & { show: number }>(
+    `SELECT COALESCE(e.canonical_id, e.mal_id) AS show, t.kind, e.members, t.clip_key, t.title_spans IS NOT NULL AS scanned
+     FROM anime_theme t JOIN anime e ON e.mal_id = t.mal_id WHERE t.id = ? AND e.excluded IS NULL`,
     [themeId],
   );
   if (!theme) return;
   const show = Number(theme.show);
   const path = `$."${show}".songs."${themeId}"`;
-  const song: CatalogSong = { kind: theme.kind, difficulty: difficultyOf(theme.members == null ? null : Number(theme.members)) };
+  const song = catalogSong(theme);
   if (ok) await patchShow(show, 'json_set(value, ?, json(?))', [path, JSON.stringify(song)]);
   else await patchShow(show, 'json_remove(value, ?)', [path]);
 }

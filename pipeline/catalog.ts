@@ -3,9 +3,8 @@ import { CANONICAL_SQL, DIFFICULTIES, difficultyOf, type Difficulty, type GenreT
 import { CHARACTER_MIN_FAVORITES, characterAliases, characterDifficultyOf, displayName } from '../shared/characters.js';
 import type { CatalogListName, CatalogLists, DbFacets } from '../shared/database.js';
 import { CONNECTIONS_GROUP_SIZE, showLinks } from '../shared/connections.js';
-import type { ThemeKind } from '../shared/modes.js';
 import type { CharacterEntry, TitleEntry } from '../shared/normalize.js';
-import { completedShowsWrites, USABLE_THEME_SQL, type CatalogListKeys, type CatalogShows, type CatalogTraits, type PoolMediaKind } from '../server/catalog.js';
+import { catalogSong, completedShowsWrites, USABLE_THEME_SQL, type CatalogListKeys, type CatalogShows, type CatalogSongRow, type CatalogTraits, type PoolMediaKind } from '../server/catalog.js';
 import { all, db, one } from '../server/db.js';
 import { requireEnv } from '../server/env.js';
 import { contentKey } from './media.js';
@@ -66,8 +65,9 @@ export async function stepCatalog(): Promise<void> {
     all<{ mal_id: number }>('SELECT mal_id FROM popular'),
     all<{ mal_id: number; kind: PoolMediaKind }>(`SELECT mal_id, kind FROM anime_media WHERE kind IN ('chars', 'shots') AND status = 'ok'`),
     all<{ mal_id: number; favorites: number }>('SELECT mal_id, favorites FROM anime_character WHERE favorites >= ?', [CHARACTER_MIN_FAVORITES]),
-    all<{ id: number; kind: ThemeKind; show: number; members: number | null; artist: string | null }>(
-      `SELECT t.id, t.kind, COALESCE(e.canonical_id, e.mal_id) AS show, e.members, t.artist FROM ${USABLE_THEME_SQL} ORDER BY t.id`,
+    all<CatalogSongRow & { id: number; show: number; artist: string | null }>(
+      `SELECT t.id, t.kind, COALESCE(e.canonical_id, e.mal_id) AS show, e.members, t.artist, t.clip_key, t.title_spans IS NOT NULL AS scanned
+       FROM ${USABLE_THEME_SQL} ORDER BY t.id`,
     ),
   ]);
   for (const g of genreRows) shows[Number(g.mal_id)]?.genres.push(Number(g.genre_id));
@@ -92,7 +92,7 @@ export async function stepCatalog(): Promise<void> {
   }
   for (const s of songs) {
     const show = shows[Number(s.show)];
-    if (show) show.songs[Number(s.id)] = { kind: s.kind, difficulty: difficultyOf(s.members == null ? null : Number(s.members)) };
+    if (show) show.songs[Number(s.id)] = catalogSong(s);
   }
   const traits = JSON.stringify(connectionTraits(canonical, shows, genreRows, genres, songs));
 
