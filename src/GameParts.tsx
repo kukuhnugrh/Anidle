@@ -53,9 +53,7 @@ export function FinishCard({
       </div>
       <div className="actions">
         <ShareButton text={share} />
-        <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => onError(err instanceof Error ? err.message : String(err)))}>
-          Play {MODE_LABELS[mode]} unlimited
-        </button>
+        <sakuga-button onClick={() => onNewUnlimited().catch((err: unknown) => onError(err instanceof Error ? err.message : String(err)))}>Play {MODE_LABELS[mode]} unlimited</sakuga-button>
         <a className="button ghost" href="/">
           Home
         </a>

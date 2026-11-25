@@ -57,13 +57,17 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
   const worth = round.max - SYNOPSIS_STEP_COST * (round.clues + round.misses.length);
   const guessesLeft = SYNOPSIS_GUESSES - round.misses.length;
 
+  /** Resolves to the new state, or null when it failed (the error is shown). */
   const send = async (task: () => Promise<SynopsisState>) => {
     setSending(true);
     setError(null);
     try {
-      onChange(await task());
+      const next = await task();
+      onChange(next);
+      return next;
     } catch (err) {
       setError(errorMessage(err));
+      return null;
     } finally {
       setSending(false);
     }
@@ -129,7 +133,10 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
                 {nextClueLabel(round)} · −{fmtNumber(SYNOPSIS_STEP_COST)} pts
               </button>
             )}
-            <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SynopsisState>(puzzle.id, roundView, malId))} />
+            <GuessInput
+              disabled={sending}
+              onPick={(malId) => send(() => api.roundGuess<SynopsisState>(puzzle.id, roundView, malId)).then((p) => p?.rounds[roundView]?.solved === true)}
+            />
             <div className="stage-actions">
               <span className="muted small">
                 {plural(guessesLeft, 'guess', 'guesses')} left · right now = {fmtNumber(worth)} pts

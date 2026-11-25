@@ -3,6 +3,7 @@ import { HIGHER_LOWER_POINT, type HigherLowerPick } from '../shared/higherlower'
 import { api, errorMessage, type HigherLowerState } from './api';
 import { fmtNumber } from './format';
 import { FinishCard, GameHeader } from './GameParts';
+import { landDone } from './sakuga';
 import { higherLowerShareText } from './share';
 
 type Card = HigherLowerState['cards'][number];
@@ -27,11 +28,15 @@ export function HigherLowerGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
   const [left, right] = puzzle.cards.slice(-2) as [Card, Card];
   const last = puzzle.steps.at(-1);
 
-  const pick = async (p: HigherLowerPick) => {
+  /** `button` lands its check when the call was right. */
+  const pick = async (p: HigherLowerPick, button: SakugaButtonElement) => {
+    if (button.disabled) return;
     setSending(true);
     setError(null);
     try {
-      onChange(await api.higherLowerPick(puzzle.id, p));
+      const next = await api.higherLowerPick(puzzle.id, p);
+      onChange(next);
+      if (next.steps.at(-1)?.right) landDone(button);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -60,13 +65,13 @@ export function HigherLowerGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
         <div className="hl-middle">
           {!puzzle.finished ? (
             <>
-              <button className="primary" disabled={sending} onClick={() => pick('higher')}>
+              <sakuga-button disabled={sending} onClick={(e) => void pick('higher', e.currentTarget)}>
                 ▲ Higher
-              </button>
+              </sakuga-button>
               <span className="muted small">than {left.score?.toFixed(2)}</span>
-              <button className="primary" disabled={sending} onClick={() => pick('lower')}>
+              <sakuga-button disabled={sending} onClick={(e) => void pick('lower', e.currentTarget)}>
                 ▼ Lower
-              </button>
+              </sakuga-button>
             </>
           ) : (
             <span className={`hl-verdict ${last?.right ? 'win' : 'lose'}`}>{last?.right ? 'Perfect run!' : `Not ${last?.pick}`}</span>

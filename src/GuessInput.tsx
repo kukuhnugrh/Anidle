@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { indexNames, searchNames, type CharacterEntry, type SearchEntry, type SearchHit, type TitleEntry } from '../shared/normalize';
 import { api, errorMessage } from './api';
+import { landDone } from './sakuga';
 
 /** One download per page load, shared by every puzzle; a failed one is tried again next time. */
 function once<T>(fetch: () => Promise<T>): () => Promise<T> {
@@ -20,8 +21,11 @@ const loadCharacters = once(() => api.list('characters'));
 interface PickerProps {
   exclude?: ReadonlySet<number>;
   disabled: boolean;
-  /** With its own Guess button: called with the chosen id when it is pressed (or Enter). */
-  onPick?: (id: number) => void;
+  /**
+   * With its own Guess button: called with the chosen id when it is pressed (or Enter). Resolves true when
+   * the guess was right, and the button lands its check.
+   */
+  onPick?: (id: number) => Promise<boolean>;
   /** Without a button: told every time the choice changes (null = cleared); a parent button sends it. */
   onChoose?: (id: number | null) => void;
   /** A smaller field without autofocus, for several inputs on one screen (Character mode). */
@@ -46,6 +50,7 @@ function Autocomplete<T extends SearchEntry>({
   // A suggestion chosen from the list: it fills the field and waits for the Guess button (or Enter).
   const [selected, setSelected] = useState<T | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const button = useRef<SakugaButtonElement>(null);
 
   useEffect(() => {
     load().then(setEntries, (err: unknown) => setLoadError(errorMessage(err)));
@@ -68,7 +73,8 @@ function Autocomplete<T extends SearchEntry>({
   };
   const submit = () => {
     if (!selected || !onPick) return;
-    onPick(selected.id);
+    const el = button.current;
+    void onPick(selected.id).then((right) => right && landDone(el));
     select(null);
     setQuery('');
   };
@@ -103,9 +109,9 @@ function Autocomplete<T extends SearchEntry>({
           }}
         />
         {onPick && (
-          <button className="primary guess-button" disabled={disabled || !selected} onClick={submit}>
+          <sakuga-button ref={button} className="guess-button" disabled={disabled || !selected} onClick={(e) => !e.currentTarget.disabled && submit()}>
             Guess
-          </button>
+          </sakuga-button>
         )}
       </div>
       {query && !selected && (

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CONNECTIONS_GROUP_SIZE, LINK_KIND_LABELS } from '../shared/connections';
 import { api, errorMessage, type ConnectionsState } from './api';
 import { FinishCard, GameHeader, TitleThumb } from './GameParts';
+import { landDone } from './sakuga';
 import { connectionsShareText } from './share';
 
 type Group = ConnectionsState['groups'][number];
@@ -23,6 +24,7 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
   const [note, setNote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitButton = useRef<SakugaButtonElement>(null);
 
   const tiles = new Map(puzzle.tiles.map((t) => [t.malId, t]));
   const titleOf = (malId: number) => tiles.get(malId)?.title ?? `#${malId}`;
@@ -54,6 +56,7 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
       if (last.group !== null || next.finished) setSelected([]);
       if (last.group === null) setNote(last.oneAway ? 'One away…' : 'Not a group.');
       onChange(next);
+      if (last.group !== null) landDone(submitButton.current);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -114,15 +117,19 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
                 {note ?? `${selected.length} of ${CONNECTIONS_GROUP_SIZE} picked`}
               </span>
               <div className="actions">
-                <button className="ghost" disabled={sending} onClick={shuffle}>
+                <sakuga-button variant="secondary" disabled={sending} onClick={(e) => !e.currentTarget.disabled && shuffle()}>
                   Shuffle
-                </button>
-                <button className="ghost" disabled={sending || !selected.length} onClick={() => setSelected([])}>
+                </sakuga-button>
+                <sakuga-button variant="secondary" disabled={sending || !selected.length} onClick={(e) => !e.currentTarget.disabled && setSelected([])}>
                   Deselect all
-                </button>
-                <button className="primary" disabled={sending || selected.length !== CONNECTIONS_GROUP_SIZE} onClick={submit}>
+                </sakuga-button>
+                <sakuga-button
+                  ref={submitButton}
+                  disabled={sending || selected.length !== CONNECTIONS_GROUP_SIZE}
+                  onClick={(e) => !e.currentTarget.disabled && void submit()}
+                >
                   {sending ? 'Checking…' : 'Submit'}
-                </button>
+                </sakuga-button>
               </div>
             </div>
           )}

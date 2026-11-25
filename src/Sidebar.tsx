@@ -1,28 +1,28 @@
-import { useState, type ComponentType } from 'react';
+import { useRef, useState, type ComponentType } from 'react';
 import { MODE_LABELS, type DailyMode } from '../shared/modes';
 import type { Account, TodayScore } from './api';
 import { fmtNumber } from './format';
-import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, FlaskIcon, HomeIcon, ImageIcon, ListIcon, LogoutIcon, MoonIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, SunIcon, TrophyIcon, UsersIcon } from './icons';
+import { ClockIcon, CloseIcon, DatabaseIcon, DiscIcon, FlaskIcon, HomeIcon, ImageIcon, ListIcon, LogoutIcon, MusicIcon, PuzzleIcon, ShieldIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { dailyHref, type Route } from './route';
+import { useElementEvent } from './sakuga';
 import { applyTheme, currentTheme } from './theme';
 import { VolumeControl } from './VolumeControl';
 
 /** Night/day switch; the choice is kept in a cookie (see theme.ts). */
 function ThemeToggle() {
   const [theme, setTheme] = useState(currentTheme);
-  const next = theme === 'dark' ? 'light' : 'dark';
+  const toggle = useRef<SakugaToggleElement>(null);
+  useElementEvent(toggle, 'change', (el) => {
+    const next = el.checked ? 'dark' : 'light';
+    applyTheme(next);
+    setTheme(next);
+  });
   return (
-    <button
-      className="icon-button theme-toggle"
-      onClick={() => {
-        applyTheme(next);
-        setTheme(next);
-      }}
-      aria-label={next === 'light' ? 'Switch to day mode' : 'Switch to night mode'}
-      title={next === 'light' ? 'Day mode' : 'Night mode'}
-    >
-      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-    </button>
+    <div className="theme-row">
+      {/* The switch's own label says this to screen readers. */}
+      <span aria-hidden="true">Night mode</span>
+      <sakuga-toggle ref={toggle} label="Night mode" checked={theme === 'dark'} />
+    </div>
   );
 }
 
@@ -111,14 +111,11 @@ export function Sidebar({
       <aside className={`sidebar${open ? ' open' : ''}`}>
         <div className="sidebar-head">
           <Brand />
-          <span className="sidebar-tools">
-            <ThemeToggle />
-            <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close menu">
-              <CloseIcon />
-            </button>
-          </span>
+          <button className="icon-button sidebar-close" onClick={onClose} aria-label="Close menu">
+            <CloseIcon />
+          </button>
         </div>
-        <VolumeControl className="sidebar-volume" />
+        <VolumeControl className="sidebar-volume" on="wide" />
         <nav className="sidebar-nav">
           {sections.map((section) => (
             <div key={section.title} className="nav-section">
@@ -151,6 +148,7 @@ export function Sidebar({
           </a>
         )}
         <div className="sidebar-foot">
+          <ThemeToggle />
           {account ? (
             <div className="account-row">
               <a className={`account-chip${current === 'account' ? ' active' : ''}`} href="/akun" title="Account & MAL">

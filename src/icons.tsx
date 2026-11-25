@@ -71,19 +71,6 @@ export const BackIcon = () => (
   </Icon>
 );
 
-export const SunIcon = () => (
-  <Icon>
-    <circle cx="12" cy="12" r="4" />
-    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-  </Icon>
-);
-
-export const MoonIcon = () => (
-  <Icon>
-    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
-  </Icon>
-);
-
 export const ArrowIcon = () => (
   <Icon>
     <path d="M5 12h14M13 6l6 6-6 6" />
@@ -218,5 +205,21 @@ export const MuteIcon = () => (
   <Icon>
     <path d={SPEAKER} />
     <path d="M16 9.5l5 5M21 9.5l-5 5" />
+  </Icon>
+);
+
+/** The impact burst of an anime sound effect. */
+const BURST = 'M12 2.8l1.6 5.2 4.9-2.5-2.5 4.9 5.2 1.6-5.2 1.6 2.5 4.9-4.9-2.5-1.6 5.2-1.6-5.2-4.9 2.5 2.5-4.9-5.2-1.6 5.2-1.6-2.5-4.9 4.9 2.5z';
+
+export const SfxIcon = () => (
+  <Icon>
+    <path d={BURST} />
+  </Icon>
+);
+
+export const SfxOffIcon = () => (
+  <Icon>
+    <path d={BURST} />
+    <path d="M3.5 3.5l17 17" />
   </Icon>
 );

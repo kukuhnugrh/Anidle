@@ -23,6 +23,7 @@ import { MalListPage } from './MalList';
 import { MenuIcon } from './icons';
 import { DayBar, UnlimitedBar } from './ModeBar';
 import { go, readRoute } from './route';
+import { installSfx } from './sfx';
 import { Brand, Sidebar } from './Sidebar';
 import { Unlimited } from './Unlimited';
 import { VolumeControl } from './VolumeControl';
@@ -117,6 +118,8 @@ export function App() {
   }, [refreshMe]);
   // Database and admin song players follow the site-wide volume (the games' players are detached, see volume.ts).
   useEffect(syncPageAudio, []);
+  // The Sakuga controls' sound effects, heard on the document (sfx.ts).
+  useEffect(installSfx, []);
 
   if (account === undefined)
     return (
@@ -150,7 +153,7 @@ export function App() {
             <MenuIcon />
           </button>
           <Brand />
-          <VolumeControl className="mobile-volume" />
+          <VolumeControl className="mobile-volume" on="narrow" />
         </header>
         <main className="page">
           <ErrorBoundary key={JSON.stringify(route)}>

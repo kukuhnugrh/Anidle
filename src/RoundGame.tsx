@@ -83,13 +83,17 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
   const perClue = round.max * SCREENSHOT_CLUE_COST;
   const worth = round.max - perClue * round.clues;
 
+  /** Resolves to the new state, or null when it failed (the error is shown). */
   const send = async (task: () => Promise<RoundState>) => {
     setSending(true);
     setError(null);
     try {
-      onChange(await task());
+      const next = await task();
+      onChange(next);
+      return next;
     } catch (err) {
       setError(errorMessage(err));
+      return null;
     } finally {
       setSending(false);
     }
@@ -179,7 +183,11 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
           {round.hint && <TitleHint hint={round.hint} />}
           {playing && (
             <div className="stage-controls">
-              <GuessInput fullNamesOnly disabled={sending} onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId))} />
+              <GuessInput
+                fullNamesOnly
+                disabled={sending}
+                onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId)).then((p) => p?.rounds[roundView]?.solved === true)}
+              />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {fmtNumber(worth)} pts</span>
                 <ConfirmButton
@@ -246,9 +254,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
           </div>
           <div className="actions">
             <ShareButton text={roundShareText(puzzle)} />
-            <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-              Play {MODE_LABELS[puzzle.mode]} unlimited
-            </button>
+            <sakuga-button onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>Play {MODE_LABELS[puzzle.mode]} unlimited</sakuga-button>
             <a className="button ghost" href="/">
               Home
             </a>

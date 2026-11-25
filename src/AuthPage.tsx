@@ -1,9 +1,15 @@
 import { useState, type FormEvent } from 'react';
 import type { Notice } from './AccountPage';
 import { api, errorMessage, type Account } from './api';
+import { Tabs } from './sakuga';
+
+const MODES = [
+  { value: 'login', label: 'Sign in' },
+  { value: 'register', label: 'Sign up' },
+] as const;
 
 export function AuthPage({ notice, onDone }: { notice: Notice; onDone: (account: Account) => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<(typeof MODES)[number]['value']>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   // A failed MAL sign-in comes back here as a redirect notice.
@@ -37,14 +43,7 @@ export function AuthPage({ notice, onDone }: { notice: Notice; onDone: (account:
         </a>
         <p className="muted small">First time? An account named after your MAL username is made for you, with your completed list synced.</p>
         <div className="auth-or">or with an Anidle username</div>
-        <div className="tabs">
-          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
-            Sign in
-          </button>
-          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>
-            Sign up
-          </button>
-        </div>
+        <Tabs label="Sign in or sign up" options={MODES} value={mode} onChange={setMode} />
         <label>
           Username
           <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus required />

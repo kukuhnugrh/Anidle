@@ -303,13 +303,17 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
   const isCurrent = view === puzzle.current;
   const stage = useRef<HTMLDivElement>(null);
 
+  /** Resolves to the new state, or null when it failed (the error is shown). */
   const send = async (task: () => Promise<SongState>) => {
     setSending(true);
     setError(null);
     try {
-      onChange(await task());
+      const next = await task();
+      onChange(next);
+      return next;
     } catch (err) {
       setError(errorMessage(err));
+      return null;
     } finally {
       setSending(false);
     }
@@ -370,7 +374,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           </div>
           {!round.finished && isCurrent && (
             <div className="stage-controls">
-              <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId))} />
+              <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId)).then((p) => p?.rounds[view]?.solved === true)} />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {fmtNumber(round.clue.opened ? round.max * SONG_CLUE_SHARE : round.max)} pts</span>
                 <div className="actions">

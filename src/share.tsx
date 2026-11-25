@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { groupSkips, type AnidleFeedback, type Direction, type ListClue } from '../shared/anidle';
 import { MODE_LABELS, type Mode } from '../shared/modes';
 import type { AnidleState, CharacterState, ConnectionsState, HigherLowerState, OddOneOutState, RoundState, SongState, SynopsisState, TimelineState } from './api';
 import { fmtDate, fmtNumber } from './format';
 import { ShareIcon } from './icons';
+import { showToast } from './sakuga';
 
 // Spoiler-free result text, Wordle style: colors only, no titles.
 
@@ -87,17 +89,25 @@ export async function shareText(text: string): Promise<'shared' | 'copied'> {
   return 'copied';
 }
 
+/** Shares, then says so in a toast; a failure stays on the button (the toast always shows a check). */
 export function ShareButton({ text }: { text: string }) {
-  const [note, setNote] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const toast = useRef<SakugaToastElement>(null);
   const share = () =>
     shareText(text).then(
-      (r) => setNote(r === 'copied' ? 'Copied to clipboard' : 'Shared'),
-      () => setNote('Could not copy'),
+      (r) => {
+        setFailed(false);
+        showToast(toast.current, r === 'copied' ? 'Copied to clipboard' : 'Shared');
+      },
+      () => setFailed(true),
     );
   return (
-    <button onClick={share}>
-      <ShareIcon />
-      {note ?? 'Share result'}
-    </button>
+    <>
+      <button onClick={share}>
+        <ShareIcon />
+        {failed ? 'Could not copy' : 'Share result'}
+      </button>
+      {createPortal(<sakuga-toast ref={toast} className="share-toast" />, document.body)}
+    </>
   );
 }

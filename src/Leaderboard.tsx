@@ -3,8 +3,10 @@ import { DAILY_MODES, MODE_LABELS, todayUtc7, type DailyMode } from '../shared/m
 import { api, errorMessage, type Account, type Leaderboard } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtNumber, resultText } from './format';
+import { Tabs } from './sakuga';
 
 type Tab = DailyMode | 'total';
+const TABS: Array<{ value: Tab; label: string }> = [{ value: 'total', label: 'Total' }, ...DAILY_MODES.map((m) => ({ value: m, label: MODE_LABELS[m] }))];
 
 function readDate(): string {
   const date = new URLSearchParams(location.search).get('date');
@@ -57,13 +59,7 @@ export function LeaderboardPage({ account }: { account: Account | null }) {
 
       <div className="board-bar">
         <DatePicker date={date} onChange={setDate} />
-        <div className="tabs-inline" role="tablist">
-          {(['total', ...DAILY_MODES] as const).map((t) => (
-            <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>
-              {t === 'total' ? 'Total' : MODE_LABELS[t]}
-            </button>
-          ))}
-        </div>
+        <Tabs label="Leaderboard mode" options={TABS} value={tab} onChange={setTab} />
       </div>
 
       {error && <div className="error-box">{error}</div>}

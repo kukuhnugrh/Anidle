@@ -236,13 +236,17 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
   // Skip jumps to the next locked clue, using up the tries in between.
   const nextClue = ANIDLE_CLUES.find((c) => c.after > puzzle.guesses.length);
 
+  /** Resolves to the new state, or null when it failed (the error is shown). */
   const send = async (task: () => Promise<AnidleState>) => {
     setSending(true);
     setError(null);
     try {
-      onChange(await task());
+      const next = await task();
+      onChange(next);
+      return next;
     } catch (err) {
       setError(errorMessage(err));
+      return null;
     } finally {
       setSending(false);
     }
@@ -287,9 +291,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
               <a className="button" href={`https://myanimelist.net/anime/${puzzle.answer.malId}`} target="_blank" rel="noreferrer">
                 Open on MAL ↗
               </a>
-              <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-                Play unlimited
-              </button>
+              <sakuga-button onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>Play unlimited</sakuga-button>
               <a className="button ghost" href="/">
                 Home
               </a>
@@ -298,7 +300,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
         </div>
       ) : (
         <div className="anidle-play">
-          <GuessInput exclude={guessed} disabled={sending} onPick={(malId) => void send(() => api.guess(puzzle.id, malId))} />
+          <GuessInput exclude={guessed} disabled={sending} onPick={(malId) => send(() => api.guess(puzzle.id, malId)).then((p) => p?.guesses.at(-1)?.correct === true)} />
           <div className="clue-strip">
             <span className="clue-steps">
               <span className="muted">Clues</span>

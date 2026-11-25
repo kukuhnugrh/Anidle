@@ -221,9 +221,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
           </div>
           <div className="actions">
             <ShareButton text={characterShareText(puzzle)} />
-            <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-              Play Character unlimited
-            </button>
+            <sakuga-button onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>Play Character unlimited</sakuga-button>
             <a className="button ghost" href="/">
               Home
             </a>

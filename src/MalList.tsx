@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage, type Account, type MalList, type MalListCategory, type MalListEntry } from './api';
 import { fmtNumber, pretty } from './format';
+import { Tabs } from './sakuga';
 
 const CATEGORIES: Array<{ id: MalListCategory; label: string }> = [
   { id: 'watching', label: 'Watching' },
@@ -176,13 +177,12 @@ export function MalListPage({ account }: { account: Account | null }) {
 
       {list && (
         <>
-          <div className="tabs-inline" role="tablist" aria-label="List categories">
-            {CATEGORIES.map(({ id, label }) => (
-              <button key={id} role="tab" aria-selected={id === active} className={id === active ? 'active' : ''} onClick={() => pick(id)}>
-                {label} <span className="mylist-count">{fmtNumber(counts[id])}</span>
-              </button>
-            ))}
-          </div>
+          <Tabs
+            label="List categories"
+            options={CATEGORIES.map(({ id, label }) => ({ value: id, label: `${label} ${fmtNumber(counts[id])}` }))}
+            value={active}
+            onChange={pick}
+          />
 
           <section className="card db-filters" aria-label="Filter and sort">
             <label className="db-search">

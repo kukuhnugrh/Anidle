@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LINK_KIND_LABELS } from '../shared/connections';
 import { ODD_ONE_OUT_POINTS } from '../shared/oddoneout';
 import { api, errorMessage, type OddOneOutState } from './api';
 import { fmtNumber } from './format';
 import { FinishCard, GameHeader, TitleThumb } from './GameParts';
+import { landDone } from './sakuga';
 import { oddOneOutShareText } from './share';
 
 export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: OddOneOutState; onChange: (p: OddOneOutState) => void; onNewUnlimited: () => Promise<void> }) {
@@ -11,6 +12,7 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
   const [selected, setSelected] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitButton = useRef<SakugaButtonElement>(null);
   const round = puzzle.rounds[roundView]!;
   const playing = roundView === puzzle.current && !round.finished;
 
@@ -19,7 +21,9 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
     setSending(true);
     setError(null);
     try {
-      onChange(await api.oddOneOutPick(puzzle.id, roundView, selected));
+      const next = await api.oddOneOutPick(puzzle.id, roundView, selected);
+      onChange(next);
+      if (next.rounds[roundView]?.solved) landDone(submitButton.current);
       setSelected(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -77,9 +81,9 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
         {playing ? (
           <div className="cx-controls">
             <span className="cx-note">{selected === null ? 'Pick the odd one out.' : 'One pick per round.'}</span>
-            <button className="primary" disabled={sending || selected === null} onClick={submit}>
+            <sakuga-button ref={submitButton} disabled={sending || selected === null} onClick={(e) => !e.currentTarget.disabled && void submit()}>
               {sending ? 'Checking…' : "That's the odd one"}
-            </button>
+            </sakuga-button>
           </div>
         ) : (
           <div className="odd-verdict">
