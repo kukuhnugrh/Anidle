@@ -1,0 +1,2 @@
+# Sakuga VFX components are vendored verbatim from sakuga-vfx.vercel.app; keep them byte-identical (no CRLF conversion).
+public/sakuga/*.js -text

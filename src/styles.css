@@ -296,8 +296,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 /* Fixed at the bottom left over everything; the host has no size, so it never blocks clicks while hidden. */
 .share-toast { position: fixed; left: 24px; bottom: 24px; z-index: 50; width: 0; height: 0; }
 /* Sakuga tabs scroll sideways inside this when wider than the page (inline-size containment: the tabs never
-   widen the page); the padding keeps the raised tab and the shadow. */
-.tab-strip { contain: inline-size; overflow-x: auto; padding: 10px 8px 8px 0; }
+   widen the page); the padding keeps the raised tab, the shadow and the first tab's focus ring. */
+.tab-strip { contain: inline-size; overflow-x: auto; padding: 10px 8px 8px 6px; }
 .board-bar .tab-strip { flex: 1 1 300px; }
 .auth-card .tab-strip { text-align: center; }
 

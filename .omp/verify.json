@@ -1,0 +1,5 @@
+{
+  "setup": ["npm ci"],
+  "local": ["npm run typecheck", "npm test", "npm run build"],
+  "timeoutMs": 900000
+}
