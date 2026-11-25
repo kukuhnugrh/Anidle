@@ -1,5 +1,5 @@
 // React glue for the Sakuga VFX components (element types in sakuga-elements.d.ts, sounds in sfx.ts).
-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { playSfx } from './sfx';
 
 /**
@@ -20,14 +20,45 @@ export function useElementEvent<E extends HTMLElement>(ref: RefObject<E | null>,
   }, [ref, type]);
 }
 
+/** How long a primary button's press plays out (impact, rebound, smoke rings). */
+const IMPACT_MS = 700;
+/** How long a landed check stays: done()'s default hold. */
+const DONE_MS = 1800;
+/** Long enough to see a check land and glint: what a screen that is about to replace the button waits. */
+const LAND_BEAT_MS = 650;
+
 /**
- * A success the player earned (a right guess, group or call): the button lands its check and glint, with
- * キラッ. Only while the button is on the page: a detached one would draw its glint at the page's corner.
+ * The reaction of the primary button(s) of one action. The component fades a disabled button, which would
+ * wash out its impact and its check, so `held` says when to keep it enabled-looking: call `pressed()` on
+ * the click, `landed(button)` on a success the player earned (a right guess, group or call). The button's
+ * own click handler keeps refusing clicks while the action is busy. `landed` resolves once the check has
+ * been seen: await it before showing a state that removes the button (a finished round), else the check
+ * would land on a button that is already gone.
  */
-export function landDone(button: SakugaButtonElement | null) {
-  if (!button?.isConnected) return;
-  button.done();
-  playSfx('kira');
+export function useButtonReaction() {
+  const [held, setHeld] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const hold = useCallback((ms: number) => {
+    clearTimeout(timer.current);
+    setHeld(true);
+    timer.current = setTimeout(() => setHeld(false), ms);
+  }, []);
+  const pressed = useCallback(() => hold(IMPACT_MS), [hold]);
+  /** The check and glint, with キラッ. Only while the button is on the page: a detached one would draw its glint at the page's corner. */
+  const landed = useCallback(
+    (button: SakugaButtonElement | null) => {
+      if (!button?.isConnected) return Promise.resolve();
+      hold(DONE_MS);
+      button.done();
+      playSfx('kira');
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, LAND_BEAT_MS);
+      return promise;
+    },
+    [hold],
+  );
+  return { held, pressed, landed };
 }
 
 /** The toast's ズザッ, when it lands (it streaks in for about this long). */

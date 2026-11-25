@@ -83,17 +83,16 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
   const perClue = round.max * SCREENSHOT_CLUE_COST;
   const worth = round.max - perClue * round.clues;
 
-  /** Resolves to the new state, or null when it failed (the error is shown). */
-  const send = async (task: () => Promise<RoundState>) => {
+  /** `beforeShow` may hold the new state back a moment (a right guess's check landing on the Guess button). */
+  const send = async (task: () => Promise<RoundState>, beforeShow?: (next: RoundState) => Promise<void> | undefined) => {
     setSending(true);
     setError(null);
     try {
       const next = await task();
+      await beforeShow?.(next);
       onChange(next);
-      return next;
     } catch (err) {
       setError(errorMessage(err));
-      return null;
     } finally {
       setSending(false);
     }
@@ -186,7 +185,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
               <GuessInput
                 fullNamesOnly
                 disabled={sending}
-                onPick={(malId) => send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId)).then((p) => p?.rounds[roundView]?.solved === true)}
+                onPick={(malId, land) => void send(() => api.roundGuess<RoundState>(puzzle.id, roundView, malId), (p) => (p.rounds[roundView]?.solved ? land() : undefined))}
               />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {fmtNumber(worth)} pts</span>

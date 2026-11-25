@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { indexNames, searchNames, type CharacterEntry, type SearchEntry, type SearchHit, type TitleEntry } from '../shared/normalize';
 import { api, errorMessage } from './api';
-import { landDone } from './sakuga';
+import { useButtonReaction } from './sakuga';
 
 /** One download per page load, shared by every puzzle; a failed one is tried again next time. */
 function once<T>(fetch: () => Promise<T>): () => Promise<T> {
@@ -22,10 +22,11 @@ interface PickerProps {
   exclude?: ReadonlySet<number>;
   disabled: boolean;
   /**
-   * With its own Guess button: called with the chosen id when it is pressed (or Enter). Resolves true when
-   * the guess was right, and the button lands its check.
+   * With its own Guess button: called with the chosen id when it is pressed (or Enter). For a right guess
+   * the caller awaits `land()` (the button's check and glint) before showing the new state, which usually
+   * ends the round and removes the button.
    */
-  onPick?: (id: number) => Promise<boolean>;
+  onPick?: (id: number, land: () => Promise<void>) => void;
   /** Without a button: told every time the choice changes (null = cleared); a parent button sends it. */
   onChoose?: (id: number | null) => void;
   /** A smaller field without autofocus, for several inputs on one screen (Character mode). */
@@ -51,6 +52,7 @@ function Autocomplete<T extends SearchEntry>({
   const [selected, setSelected] = useState<T | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const button = useRef<SakugaButtonElement>(null);
+  const reaction = useButtonReaction();
 
   useEffect(() => {
     load().then(setEntries, (err: unknown) => setLoadError(errorMessage(err)));
@@ -72,9 +74,10 @@ function Autocomplete<T extends SearchEntry>({
     input.current?.focus();
   };
   const submit = () => {
-    if (!selected || !onPick) return;
+    if (!selected || !onPick || disabled) return;
     const el = button.current;
-    void onPick(selected.id).then((right) => right && landDone(el));
+    reaction.pressed();
+    onPick(selected.id, () => reaction.landed(el));
     select(null);
     setQuery('');
   };
@@ -109,7 +112,7 @@ function Autocomplete<T extends SearchEntry>({
           }}
         />
         {onPick && (
-          <sakuga-button ref={button} className="guess-button" disabled={disabled || !selected} onClick={(e) => !e.currentTarget.disabled && submit()}>
+          <sakuga-button ref={button} className="guess-button" disabled={!reaction.held && (disabled || !selected)} onClick={submit}>
             Guess
           </sakuga-button>
         )}

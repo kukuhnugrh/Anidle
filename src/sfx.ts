@@ -129,18 +129,20 @@ function grit(b: Bus, t: number, rate: number, until: number): GainNode {
   return g;
 }
 
+// Levels measured by rendering each sound offline: every one peaks between -11 and -16 dBFS (noise varies a
+// little per play). A narrow band of noise needs a gain above 1 to get there; the limiter catches stack-ups.
 const SOUNDS: Record<SfxName, (b: Bus, t: number) => void> = {
   // ドン: a low thump dropping in pitch, with a dull noise hit on top.
   don: (b, t) => {
-    tone(b, t, 'sine', 170, 42, 0.6, 0.004, 0.34);
-    tone(b, t, 'triangle', 110, 50, 0.22, 0.003, 0.16);
-    hiss(b, t, 'lowpass', 1400, 160, 0.7, 0.38, 0.002, 0.22);
+    tone(b, t, 'sine', 170, 42, 0.5, 0.004, 0.34);
+    tone(b, t, 'triangle', 110, 50, 0.18, 0.003, 0.16);
+    hiss(b, t, 'lowpass', 1400, 160, 0.7, 0.32, 0.002, 0.22);
   },
   // カチッ: two short clicks.
   kachi: (b, t) => {
-    hiss(b, t, 'bandpass', 3400, 2800, 5, 0.42, 0.001, 0.025);
-    tone(b, t, 'square', 2300, 1900, 0.05, 0.001, 0.014);
-    hiss(b, t + 0.055, 'bandpass', 2600, 2200, 5, 0.3, 0.001, 0.03);
+    hiss(b, t, 'bandpass', 3400, 2800, 3, 1.2, 0.001, 0.025);
+    tone(b, t, 'square', 2300, 1900, 0.12, 0.001, 0.014);
+    hiss(b, t + 0.055, 'bandpass', 2600, 2200, 3, 0.9, 0.001, 0.03);
   },
   // キラッ: a bright chime climbing an arpeggio, with a little sparkle.
   kira: (b, t) => {
@@ -151,16 +153,16 @@ const SOUNDS: Record<SfxName, (b: Bus, t: number) => void> = {
     hiss(b, t + 0.12, 'highpass', 6000, 9000, 0.7, 0.05, 0.02, 0.14);
   },
   // シュッ: a noise swish sweeping up.
-  shu: (b, t) => hiss(b, t, 'bandpass', 500, 3600, 1.3, 0.34, 0.06, 0.17),
+  shu: (b, t) => hiss(b, t, 'bandpass', 500, 3600, 1.3, 0.95, 0.06, 0.17),
   // ズザッ: a gritty skid that lands and stops.
   zuza: (b, t) => {
-    hiss(b, t, 'bandpass', 1100, 520, 0.9, 0.3, 0.01, 0.13, grit(b, t, 42, t + 0.16));
-    hiss(b, t + 0.1, 'lowpass', 2600, 380, 0.8, 0.34, 0.008, 0.24, grit(b, t + 0.1, 34, t + 0.36));
+    hiss(b, t, 'bandpass', 1100, 520, 0.9, 0.34, 0.01, 0.13, grit(b, t, 42, t + 0.16));
+    hiss(b, t + 0.1, 'lowpass', 2600, 380, 0.8, 0.38, 0.008, 0.24, grit(b, t + 0.1, 34, t + 0.36));
   },
   // ポン: a pop gliding up (on)…
-  pon: (b, t) => tone(b, t, 'sine', 420, 1000, 0.42, 0.003, 0.13),
+  pon: (b, t) => tone(b, t, 'sine', 420, 1000, 0.9, 0.003, 0.13),
   // …and gliding down (off).
-  'pon-off': (b, t) => tone(b, t, 'sine', 880, 330, 0.36, 0.003, 0.13),
+  'pon-off': (b, t) => tone(b, t, 'sine', 880, 330, 0.9, 0.003, 0.13),
 };
 
 /** Plays a sound now, unless sound effects are off. Call it inside a user gesture the first time, so the browser lets audio start. */

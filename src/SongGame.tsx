@@ -303,17 +303,16 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
   const isCurrent = view === puzzle.current;
   const stage = useRef<HTMLDivElement>(null);
 
-  /** Resolves to the new state, or null when it failed (the error is shown). */
-  const send = async (task: () => Promise<SongState>) => {
+  /** `beforeShow` may hold the new state back a moment (a right guess's check landing on the Guess button). */
+  const send = async (task: () => Promise<SongState>, beforeShow?: (next: SongState) => Promise<void> | undefined) => {
     setSending(true);
     setError(null);
     try {
       const next = await task();
+      await beforeShow?.(next);
       onChange(next);
-      return next;
     } catch (err) {
       setError(errorMessage(err));
-      return null;
     } finally {
       setSending(false);
     }
@@ -374,7 +373,10 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           </div>
           {!round.finished && isCurrent && (
             <div className="stage-controls">
-              <GuessInput disabled={sending} onPick={(malId) => send(() => api.roundGuess<SongState>(puzzle.id, view, malId)).then((p) => p?.rounds[view]?.solved === true)} />
+              <GuessInput
+                disabled={sending}
+                onPick={(malId, land) => void send(() => api.roundGuess<SongState>(puzzle.id, view, malId), (p) => (p.rounds[view]?.solved ? land() : undefined))}
+              />
               <div className="stage-actions">
                 <span className="muted small">One guess · right now = {fmtNumber(round.clue.opened ? round.max * SONG_CLUE_SHARE : round.max)} pts</span>
                 <div className="actions">
@@ -443,9 +445,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
           </div>
           <div className="actions">
             <ShareButton text={songShareText(puzzle)} />
-            <button className="primary" onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>
-              Play {MODE_LABELS[puzzle.mode]} unlimited
-            </button>
+            <sakuga-button onClick={() => onNewUnlimited().catch((err: unknown) => setError(errorMessage(err)))}>Play {MODE_LABELS[puzzle.mode]} unlimited</sakuga-button>
             <a className="button ghost" href="/">
               Home
             </a>

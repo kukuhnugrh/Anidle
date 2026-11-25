@@ -3,7 +3,7 @@ import { HIGHER_LOWER_POINT, type HigherLowerPick } from '../shared/higherlower'
 import { api, errorMessage, type HigherLowerState } from './api';
 import { fmtNumber } from './format';
 import { FinishCard, GameHeader } from './GameParts';
-import { landDone } from './sakuga';
+import { useButtonReaction } from './sakuga';
 import { higherLowerShareText } from './share';
 
 type Card = HigherLowerState['cards'][number];
@@ -25,18 +25,24 @@ function ScoreCard({ card, side }: { card: Card; side: 'left' | 'right' }) {
 export function HigherLowerGame({ puzzle, onChange, onNewUnlimited }: { puzzle: HigherLowerState; onChange: (p: HigherLowerState) => void; onNewUnlimited: () => Promise<void> }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const reaction = useButtonReaction();
   const [left, right] = puzzle.cards.slice(-2) as [Card, Card];
   const last = puzzle.steps.at(-1);
 
   /** `button` lands its check when the call was right. */
   const pick = async (p: HigherLowerPick, button: SakugaButtonElement) => {
-    if (button.disabled) return;
+    if (sending) return;
+    reaction.pressed();
     setSending(true);
     setError(null);
     try {
       const next = await api.higherLowerPick(puzzle.id, p);
+      if (next.steps.at(-1)?.right) {
+        const beat = reaction.landed(button);
+        // A perfect run ends here and its verdict replaces the buttons: let the check land first.
+        if (next.finished) await beat;
+      }
       onChange(next);
-      if (next.steps.at(-1)?.right) landDone(button);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -65,11 +71,11 @@ export function HigherLowerGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
         <div className="hl-middle">
           {!puzzle.finished ? (
             <>
-              <sakuga-button disabled={sending} onClick={(e) => void pick('higher', e.currentTarget)}>
+              <sakuga-button disabled={sending && !reaction.held} onClick={(e) => void pick('higher', e.currentTarget)}>
                 ▲ Higher
               </sakuga-button>
               <span className="muted small">than {left.score?.toFixed(2)}</span>
-              <sakuga-button disabled={sending} onClick={(e) => void pick('lower', e.currentTarget)}>
+              <sakuga-button disabled={sending && !reaction.held} onClick={(e) => void pick('lower', e.currentTarget)}>
                 ▼ Lower
               </sakuga-button>
             </>

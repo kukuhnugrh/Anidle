@@ -236,17 +236,16 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
   // Skip jumps to the next locked clue, using up the tries in between.
   const nextClue = ANIDLE_CLUES.find((c) => c.after > puzzle.guesses.length);
 
-  /** Resolves to the new state, or null when it failed (the error is shown). */
-  const send = async (task: () => Promise<AnidleState>) => {
+  /** `beforeShow` may hold the new state back a moment (a right guess's check landing on the Guess button). */
+  const send = async (task: () => Promise<AnidleState>, beforeShow?: (next: AnidleState) => Promise<void> | undefined) => {
     setSending(true);
     setError(null);
     try {
       const next = await task();
+      await beforeShow?.(next);
       onChange(next);
-      return next;
     } catch (err) {
       setError(errorMessage(err));
-      return null;
     } finally {
       setSending(false);
     }
@@ -300,7 +299,7 @@ export function Anidle({ puzzle, onChange, onNewUnlimited }: { puzzle: AnidleSta
         </div>
       ) : (
         <div className="anidle-play">
-          <GuessInput exclude={guessed} disabled={sending} onPick={(malId) => send(() => api.guess(puzzle.id, malId)).then((p) => p?.guesses.at(-1)?.correct === true)} />
+          <GuessInput exclude={guessed} disabled={sending} onPick={(malId, land) => void send(() => api.guess(puzzle.id, malId), (p) => (p.guesses.at(-1)?.correct ? land() : undefined))} />
           <div className="clue-strip">
             <span className="clue-steps">
               <span className="muted">Clues</span>

@@ -28,10 +28,11 @@ describe('soundFor', () => {
   });
 });
 
-/** A stand-in Web Audio context: records how many were made and every level a gain is set to. */
+/** A stand-in Web Audio context: records how many were made, every level a gain is set to, and where the limiter goes. */
 function fakeAudio() {
   const made: FakeContext[] = [];
   const gainLevels: number[] = [];
+  const limiterOutputs: unknown[] = [];
   const param = (levels?: number[]) => ({
     value: 1,
     setValueAtTime: (v: number) => void levels?.push(v),
@@ -52,9 +53,9 @@ function fakeAudio() {
     createBiquadFilter = () => ({ ...node(), type: 'lowpass', frequency: param(), Q: param() });
     createBufferSource = () => ({ ...node(), buffer: null, start: () => undefined, stop: () => undefined });
     createBuffer = (_channels: number, length: number) => ({ getChannelData: () => new Float32Array(length) });
-    createDynamicsCompressor = () => ({ ...node(), threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() });
+    createDynamicsCompressor = () => ({ connect: (to: unknown) => void limiterOutputs.push(to), threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() });
   }
-  return { FakeContext, made, gainLevels };
+  return { FakeContext, made, gainLevels, limiterOutputs };
 }
 
 describe('sound effects switch and playback', () => {
@@ -71,13 +72,16 @@ describe('sound effects switch and playback', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('is on by default and plays every sound through one shared context, never above full scale', async () => {
+  it('is on by default and plays every sound through one shared context and its limiter', async () => {
     const sfx = await import('./sfx');
     const names: SfxName[] = ['don', 'kachi', 'kira', 'shu', 'zuza', 'pon', 'pon-off'];
-    for (const name of names) sfx.playSfx(name);
+    for (const name of names) {
+      const before = audio.gainLevels.length;
+      sfx.playSfx(name);
+      expect(audio.gainLevels.length, name).toBeGreaterThan(before);
+    }
     expect(audio.made).toHaveLength(1);
-    expect(audio.gainLevels.length).toBeGreaterThan(names.length);
-    expect(Math.max(...audio.gainLevels)).toBeLessThanOrEqual(1);
+    expect(audio.limiterOutputs).toEqual([audio.made[0]!.destination]);
   });
 
   it('keeps its own off switch in localStorage and makes no sound while off', async () => {

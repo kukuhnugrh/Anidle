@@ -4,7 +4,7 @@ import { ODD_ONE_OUT_POINTS } from '../shared/oddoneout';
 import { api, errorMessage, type OddOneOutState } from './api';
 import { fmtNumber } from './format';
 import { FinishCard, GameHeader, TitleThumb } from './GameParts';
-import { landDone } from './sakuga';
+import { useButtonReaction } from './sakuga';
 import { oddOneOutShareText } from './share';
 
 export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: OddOneOutState; onChange: (p: OddOneOutState) => void; onNewUnlimited: () => Promise<void> }) {
@@ -13,17 +13,20 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitButton = useRef<SakugaButtonElement>(null);
+  const reaction = useButtonReaction();
   const round = puzzle.rounds[roundView]!;
   const playing = roundView === puzzle.current && !round.finished;
 
   const submit = async () => {
-    if (selected === null) return;
+    if (selected === null || sending) return;
+    reaction.pressed();
     setSending(true);
     setError(null);
     try {
       const next = await api.oddOneOutPick(puzzle.id, roundView, selected);
+      // The verdict replaces the controls: let the check land on the button first.
+      if (next.rounds[roundView]?.solved) await reaction.landed(submitButton.current);
       onChange(next);
-      if (next.rounds[roundView]?.solved) landDone(submitButton.current);
       setSelected(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -81,8 +84,9 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
         {playing ? (
           <div className="cx-controls">
             <span className="cx-note">{selected === null ? 'Pick the odd one out.' : 'One pick per round.'}</span>
-            <sakuga-button ref={submitButton} disabled={sending || selected === null} onClick={(e) => !e.currentTarget.disabled && void submit()}>
-              {sending ? 'Checking…' : "That's the odd one"}
+            <sakuga-button ref={submitButton} disabled={(sending || selected === null) && !reaction.held} onClick={() => void submit()}>
+              {/* "Checking…" only for a slow answer: not over the press, nor over a landed check. */}
+              {sending && !reaction.held ? 'Checking…' : "That's the odd one"}
             </sakuga-button>
           </div>
         ) : (

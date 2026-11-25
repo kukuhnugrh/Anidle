@@ -103,7 +103,7 @@
   --sk-bw: var(--dp-border-outline-width);
   --sk-sh: var(--shadow);
   --sk-btn-line: var(--line);
-  --sk-btn-sh: 5px 5px 0 var(--accent);
+  --sk-btn-sh: var(--shadow);
   --sk-alt-line: var(--line);
   --sk-alt-sh: var(--shadow-sm);
   color-scheme: light;
@@ -231,9 +231,10 @@ input:focus-visible, select:focus-visible { outline: none; }
 .help-scoring p { margin: 0; }
 
 /* ------------------------------------------------------------------ shell */
-.shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; }
-/* overflow-x: clip: a primary Sakuga button's burst layer reaches 160px past its sides, which must not widen the page. */
-.content { min-width: 0; display: flex; flex-direction: column; overflow-x: clip; }
+/* overflow-x: clip: a primary Sakuga button's burst layer reaches 160px past its sides, which must not widen
+   the page. On the shell, so the burst is only cut at the window's edges (it may fly over the sidebar). */
+.shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 100vh; overflow-x: clip; }
+.content { min-width: 0; display: flex; flex-direction: column; }
 .page { width: 100%; max-width: 1160px; margin: 0 auto; padding: 40px 44px 72px; }
 
 .sidebar {
@@ -270,11 +271,11 @@ input:focus-visible, select:focus-visible { outline: none; }
 .today-score b { font-family: var(--dp-typography-display); font-size: 19px; font-variant-numeric: tabular-nums; }
 .sidebar-foot { border-top: var(--dp-border-detail-width) dashed var(--dp-color-rule-muted); padding-top: 12px; }
 .account-row { display: flex; align-items: center; gap: 4px; }
-/* Night mode switch. Its drawing needs room around the switch: the splash crown rises about 60px above it
-   (the toggle's own 89px top margin is trimmed to that) and splashes past its left edge. */
-.theme-row { display: flex; align-items: flex-end; justify-content: space-between; padding-left: 6px; font-weight: 650; white-space: nowrap; }
-.theme-row > span { line-height: 54px; margin-bottom: 20px; }
-.theme-row sakuga-toggle { margin: 64px 21px 20px 8px; }
+/* Night mode switch. Its margins are the measured extent of its 43 drawn frames around the 108×54 switch
+   (crown 81px above, splashes 15px left and 19px right, 9px below), so the whole flip shows inside them. */
+.theme-row { display: flex; align-items: flex-end; justify-content: space-between; padding-left: 4px; font-weight: 650; white-space: nowrap; }
+.theme-row > span { line-height: 54px; margin-bottom: 9px; }
+.theme-row sakuga-toggle { margin: 81px 19px 9px 15px; }
 .account-chip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-sm); border: var(--dp-border-detail-width) solid transparent; color: var(--ink); font-weight: 500; }
 .account-chip:hover, .account-chip.active { text-decoration: none; background: var(--dp-color-selection); border-color: var(--line); }
 .account-text { display: grid; min-width: 0; line-height: 1.3; }
@@ -293,8 +294,19 @@ input:focus-visible, select:focus-visible { outline: none; }
 .volume .icon-button { padding: 6px; flex: none; margin-bottom: 6px; }
 .volume-slider { flex: 1; min-width: 0; --sk-slider-width: 100%; }
 .sidebar-volume { margin: -4px 4px 2px 0; padding: 0 10px 2px 4px; border: var(--detail); border-radius: var(--radius-sm); background: var(--ground); }
-/* Fixed at the bottom left over everything; the host has no size, so it never blocks clicks while hidden. */
+/* Fixed at the bottom left of the page (beside the sidebar on wide screens), over everything; the host has no
+   size, so it never blocks clicks while hidden. The toast box grows to its text (the component's fixed 236px
+   cut "Copied to clipboard" short). */
 .share-toast { position: fixed; left: 24px; bottom: 24px; z-index: 50; width: 0; height: 0; }
+.share-toast::part(toast) { width: max-content; max-width: calc(100vw - 48px); }
+@media (min-width: 901px) {
+  .share-toast { left: calc(var(--sidebar-w) + 24px); }
+}
+/* Sakuga controls draw their outlines in --sk-ink and inherit their text colour: outlines in the line colour
+   (black at night), text in the ink colour, like the app's own controls. */
+sakuga-tabs, sakuga-slider, sakuga-toast { --sk-ink: var(--line); color: var(--ink); }
+/* A primary Sakuga button is filled with the accent, like the app's .primary buttons. */
+sakuga-button:not([variant='secondary']) { --sk-card: var(--accent); --sk-ink: #fff; }
 /* Sakuga tabs scroll sideways inside this when wider than the page (inline-size containment: the tabs never
    widen the page); the padding keeps the raised tab, the shadow and the first tab's focus ring. */
 .tab-strip { contain: inline-size; overflow-x: auto; padding: 10px 8px 8px 6px; }
@@ -449,7 +461,7 @@ input:focus-visible, select:focus-visible { outline: none; }
 /* ------------------------------------------------------------------ game */
 .anidle, .round-game, .character-game, .connections-game { display: grid; gap: 18px; }
 .game-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.progress { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.progress { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
 .pips { display: flex; gap: 4px; }
 .pip { width: 16px; height: 6px; border-radius: 3px; background: var(--dp-color-rule-muted); }
 .pip.used { background: var(--accent); }
@@ -736,6 +748,8 @@ input:focus-visible, select:focus-visible { outline: none; }
 .hl-score { font-family: var(--dp-typography-display); font-size: clamp(56px, 5vw, 84px); font-weight: 800; line-height: 1.05; margin-top: 8px; color: var(--accent-ink); }
 .hl-middle { display: grid; justify-items: center; gap: 14px; align-self: center; }
 .hl-middle .small { font-size: 17px; }
+/* The game's big call buttons: the Sakuga button scaled up (zoom resizes its layout and its effects together). */
+.hl-middle sakuga-button { zoom: 1.2; }
 .hl-verdict { font-weight: 800; font-size: 24px; }
 .hl-verdict.win { color: var(--ok); }
 .hl-verdict.lose { color: var(--bad); }
@@ -1014,10 +1028,14 @@ canvas.clue-media { filter: none; }
   .sidebar.open { transform: none; box-shadow: 6px 0 0 var(--line); }
   .sidebar-close { display: inline-flex; }
   .backdrop { display: block; position: fixed; inset: 0; z-index: 30; background: rgb(37 48 68 / .45); }
-  .mobile-bar { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 20; padding: 10px 14px; background: var(--ground); border-bottom: var(--outline); }
+  .mobile-bar { display: flex; align-items: center; gap: 8px; position: sticky; top: 0; z-index: 20; padding: 8px 14px 6px; background: var(--ground); border-bottom: var(--outline); }
   .mobile-bar .brand { font-size: 20px; }
   .mobile-bar .brand-mark { width: 30px; height: 30px; }
   .mobile-volume { margin-left: auto; width: min(210px, 54vw); }
+  /* The bar keeps only the room the slider shows: its value bubble just under the bar's top edge (24px over
+     the slider, which reserves 30), nothing below the thumb (the slider's last 9px). */
+  .mobile-volume .volume-slider { margin: 24px 0 -9px; }
+  .mobile-volume .icon-button { margin-bottom: -3px; }
   .page { padding: 24px 18px 52px; }
   /* Anidle board: each guess becomes its title over a 3 × 2 grid of labelled cells. */
   .anidle-head { display: none; }
@@ -1064,7 +1082,10 @@ canvas.clue-media { filter: none; }
   .hl-body { justify-items: start; }
   .hl-body b { font-size: 18px; }
   .hl-score { font-size: 42px; }
-  .hl-middle { grid-auto-flow: column; justify-content: start; align-items: center; }
+  /* Phones: the two calls side by side (a little smaller, so a landed check still fits), "than …" below them. */
+  .hl-middle { grid-template-columns: 1fr 1fr; justify-items: center; align-items: center; gap: 8px 10px; }
+  .hl-middle sakuga-button { zoom: 0.85; }
+  .hl-middle .small { grid-column: 1 / -1; grid-row: 2; }
   /* Phones: a top-to-bottom list (oldest first), dragged by the ⠿ grip. */
   .tl-axis-end { display: none; }
   .tl-axis-bottom { display: block; }

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
 import { MuteIcon, SfxIcon, SfxOffIcon, VolumeIcon, VolumeLowIcon } from './icons';
 import { useElementEvent } from './sakuga';
 import { setSfxOn, useSfxOn } from './sfx';
@@ -28,20 +28,24 @@ export function VolumeControl({ className = '', on }: { className?: string; on: 
 function Volume({ className }: { className: string }) {
   const { level, muted } = useVolume();
   const sfxOn = useSfxOn();
-  const slider = useRef<SakugaSliderElement>(null);
-  useElementEvent(slider, 'input', (el) => setVolume({ level: Number(el.value) / 100, muted: false }));
+  // The mute button makes the value jump; a slider following it would throw its fast-drag clouds. A new
+  // slider starts at its value instead.
+  const [jumps, setJumps] = useState(0);
   const silent = muted || level === 0;
   const pct = Math.round(level * 100);
   return (
     <div className={`volume ${className}`} title={`Song volume: ${silent ? 'Muted' : `${pct}%`}`}>
       <button
         className="icon-button"
-        onClick={() => setVolume(silent ? { muted: false, level: level || 0.5 } : { muted: true })}
+        onClick={() => {
+          setJumps((n) => n + 1);
+          setVolume(silent ? { muted: false, level: level || 0.5 } : { muted: true });
+        }}
         aria-label={silent ? 'Unmute songs' : 'Mute songs'}
       >
         {silent ? <MuteIcon /> : level < 0.5 ? <VolumeLowIcon /> : <VolumeIcon />}
       </button>
-      <sakuga-slider ref={slider} className="volume-slider" label="Song volume" min="0" max="100" unit="%" value={muted ? 0 : pct} />
+      <VolumeSlider key={jumps} value={muted ? 0 : pct} />
       <button
         className="icon-button"
         onClick={() => setSfxOn(!sfxOn)}
@@ -52,4 +56,10 @@ function Volume({ className }: { className: string }) {
       </button>
     </div>
   );
+}
+
+function VolumeSlider({ value }: { value: number }) {
+  const slider = useRef<SakugaSliderElement>(null);
+  useElementEvent(slider, 'input', (el) => setVolume({ level: Number(el.value) / 100, muted: false }));
+  return <sakuga-slider ref={slider} className="volume-slider" label="Song volume" min="0" max="100" unit="%" value={value} />;
 }

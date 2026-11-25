@@ -57,17 +57,16 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
   const worth = round.max - SYNOPSIS_STEP_COST * (round.clues + round.misses.length);
   const guessesLeft = SYNOPSIS_GUESSES - round.misses.length;
 
-  /** Resolves to the new state, or null when it failed (the error is shown). */
-  const send = async (task: () => Promise<SynopsisState>) => {
+  /** `beforeShow` may hold the new state back a moment (a right guess's check landing on the Guess button). */
+  const send = async (task: () => Promise<SynopsisState>, beforeShow?: (next: SynopsisState) => Promise<void> | undefined) => {
     setSending(true);
     setError(null);
     try {
       const next = await task();
+      await beforeShow?.(next);
       onChange(next);
-      return next;
     } catch (err) {
       setError(errorMessage(err));
-      return null;
     } finally {
       setSending(false);
     }
@@ -135,7 +134,7 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
             )}
             <GuessInput
               disabled={sending}
-              onPick={(malId) => send(() => api.roundGuess<SynopsisState>(puzzle.id, roundView, malId)).then((p) => p?.rounds[roundView]?.solved === true)}
+              onPick={(malId, land) => void send(() => api.roundGuess<SynopsisState>(puzzle.id, roundView, malId), (p) => (p.rounds[roundView]?.solved ? land() : undefined))}
             />
             <div className="stage-actions">
               <span className="muted small">

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { CONNECTIONS_GROUP_SIZE, LINK_KIND_LABELS } from '../shared/connections';
 import { api, errorMessage, type ConnectionsState } from './api';
 import { FinishCard, GameHeader, TitleThumb } from './GameParts';
-import { landDone } from './sakuga';
+import { useButtonReaction } from './sakuga';
 import { connectionsShareText } from './share';
 
 type Group = ConnectionsState['groups'][number];
@@ -25,6 +25,7 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submitButton = useRef<SakugaButtonElement>(null);
+  const reaction = useButtonReaction();
 
   const tiles = new Map(puzzle.tiles.map((t) => [t.malId, t]));
   const titleOf = (malId: number) => tiles.get(malId)?.title ?? `#${malId}`;
@@ -45,18 +46,25 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
       return next;
     });
 
+  const canSubmit = !sending && selected.length === CONNECTIONS_GROUP_SIZE;
   const submit = async () => {
+    if (!canSubmit) return;
+    reaction.pressed();
     setSending(true);
     setError(null);
     setNote(null);
     try {
       const next = await api.connectionsGuess(puzzle.id, selected);
       const last = next.guesses.at(-1)!;
+      if (last.group !== null) {
+        const beat = reaction.landed(submitButton.current);
+        // The last group ends the board and its controls go: let the check land first.
+        if (next.finished) await beat;
+      }
       // A found group leaves the board; a miss keeps the pick so one title can be swapped.
       if (last.group !== null || next.finished) setSelected([]);
       if (last.group === null) setNote(last.oneAway ? 'One away…' : 'Not a group.');
       onChange(next);
-      if (last.group !== null) landDone(submitButton.current);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -123,12 +131,9 @@ export function ConnectionsGame({ puzzle, onChange, onNewUnlimited }: { puzzle: 
                 <sakuga-button variant="secondary" disabled={sending || !selected.length} onClick={(e) => !e.currentTarget.disabled && setSelected([])}>
                   Deselect all
                 </sakuga-button>
-                <sakuga-button
-                  ref={submitButton}
-                  disabled={sending || selected.length !== CONNECTIONS_GROUP_SIZE}
-                  onClick={(e) => !e.currentTarget.disabled && void submit()}
-                >
-                  {sending ? 'Checking…' : 'Submit'}
+                <sakuga-button ref={submitButton} disabled={!canSubmit && !reaction.held} onClick={() => void submit()}>
+                  {/* "Checking…" only for a slow answer: not over the press, nor over a landed check. */}
+                  {sending && !reaction.held ? 'Checking…' : 'Submit'}
                 </sakuga-button>
               </div>
             </div>
