@@ -1,7 +1,10 @@
 import { DAILY_MODES, MODE_LABELS, type DailyMode } from '../shared/modes';
 import { fmtDate } from './format';
 import { BackIcon } from './icons';
-import { dailyHref } from './route';
+import { dailyHref, go } from './route';
+import { Tabs } from './sakuga';
+
+const MODE_TABS = DAILY_MODES.map((m) => ({ value: m, label: MODE_LABELS[m] }));
 
 /** Above a daily puzzle: back to that day on Home, and the same day's other modes (an archive day stays that day). */
 export function DayBar({ mode, date }: { mode: DailyMode; date: string | null }) {
@@ -11,13 +14,7 @@ export function DayBar({ mode, date }: { mode: DailyMode; date: string | null })
         <BackIcon />
         {date ? fmtDate(date) : 'Today'}
       </a>
-      <div className="mode-chips">
-        {DAILY_MODES.map((m) => (
-          <a key={m} className={`mode-chip${m === mode ? ' active' : ''}`} href={dailyHref(m, date)} aria-current={m === mode ? 'page' : undefined}>
-            {MODE_LABELS[m]}
-          </a>
-        ))}
-      </div>
+      <Tabs label="Mode" options={MODE_TABS} value={mode} onChange={(m) => go(dailyHref(m, date))} />
     </nav>
   );
 }

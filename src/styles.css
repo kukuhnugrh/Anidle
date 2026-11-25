@@ -357,13 +357,10 @@ dialog.confirm.help { overflow-x: hidden; }
 .narrow { max-width: 780px; }
 .page-head { display: grid; gap: 4px; margin-bottom: 4px; }
 .page-head p { margin: 4px 0 0; max-width: 70ch; }
-/* Above a puzzle: back to its day (or Unlimited) and the same day's other modes */
+/* Above a puzzle: back to its day (or Unlimited) and the same day's other modes (Sakuga tabs that scroll sideways) */
 .mode-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
 .back-link { flex: none; }
-.mode-chips { display: flex; gap: 6px; padding: 5px; background: var(--ground); border: var(--detail); border-radius: 16px; overflow-x: auto; max-width: 100%; }
-.mode-chip { flex: none; padding: 5px 12px; border: var(--dp-border-detail-width) solid transparent; border-radius: 11px; color: var(--ink); font-size: 14px; font-weight: 650; white-space: nowrap; }
-.mode-chip:hover { text-decoration: none; background: var(--panel); border-color: var(--dp-color-rule-muted); }
-.mode-chip.active { background: var(--accent); border-color: var(--line); color: #fff; box-shadow: var(--shadow-sm); }
+.mode-bar .tab-strip { flex: 1 1 0; min-width: 0; }
 .eyebrow { font-size: var(--dp-typography-metadata); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent-ink); }
 .card { background: var(--panel); border: var(--outline); border-radius: var(--radius); padding: 22px 24px; box-shadow: var(--shadow); }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; }
