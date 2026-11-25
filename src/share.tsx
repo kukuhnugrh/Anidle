@@ -103,10 +103,10 @@ export function ShareButton({ text }: { text: string }) {
     );
   return (
     <>
-      <button onClick={share}>
+      <sakuga-button variant="secondary" className="share-button" onClick={() => void share()}>
         <ShareIcon />
         {failed ? 'Could not copy' : 'Share result'}
-      </button>
+      </sakuga-button>
       {createPortal(<sakuga-toast ref={toast} className="share-toast" />, document.body)}
     </>
   );

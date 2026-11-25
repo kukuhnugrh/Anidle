@@ -26,9 +26,10 @@ const TONE_TEXT: Record<Tone, string> = { ok: 'match', partial: 'partly', bad: '
 
 const BOARD_COLUMNS = ['Year', 'Score', 'Source', 'Studio', 'Genre', 'Tags'] as const;
 
-function Cell({ label, tone, title, children }: { label: string; tone: Tone; title?: string; children: ReactNode }) {
+/** `title` overrides the hover text; null = none (the cell has its own tooltip). */
+function Cell({ label, tone, title, children }: { label: string; tone: Tone; title?: string | null; children: ReactNode }) {
   return (
-    <div className="anidle-cell" data-label={label} title={title ?? `${label}: ${TONE_TEXT[tone]}`}>
+    <div className="anidle-cell" data-label={label} title={title === null ? undefined : (title ?? `${label}: ${TONE_TEXT[tone]}`)}>
       {children}
     </div>
   );
@@ -37,13 +38,20 @@ function Cell({ label, tone, title, children }: { label: string; tone: Tone; tit
 /** Pill colour for one value: green when the answer has it, red when not, plain when MAL has no value. */
 const pillTone = (hit: boolean | null) => (hit === null ? '' : hit ? ' hit' : ' miss');
 
+/** A year or score: the guess's value, then ↑/↓ toward the answer as a tooltip that says so (hover, focus or tap). */
 function NumberCell({ label, clue, format }: { label: string; clue: AnidleFeedback['year']; format?: (v: number) => string }) {
   const tone: Tone = clue.direction === 'equal' ? 'ok' : clue.direction === 'unknown' ? 'none' : 'bad';
+  const hint = `${label}: ${DIRECTION_HINT[clue.direction]}`;
+  const arrow = ARROW[clue.direction];
   return (
-    <Cell label={label} tone={tone} title={`${label}: ${DIRECTION_HINT[clue.direction]}`}>
+    <Cell label={label} tone={tone} title={arrow ? null : hint}>
       <span className="anidle-num">
         {clue.value == null ? '?' : <span className={`soft-chip${pillTone(tone === 'none' ? null : tone === 'ok')}`}>{format ? format(clue.value) : clue.value}</span>}
-        {ARROW[clue.direction] && <span className="anidle-pill">{ARROW[clue.direction]}</span>}
+        {arrow && (
+          <sakuga-tooltip className="anidle-pill" text={hint} label={`${label} direction`}>
+            {arrow}
+          </sakuga-tooltip>
+        )}
       </span>
     </Cell>
   );

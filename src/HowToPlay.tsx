@@ -123,10 +123,19 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
 /** The "?" next to a mode's title: opens its rules in an in-app dialog (Escape, the close button, or a click beside it closes). */
 export function HowToPlay({ mode }: { mode: Mode }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const gotIt = useRef<SakugaButtonElement>(null);
   const rules = HOW_TO[mode];
   return (
     <>
-      <button className="help-button" onClick={() => dialog.current?.showModal()} aria-label={`How to play ${MODE_LABELS[mode]}`} title="How to play">
+      <button
+        className="help-button"
+        onClick={() => {
+          dialog.current?.showModal();
+          gotIt.current?.focus();
+        }}
+        aria-label={`How to play ${MODE_LABELS[mode]}`}
+        title="How to play"
+      >
         ?
       </button>
       {/* The box fills the <dialog>, so a click on the element itself landed on the backdrop. */}
@@ -162,9 +171,9 @@ export function HowToPlay({ mode }: { mode: Mode }) {
               : 'The daily puzzle is the same for everyone and changes at 00:00 UTC+7.'}
           </p>
           <div className="actions">
-            <button className="primary" autoFocus onClick={() => dialog.current?.close()}>
+            <sakuga-button ref={gotIt} onClick={() => dialog.current?.close()}>
               Got it
-            </button>
+            </sakuga-button>
           </div>
         </div>
       </dialog>

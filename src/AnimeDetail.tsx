@@ -4,6 +4,7 @@ import type { DbDetail, DbSong } from '../shared/database';
 import { DAILY_MODES, isSongMode, MODE_LABELS, SONG_KIND, type DailyMode } from '../shared/modes';
 import { api, errorMessage } from './api';
 import { fmtNumber, pretty } from './format';
+import { Tabs } from './sakuga';
 
 /** The list's last filters (Database.tsx keeps them here), so "← Database" returns to the same page. */
 export const DB_LIST_KEY = 'anidle:db-list';
@@ -76,9 +77,9 @@ function SongPanel({ songs, d, withCover }: { songs: DbSong[]; d: DbDetail; with
             )}
             <div className="show-song-play">
               <audio controls preload="none" src={s.audio} />
-              <button className="ghost small" onClick={() => setClue(clue === s.id ? null : s.id)}>
+              <sakuga-button variant="secondary" onClick={() => setClue(clue === s.id ? null : s.id)}>
                 {clue === s.id ? 'Hide clue' : 'Show clue'}
-              </button>
+              </sakuga-button>
             </div>
             {clue === s.id && <SongClue song={s} poster={d.clues.poster} withCover={withCover} />}
           </li>
@@ -243,13 +244,12 @@ export function AnimeDetail({ id }: { id: number }) {
     );
 
   const d = detail;
-  const tabs: Array<{ id: Tab; label: string; note: string }> = [
+  const tabs: Array<{ value: Tab; label: string }> = [
     ...DAILY_MODES.map((m) => ({
-      id: m,
-      label: MODE_LABELS[m],
-      note: !d.modes.includes(m) ? 'not asked' : isSongMode(m) ? `${d.songs[SONG_KIND[m]].length} ${d.songs[SONG_KIND[m]].length === 1 ? 'song' : 'songs'}` : 'asked',
+      value: m,
+      label: `${MODE_LABELS[m]} · ${!d.modes.includes(m) ? 'not asked' : isSongMode(m) ? `${d.songs[SONG_KIND[m]].length} ${d.songs[SONG_KIND[m]].length === 1 ? 'song' : 'songs'}` : 'asked'}`,
     })),
-    { id: 'about', label: 'About', note: `${d.merged.length} ${d.merged.length === 1 ? 'entry' : 'entries'}` },
+    { value: 'about', label: `About · ${d.merged.length} ${d.merged.length === 1 ? 'entry' : 'entries'}` },
   ];
   return (
     <div className="anime-detail stack">
@@ -302,14 +302,7 @@ export function AnimeDetail({ id }: { id: number }) {
         </div>
       </section>
 
-      <div className="round-tabs show-tabs" role="tablist">
-        {tabs.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} className={`round-tab${tab === t.id ? ' active' : ''}`} onClick={() => setTab(t.id)}>
-            <b>{t.label}</b>
-            <span>{t.note}</span>
-          </button>
-        ))}
-      </div>
+      <Tabs label="What each mode asks about this show" options={tabs} value={tab} onChange={setTab} />
 
       <section className="card show-card" role="tabpanel">
         {tab === 'anidle' && <AnidlePanel d={d} />}

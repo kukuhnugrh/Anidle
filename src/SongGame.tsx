@@ -5,6 +5,7 @@ import { api, errorMessage, type SongState } from './api';
 import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
+import { RoundTabs } from './GameParts';
 import { GuessInput } from './GuessInput';
 import { HowToPlay } from './HowToPlay';
 import { PauseIcon, PlayIcon } from './icons';
@@ -332,21 +333,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
             half that if you opened the clue (its blurred music video), 0 if wrong.
           </p>
         </div>
-        <div className="round-tabs" role="tablist">
-          {puzzle.rounds.map((r, i) => (
-            <button
-              key={i}
-              role="tab"
-              aria-selected={i === view}
-              className={`round-tab${i === view ? ' active' : ''}${r.finished ? (r.solved ? ' won' : ' lost') : ''}`}
-              disabled={i > puzzle.current}
-              onClick={() => setView(i)}
-            >
-              <span>Round {i + 1}</span>
-              <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
-            </button>
-          ))}
-        </div>
+        <RoundTabs marks={puzzle.rounds.map((r) => (r.finished ? (r.solved ? 'won' : 'lost') : null))} current={puzzle.current} view={view} onView={setView} />
       </header>
 
       <RoundTitle round={view} difficulties={[round.difficulty]} />
@@ -355,11 +342,13 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
         <div className="card load-error">
           <p>This song failed to load.</p>
           <div className="actions">
-            <button onClick={() => retry(view)}>Try again</button>
+            <sakuga-button variant="secondary" onClick={() => retry(view)}>
+              Try again
+            </sakuga-button>
             {puzzle.canReplace && !round.clue.opened && !round.finished && (
-              <button className="primary" disabled={sending} onClick={() => send(() => api.replaceRound<SongState>(puzzle.id, view))}>
+              <sakuga-button disabled={sending} onClick={(e) => !e.currentTarget.disabled && void send(() => api.replaceRound<SongState>(puzzle.id, view))}>
                 Replace with another song
-              </button>
+              </sakuga-button>
             )}
           </div>
         </div>
@@ -381,9 +370,12 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
                 <span className="muted small">One guess · right now = {fmtNumber(round.clue.opened ? round.max * SONG_CLUE_SHARE : round.max)} pts</span>
                 <div className="actions">
                   {!round.clue.opened && (
-                    <button disabled={sending} onClick={() => send(() => api.roundClue<SongState>(puzzle.id, view))} title="Shows the blurred music video; its sound takes over from the song">
-                      Show clue (−{fmtNumber(round.max * (1 - SONG_CLUE_SHARE))} pts)
-                    </button>
+                    <>
+                      <sakuga-button variant="secondary" disabled={sending} onClick={(e) => !e.currentTarget.disabled && void send(() => api.roundClue<SongState>(puzzle.id, view))}>
+                        Show clue (−{fmtNumber(round.max * (1 - SONG_CLUE_SHARE))} pts)
+                      </sakuga-button>
+                      <sakuga-tooltip className="clue-hint" text="Shows the blurred music video; its sound takes over from the song" label="About the clue" />
+                    </>
                   )}
                   <ConfirmButton
                     className="ghost danger"
@@ -425,9 +417,7 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
                 Open on MAL ↗
               </a>
               {view < puzzle.current && puzzle.current < puzzle.rounds.length && (
-                <button className="primary" onClick={() => setView(puzzle.current)}>
-                  Round {puzzle.current + 1}
-                </button>
+                <sakuga-button onClick={() => setView(puzzle.current)}>Round {puzzle.current + 1}</sakuga-button>
               )}
             </div>
           </div>

@@ -6,9 +6,12 @@ export function DatePicker({ date, onChange }: { date: string; onChange: (date: 
   const today = todayUtc7();
   return (
     <div className="date-nav">
-      <button className="ghost small" disabled={date <= FIRST_DAILY_DATE} onClick={() => onChange(shiftDate(date, -1))} aria-label="Previous day">
-        ←
-      </button>
+      {/* The name goes on the arrow itself: the component's inner button takes its name from what is inside it. */}
+      <sakuga-button variant="secondary" disabled={date <= FIRST_DAILY_DATE} onClick={(e) => !e.currentTarget.disabled && onChange(shiftDate(date, -1))}>
+        <span role="img" aria-label="Previous day">
+          ←
+        </span>
+      </sakuga-button>
       <label className="date-pick" title="Pick a day">
         <b>{fmtDate(date)}</b>
         <input
@@ -20,13 +23,15 @@ export function DatePicker({ date, onChange }: { date: string; onChange: (date: 
           aria-label="Pick a day"
         />
       </label>
-      <button className="ghost small" disabled={date >= today} onClick={() => onChange(shiftDate(date, 1))} aria-label="Next day">
-        →
-      </button>
+      <sakuga-button variant="secondary" disabled={date >= today} onClick={(e) => !e.currentTarget.disabled && onChange(shiftDate(date, 1))}>
+        <span role="img" aria-label="Next day">
+          →
+        </span>
+      </sakuga-button>
       {date !== today && (
-        <button className="small" onClick={() => onChange(today)}>
+        <sakuga-button variant="secondary" onClick={() => onChange(today)}>
           Today
-        </button>
+        </sakuga-button>
       )}
     </div>
   );

@@ -16,7 +16,9 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     return (
       <div className="error-box">
         <p>This page could not be shown: {this.state.error.message}</p>
-        <button onClick={() => location.reload()}>Reload</button>
+        <sakuga-button variant="secondary" onClick={() => location.reload()}>
+          Reload
+        </sakuga-button>
       </div>
     );
   }

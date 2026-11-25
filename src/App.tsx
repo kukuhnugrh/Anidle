@@ -229,7 +229,9 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
     return (
       <div className="center">
         <div className="error-box">{error}</div>
-        <button onClick={reload}>Try again</button>
+        <sakuga-button variant="secondary" onClick={reload}>
+          Try again
+        </sakuga-button>
       </div>
     );
   if (!puzzle)

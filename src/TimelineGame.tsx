@@ -2,7 +2,8 @@ import { useRef, useState, type PointerEvent } from 'react';
 import { TIMELINE_POINT } from '../shared/timeline';
 import { api, errorMessage, type TimelineState } from './api';
 import { fmtNumber } from './format';
-import { FinishCard, GameHeader, TitleThumb } from './GameParts';
+import { FinishCard, GameHeader, RoundTabs, TitleThumb } from './GameParts';
+import { useButtonReaction } from './sakuga';
 import { timelineShareText } from './share';
 
 export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: TimelineState; onChange: (p: TimelineState) => void; onNewUnlimited: () => Promise<void> }) {
@@ -13,6 +14,8 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
   const ids = order.round === roundView ? order.ids : round.tiles.map((t) => t.malId);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitButton = useRef<SakugaButtonElement>(null);
+  const reaction = useButtonReaction();
   const playing = roundView === puzzle.current && !round.finished;
   const tiles = new Map(round.tiles.map((t) => [t.malId, t]));
 
@@ -29,7 +32,7 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
   const [dragging, setDragging] = useState<number | null>(null);
   const dragStart = (e: PointerEvent<HTMLLIElement>, malId: number) => {
     const target = e.target as Element;
-    if (!playing || sending || e.button !== 0 || target.closest('button')) return;
+    if (!playing || sending || e.button !== 0 || target.closest('button, sakuga-button')) return;
     if (e.pointerType !== 'mouse' && !target.closest('.tl-grip')) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -46,10 +49,16 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
   };
 
   const submit = async () => {
+    if (sending) return;
+    reaction.pressed();
     setSending(true);
     setError(null);
     try {
-      onChange(await api.timelineOrder(puzzle.id, roundView, ids));
+      const next = await api.timelineOrder(puzzle.id, roundView, ids);
+      // The verdict replaces the controls: a round with every title in place lets the check land on the button first.
+      const done = next.rounds[roundView];
+      if (done && done.placed === done.tiles.length) await reaction.landed(submitButton.current);
+      onChange(next);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -64,21 +73,12 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
         puzzle={puzzle}
         intro={`Put the anime in the order they started airing, oldest first: drag them, or use the arrows. ${fmtNumber(TIMELINE_POINT)} pts for every title in its right place.`}
         aside={
-          <div className="round-tabs" role="tablist">
-            {puzzle.rounds.map((r, i) => (
-              <button
-                key={i}
-                role="tab"
-                aria-selected={i === roundView}
-                className={`round-tab${i === roundView ? ' active' : ''}${r.finished ? (r.placed === r.tiles.length ? ' won' : r.placed ? '' : ' lost') : ''}`}
-                disabled={i > puzzle.current}
-                onClick={() => setRoundView(i)}
-              >
-                <span>Round {i + 1}</span>
-                <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
-              </button>
-            ))}
-          </div>
+          <RoundTabs
+            marks={puzzle.rounds.map((r) => (r.finished ? (r.placed === r.tiles.length ? 'won' : r.placed ? null : 'lost') : null))}
+            current={puzzle.current}
+            view={roundView}
+            onView={setRoundView}
+          />
         }
       />
 
@@ -119,12 +119,18 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
                 ) : (
                   playing && (
                     <span className="tl-moves">
-                      <button className="ghost small" disabled={i === 0 || sending} onClick={() => move(i, i - 1)} aria-label={`Move ${t.title} earlier`}>
-                        <span className="tl-arrow">▲</span>
-                      </button>
-                      <button className="ghost small" disabled={i === shown.length - 1 || sending} onClick={() => move(i, i + 1)} aria-label={`Move ${t.title} later`}>
-                        <span className="tl-arrow">▼</span>
-                      </button>
+                      <sakuga-button variant="secondary" disabled={i === 0 || sending} onClick={(e) => !e.currentTarget.disabled && move(i, i - 1)}>
+                        <span className="tl-arrow" aria-hidden="true">
+                          ▲
+                        </span>
+                        <span className="sr-only">Move {t.title} earlier</span>
+                      </sakuga-button>
+                      <sakuga-button variant="secondary" disabled={i === shown.length - 1 || sending} onClick={(e) => !e.currentTarget.disabled && move(i, i + 1)}>
+                        <span className="tl-arrow" aria-hidden="true">
+                          ▼
+                        </span>
+                        <span className="sr-only">Move {t.title} later</span>
+                      </sakuga-button>
                     </span>
                   )
                 )}
@@ -136,9 +142,10 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
         {playing ? (
           <div className="cx-controls">
             <span className="cx-note">One submission per round.</span>
-            <button className="primary" disabled={sending} onClick={submit}>
-              {sending ? 'Checking…' : 'Lock in order'}
-            </button>
+            <sakuga-button ref={submitButton} disabled={sending && !reaction.held} onClick={() => void submit()}>
+              {/* "Checking…" only for a slow answer: not over the press, nor over a landed check. */}
+              {sending && !reaction.held ? 'Checking…' : 'Lock in order'}
+            </sakuga-button>
           </div>
         ) : (
           round.answer && (
@@ -150,9 +157,7 @@ export function TimelineGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Tim
                 <span className="small">Right order: {round.answer.map((id) => `${tiles.get(id)?.title} (${round.years?.[id]})`).join(' → ')}</span>
               )}
               {roundView < puzzle.current && puzzle.current < puzzle.rounds.length && (
-                <button className="primary" onClick={() => setRoundView(puzzle.current)}>
-                  Round {puzzle.current + 1}
-                </button>
+                <sakuga-button onClick={() => setRoundView(puzzle.current)}>Round {puzzle.current + 1}</sakuga-button>
               )}
             </div>
           )

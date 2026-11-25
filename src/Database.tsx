@@ -4,6 +4,7 @@ import { DB_SORTS, type DbFacets, type DbFilters, type DbGenre, type DbItem, typ
 import { DB_LIST_KEY } from './AnimeDetail';
 import { api, errorMessage } from './api';
 import { fmtNumber, pretty } from './format';
+import { TextField } from './sakuga';
 
 // ------------------------------------------------------------------ URL state (/database?sort=…&genre=…)
 
@@ -147,7 +148,7 @@ export function Database() {
       <section className="card db-filters">
         <label className="db-search">
           Search titles
-          <input value={qInput} onChange={(e) => setQInput(e.target.value)} placeholder="Romaji, English, Japanese, or synonym" />
+          <TextField label="Search titles" value={qInput} onValue={setQInput} placeholder="Romaji, English, Japanese, or synonym" />
         </label>
         <label>
           Sort by
@@ -192,9 +193,9 @@ export function Database() {
             ))}
           </select>
         </label>
-        <button className="ghost" onClick={reset}>
+        <sakuga-button variant="secondary" onClick={reset}>
           Reset filters
-        </button>
+        </sakuga-button>
       </section>
 
       {error && <div className="error-box">{error}</div>}
@@ -213,15 +214,15 @@ export function Database() {
 
       {result && pages > 1 && (
         <div className="db-paging">
-          <button disabled={filters.page <= 1} onClick={() => goPage(filters.page - 1)}>
+          <sakuga-button variant="secondary" disabled={filters.page <= 1} onClick={(e) => !e.currentTarget.disabled && goPage(filters.page - 1)}>
             ← Previous
-          </button>
+          </sakuga-button>
           <span className="muted">
             Page {filters.page} of {pages}
           </span>
-          <button disabled={filters.page >= pages} onClick={() => goPage(filters.page + 1)}>
+          <sakuga-button variant="secondary" disabled={filters.page >= pages} onClick={(e) => !e.currentTarget.disabled && goPage(filters.page + 1)}>
             Next →
-          </button>
+          </sakuga-button>
         </div>
       )}
     </div>

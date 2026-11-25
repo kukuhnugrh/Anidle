@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { indexNames, searchNames, type CharacterEntry, type SearchEntry, type SearchHit, type TitleEntry } from '../shared/normalize';
 import { api, errorMessage } from './api';
-import { useButtonReaction } from './sakuga';
+import { TextField, useButtonReaction } from './sakuga';
 
 /** One download per page load, shared by every puzzle; a failed one is tried again next time. */
 function once<T>(fetch: () => Promise<T>): () => Promise<T> {
@@ -36,6 +36,7 @@ interface PickerProps {
 function Autocomplete<T extends SearchEntry>({
   load,
   detail,
+  label,
   placeholder,
   noneText,
   exclude,
@@ -43,14 +44,14 @@ function Autocomplete<T extends SearchEntry>({
   onPick,
   onChoose,
   compact = false,
-}: PickerProps & { load: () => Promise<T[]>; detail: (hit: SearchHit<T>) => string; placeholder: (count: number) => string; noneText: string }) {
+}: PickerProps & { load: () => Promise<T[]>; detail: (hit: SearchHit<T>) => string; label: string; placeholder: (count: number) => string; noneText: string }) {
   const [entries, setEntries] = useState<T[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   // A suggestion chosen from the list: it fills the field and waits for the Guess button (or Enter).
   const [selected, setSelected] = useState<T | null>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const input = useRef<SakugaInputElement>(null);
   const button = useRef<SakugaButtonElement>(null);
   const reaction = useButtonReaction();
 
@@ -87,14 +88,16 @@ function Autocomplete<T extends SearchEntry>({
   return (
     <div className={`guess-input${compact ? ' compact' : ''}`}>
       <div className="guess-row">
-        <input
+        {/* Keys reach the host: the field inside it is focused through it (delegatesFocus). */}
+        <TextField
           ref={input}
           autoFocus={!compact}
           value={query}
+          label={label}
           disabled={disabled || !entries}
           placeholder={entries ? placeholder(entries.length) : 'Loading…'}
-          onChange={(e) => {
-            setQuery(e.target.value);
+          onValue={(text) => {
+            setQuery(text);
             if (selected) select(null);
             setActive(0);
           }}
@@ -151,6 +154,7 @@ export function GuessInput({ compact, fullNamesOnly = false, ...props }: PickerP
       compact={compact}
       load={fullNamesOnly ? loadFullTitles : loadTitles}
       detail={fullNamesOnly ? fullTitleDetail : titleDetail}
+      label="Anime title"
       placeholder={(n) => (compact ? 'Which anime?' : `Guess the anime… (${n} titles)`)}
       noneText="No matching title."
     />
@@ -159,5 +163,5 @@ export function GuessInput({ compact, fullNamesOnly = false, ...props }: PickerP
 
 /** Picks a character by name, kanji or nickname (Character mode). */
 export function CharacterInput(props: PickerProps) {
-  return <Autocomplete {...props} compact load={loadCharacters} detail={characterDetail} placeholder={() => 'Who is this?'} noneText="No matching character." />;
+  return <Autocomplete {...props} compact load={loadCharacters} detail={characterDetail} label="Character name" placeholder={() => 'Who is this?'} noneText="No matching character." />;
 }

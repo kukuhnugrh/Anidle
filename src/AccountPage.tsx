@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, errorMessage, type Account } from './api';
 import { ConfirmButton } from './ConfirmButton';
+import { useButtonReaction } from './sakuga';
 import { Avatar } from './Sidebar';
 
 export type Notice = { kind: 'ok' | 'error'; text: string } | null;
@@ -8,6 +9,7 @@ export type Notice = { kind: 'ok' | 'error'; text: string } | null;
 export function AccountPage({ account, onAccount, initialNotice }: { account: Account | null; onAccount: (a: Account | null) => void; initialNotice: Notice }) {
   const [busy, setBusy] = useState<'sync' | 'unlink' | null>(null);
   const [message, setMessage] = useState<Notice>(initialNotice);
+  const reaction = useButtonReaction();
 
   const act = async (kind: NonNullable<typeof busy>, task: () => Promise<void>) => {
     setBusy(kind);
@@ -99,9 +101,16 @@ export function AccountPage({ account, onAccount, initialNotice }: { account: Ac
               </div>
             </div>
             <div className="actions">
-              <button className="primary" disabled={busy !== null} onClick={sync}>
+              <sakuga-button
+                disabled={busy !== null && !reaction.held}
+                onClick={() => {
+                  if (busy !== null) return;
+                  reaction.pressed();
+                  void sync();
+                }}
+              >
                 {busy === 'sync' ? 'Syncing…' : 'Resync from MAL'}
-              </button>
+              </sakuga-button>
               {account.hasPassword && (
                 <ConfirmButton
                   className="ghost danger"

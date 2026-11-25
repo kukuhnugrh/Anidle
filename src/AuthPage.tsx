@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import type { Notice } from './AccountPage';
 import { api, errorMessage, type Account } from './api';
-import { Tabs } from './sakuga';
+import { Tabs, TextField, useButtonReaction } from './sakuga';
 
 const MODES = [
   { value: 'login', label: 'Sign in' },
@@ -15,9 +15,16 @@ export function AuthPage({ notice, onDone }: { notice: Notice; onDone: (account:
   // A failed MAL sign-in comes back here as a redirect notice.
   const [error, setError] = useState<string | null>(notice?.kind === 'error' ? notice.text : null);
   const [busy, setBusy] = useState(false);
+  const reaction = useButtonReaction();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (busy) return;
+    // The fields live in the components' shadow trees, so the browser's `required` check does not reach them.
+    if (!username || !password) {
+      setError('Enter your username and password.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -28,6 +35,10 @@ export function AuthPage({ notice, onDone }: { notice: Notice; onDone: (account:
     } finally {
       setBusy(false);
     }
+  };
+  // Enter in a field submits, as in a plain form (the browser only does that for its own fields).
+  const submitOnEnter = (e: KeyboardEvent<SakugaInputElement>) => {
+    if (e.key === 'Enter') e.currentTarget.closest('form')?.requestSubmit();
   };
 
   return (
@@ -46,24 +57,26 @@ export function AuthPage({ notice, onDone }: { notice: Notice; onDone: (account:
         <Tabs label="Sign in or sign up" options={MODES} value={mode} onChange={setMode} />
         <label>
           Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus required />
+          <TextField label="Username" value={username} onValue={setUsername} onKeyDown={submitOnEnter} autocomplete="username" autoFocus />
         </label>
         <label>
           Password
-          <input
+          {/* The field reads autocomplete once, so it is built again for the other mode (the text is kept). */}
+          <TextField
+            key={mode}
             type="password"
+            label="Password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            minLength={mode === 'register' ? 8 : undefined}
-            required
+            onValue={setPassword}
+            onKeyDown={submitOnEnter}
+            autocomplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
         {mode === 'register' && <p className="muted small">Username 3–20 characters (letters, numbers, _). Password at least 8 characters.</p>}
         {error && <div className="error-box">{error}</div>}
-        <button className="primary" disabled={busy}>
+        <sakuga-button type="submit" disabled={busy && !reaction.held} onClick={reaction.pressed}>
           {busy ? 'One moment…' : mode === 'login' ? 'Sign in' : 'Create account'}
-        </button>
+        </sakuga-button>
         <p className="muted small">Progress you played without an account in this browser moves to your account.</p>
       </form>
     </div>

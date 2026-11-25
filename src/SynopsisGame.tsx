@@ -5,7 +5,7 @@ import { api, errorMessage, type SynopsisState } from './api';
 import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtNumber } from './format';
-import { FinishCard, GameHeader } from './GameParts';
+import { FinishCard, GameHeader, RoundTabs } from './GameParts';
 import { GuessInput } from './GuessInput';
 import { RoundTitle } from './RoundTitle';
 import { TitleHint } from './RoundGame';
@@ -77,23 +77,7 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
       <GameHeader
         puzzle={puzzle}
         intro={`Guess the anime from its MAL synopsis, names hidden. ${SYNOPSIS_GUESSES} guesses per round (${fmtNumber(roundMaxPoints('synopsis'))} pts); every clue you open and every wrong guess takes ${fmtNumber(SYNOPSIS_STEP_COST)} off.`}
-        aside={
-          <div className="round-tabs" role="tablist">
-            {puzzle.rounds.map((r, i) => (
-              <button
-                key={i}
-                role="tab"
-                aria-selected={i === roundView}
-                className={`round-tab${i === roundView ? ' active' : ''}${r.finished ? (r.solved ? ' won' : ' lost') : ''}`}
-                disabled={i > puzzle.current}
-                onClick={() => setRoundView(i)}
-              >
-                <span>Round {i + 1}</span>
-                <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
-              </button>
-            ))}
-          </div>
-        }
+        aside={<RoundTabs marks={puzzle.rounds.map((r) => (r.finished ? (r.solved ? 'won' : 'lost') : null))} current={puzzle.current} view={roundView} onView={setRoundView} />}
       />
 
       <RoundTitle round={roundView} difficulties={[round.difficulty]} />
@@ -128,9 +112,9 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
         {playing && (
           <div className="stage-controls">
             {round.clues < synopsisClueCount(round.total) && (
-              <button className="ghost" disabled={sending} onClick={() => send(() => api.roundClue<SynopsisState>(puzzle.id, roundView))}>
+              <sakuga-button variant="secondary" disabled={sending} onClick={(e) => !e.currentTarget.disabled && void send(() => api.roundClue<SynopsisState>(puzzle.id, roundView))}>
                 {nextClueLabel(round)} · −{fmtNumber(SYNOPSIS_STEP_COST)} pts
-              </button>
+              </sakuga-button>
             )}
             <GuessInput
               disabled={sending}
@@ -178,9 +162,7 @@ export function SynopsisGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Syn
                 Open on MAL ↗
               </a>
               {roundView < puzzle.current && puzzle.current < puzzle.rounds.length && (
-                <button className="primary" onClick={() => setRoundView(puzzle.current)}>
-                  Round {puzzle.current + 1}
-                </button>
+                <sakuga-button onClick={() => setRoundView(puzzle.current)}>Round {puzzle.current + 1}</sakuga-button>
               )}
             </div>
           </div>

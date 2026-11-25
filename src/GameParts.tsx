@@ -4,7 +4,22 @@ import { MODE_LABELS, MODE_MAX_POINTS, type Mode } from '../shared/modes';
 import { BetaBadge } from './BetaBadge';
 import { fmtDate, fmtNumber } from './format';
 import { HowToPlay } from './HowToPlay';
+import { Tabs } from './sakuga';
 import { ShareButton } from './share';
+
+/** How a round ended, as its tab shows it: won ✓, lost ✗, or null (still open, or neither, e.g. a part-right Timeline round). */
+export type RoundMark = 'won' | 'lost' | null;
+const MARK_TEXT: Record<'won' | 'lost', string> = { won: ' ✓', lost: ' ✗' };
+
+/** The round tabs' options: "Round 1 ✓", "Round 2 ✗", "Round 3" (`compact`: "1 ✓"), up to the current round only. */
+export function roundTabOptions(marks: RoundMark[], current: number, compact: boolean) {
+  return marks.slice(0, current + 1).map((mark, i) => ({ value: String(i), label: `${compact ? '' : 'Round '}${i + 1}${mark ? MARK_TEXT[mark] : ''}` }));
+}
+
+/** A puzzle's round tabs (see roundTabOptions); `marks` has one entry per round of the puzzle. */
+export function RoundTabs({ marks, current, view, onView, compact = false }: { marks: RoundMark[]; current: number; view: number; onView: (round: number) => void; compact?: boolean }) {
+  return <Tabs label="Rounds" options={roundTabOptions(marks, current, compact)} value={String(view)} onChange={(v) => onView(Number(v))} />;
+}
 
 /** A puzzle page's head: daily date or unlimited pool, the mode's name (Beta badge, "?" rules), a one-line intro, and `aside` on the right. */
 export function GameHeader({ puzzle, intro, aside }: { puzzle: { mode: Mode; date: string | null; pool: Pool }; intro: ReactNode; aside?: ReactNode }) {

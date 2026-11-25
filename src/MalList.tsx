@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage, type Account, type MalList, type MalListCategory, type MalListEntry } from './api';
 import { fmtNumber, pretty } from './format';
-import { Tabs } from './sakuga';
+import { Tabs, TextField } from './sakuga';
 
 const CATEGORIES: Array<{ id: MalListCategory; label: string }> = [
   { id: 'watching', label: 'Watching' },
@@ -187,7 +187,7 @@ export function MalListPage({ account }: { account: Account | null }) {
           <section className="card db-filters" aria-label="Filter and sort">
             <label className="db-search">
               Search titles
-              <input value={view.q} onChange={(e) => setView({ q: e.target.value })} placeholder="Romaji or English title" />
+              <TextField label="Search titles" value={view.q} onValue={(q) => setView({ q })} placeholder="Romaji or English title" />
             </label>
             <label>
               Sort by
@@ -232,9 +232,9 @@ export function MalListPage({ account }: { account: Account | null }) {
                 ))}
               </select>
             </label>
-            <button className="ghost" onClick={() => setView({ ...freshView(active), sort: view.sort })}>
+            <sakuga-button variant="secondary" onClick={() => setView({ ...freshView(active), sort: view.sort })}>
               Reset filters
-            </button>
+            </sakuga-button>
           </section>
 
           <div className="db-status muted small">
@@ -269,9 +269,9 @@ function Head({ username, fetchedAt, refreshing, onRefresh }: { username?: strin
       </div>
       {username && (
         <div className="actions">
-          <button className="ghost" disabled={refreshing} onClick={onRefresh}>
+          <sakuga-button variant="secondary" disabled={refreshing} onClick={(e) => !e.currentTarget.disabled && onRefresh?.()}>
             {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
+          </sakuga-button>
           <a className="button ghost" href={`https://myanimelist.net/animelist/${encodeURIComponent(username)}`} target="_blank" rel="noreferrer">
             Open on MAL ↗
           </a>

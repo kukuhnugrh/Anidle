@@ -168,9 +168,6 @@ button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .ghost { background: var(--panel); }
 .danger { color: var(--bad); }
 .danger:hover:not(:disabled) { background: var(--bad-bg); }
-.danger-fill { background: #d8264a; color: #fff; }
-.danger-fill:hover:not(:disabled) { background: #c41e40; }
-.big { padding: 13px 24px; font-size: 16.5px; border-width: var(--dp-border-outline-width); box-shadow: 4px 4px 0 var(--line); }
 button.small, .button.small { padding: 5px 11px; font-size: 13px; }
 .block { width: 100%; }
 .icon-button { padding: 8px; background: transparent; border-color: transparent; box-shadow: none; color: var(--muted); }
@@ -317,6 +314,42 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 .board-bar .tab-strip { flex: 1 1 300px; }
 .auth-card .tab-strip { text-align: center; }
 /* ---- Sakuga: game screens (new rules for the game screens go here) */
+/* Round tabs in a game's head: as wide as the tabs, so they wrap under the intro when they don't fit beside it; a
+   scroll box (min-width 0), so on a narrow page they shrink to it and scroll instead of widening it. */
+.game-head .tab-strip { contain: none; flex: 0 1 auto; }
+/* The guess field fills its row (the Guess button keeps its width); Character's compact fields are slimmer. */
+.guess-row sakuga-input { flex: 1; min-width: 0; --sk-input-width: 100%; }
+.guess-input.compact sakuga-input::part(input) { padding: 8px 11px; }
+/* Share result: its icon before the text. */
+.share-button .icon { vertical-align: -3px; margin-right: 8px; }
+/* ConfirmButton's `small` (Anidle's Skip): the whole button, effects included, at a smaller size. */
+sakuga-button.small { zoom: .8; }
+/* Synopsis' clue button sits in the stage's grid at its own width. */
+.stage-controls > sakuga-button { justify-self: start; }
+/* The song clue's "?" beside its button, at the row's height: the bubble opens over the guess field above. */
+.clue-hint { margin-top: 0; align-self: center; }
+.clue-hint::part(button) { width: 34px; height: 34px; }
+/* How to play scrolls up and down; Got it's burst layer, wider than the box, must not add a sideways scrollbar
+   (beats the `overflow: auto` of .confirm.help above on specificity). */
+dialog.confirm.help { overflow-x: hidden; }
+/* Anidle's ↑ / ↓ toward the answer: a tooltip whose button looks like the old pill; its bubble says which way. */
+.anidle-pill { margin-left: 6px; margin-top: 0; vertical-align: 1px; }
+.anidle-pill::part(button) {
+  width: auto; min-width: 20px; height: 20px; padding: 0 5px; border: 0; border-radius: 6px; box-shadow: none;
+  font-size: 12px; font-weight: 800; line-height: 1; color: var(--accent-ink); background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+.anidle-pill::part(tip) { min-width: 0; max-width: 170px; font-size: 14px; white-space: normal; }
+/* The board lets that bubble out over the rows above it (beating .anidle-board's overflow below); its first and last
+   children round their own corners instead of being clipped (the head is hidden on phones, so a row can be first). */
+.anidle .anidle-board { overflow: visible; }
+.anidle .anidle-board > :first-child { border-top-left-radius: calc(var(--radius) - var(--dp-border-outline-width)); border-top-right-radius: calc(var(--radius) - var(--dp-border-outline-width)); }
+.anidle .anidle-board > :last-child { border-bottom-left-radius: calc(var(--radius) - var(--dp-border-outline-width)); border-bottom-right-radius: calc(var(--radius) - var(--dp-border-outline-width)); }
+/* Timeline's ▲ / ▼ move buttons, and their names for screen readers. */
+.tl-moves sakuga-button::part(button) { padding: 8px 18px; font-size: 18px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+@media (max-width: 760px) {
+  .tl-moves sakuga-button::part(button) { padding: 3px 10px; font-size: 13px; }
+}
 
 
 /* ------------------------------------------------------------------ page building blocks */
@@ -419,23 +452,8 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 
 /* ------------------------------------------------------------------ unlimited */
 .form-card { display: grid; gap: 22px; }
-.form-card > .primary { justify-self: start; }
 .field { display: grid; gap: 8px; }
 .field p { margin: 0; }
-.option-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
-.option { justify-content: space-between; text-align: left; font-weight: 600; padding: 11px 13px; box-shadow: none; }
-.option:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
-.option.selected { background: var(--dp-color-selection); box-shadow: 3px 3px 0 var(--accent); }
-.option-grid.link-picks { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-.link-check { font-weight: 800; color: var(--accent-ink); }
-.lock { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: var(--dp-border-detail-width) solid var(--dp-color-rule-muted); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
-.segmented { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px; background: var(--ground); border: var(--detail); border-radius: 16px; }
-.segmented.modes { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-.segmented button { display: grid; gap: 0; padding: 8px 6px; background: transparent; border-color: transparent; box-shadow: none; text-align: center; }
-.segmented button:hover:not(:disabled) { background: var(--panel); border-color: var(--dp-color-rule-muted); box-shadow: none; transform: none; }
-.segmented button span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
-.segmented button.selected { background: var(--accent); border-color: var(--line); color: #fff; box-shadow: var(--shadow-sm); }
-.segmented button.selected span { color: #e7defe; }
 
 /* ------------------------------------------------------------------ account + auth */
 .profile { display: flex; align-items: center; gap: 16px; }
@@ -476,11 +494,7 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 
 .guess-input { position: relative; }
 .guess-row { display: flex; gap: 10px; }
-.guess-input input { flex: 1; min-width: 0; font-size: 17px; padding: 14px 18px; border: var(--outline); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
-.guess-input input:focus { box-shadow: 4px 4px 0 var(--accent); }
 .guess-button { flex: none; align-self: center; }
-.guess-input.compact input { font-size: 14.5px; padding: 8px 10px; border: var(--detail); border-radius: var(--radius-sm); box-shadow: none; }
-.guess-input.compact input:focus { box-shadow: 3px 3px 0 var(--accent); }
 .suggestions {
   position: absolute; left: 0; right: 0; top: calc(100% + 8px); list-style: none; margin: 0; padding: 6px; z-index: 10;
   background: var(--panel); border: var(--outline); border-radius: var(--radius); box-shadow: var(--shadow);
@@ -528,12 +542,6 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 }
 /* A compared cell stays plain; its pills carry the colour (green in the answer, red not). */
 .anidle-cell { min-width: 0; padding: 10px; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
-/* ↑ / ↓ toward the answer, ✓ when equal */
-.anidle-pill {
-  display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 5px; vertical-align: 1px;
-  font-size: 12px; font-weight: 800; border-radius: 6px; color: var(--accent-ink); background: color-mix(in srgb, var(--accent) 16%, transparent);
-}
-.anidle-pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok-fill) 35%, transparent); }
 .soft-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .soft-chip { padding: 1px 7px; font-size: 12.5px; border-radius: 6px; background: color-mix(in srgb, var(--ink) 7%, transparent); }
 /* Solid fills with their own text colour, so a pill reads the same on any tile or row, in both themes. */
@@ -648,14 +656,6 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 .clue-tab.active { background: var(--dp-color-selection); box-shadow: 3px 3px 0 var(--accent); }
 .clue-tab.locked:not(:disabled) { background: var(--dp-color-accent-warm); }
 .clue-tab.locked:disabled { opacity: .45; }
-.round-tabs { display: flex; gap: 8px; }
-.round-tab { display: grid; gap: 0; min-width: 88px; padding: 6px 12px; text-align: center; box-shadow: none; }
-.round-tab:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
-.round-tab span { font-size: 11.5px; font-weight: 600; color: var(--muted); }
-.round-tab b { font-family: var(--dp-typography-display); font-size: 17px; }
-.round-tab.active { background: var(--dp-color-selection); box-shadow: 3px 3px 0 var(--accent); }
-.round-tab.won b { color: var(--ok); }
-.round-tab.lost b { color: var(--bad); }
 
 /* Beta label beside a mode's name (unlimited-only modes in testing) */
 .beta-badge {
@@ -728,7 +728,6 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 .cx-tile.odd .cx-names span, .cx-tile.wrong .cx-names span { color: inherit; }
 .cx-tile.shared:disabled { opacity: .7; }
 .odd-verdict { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.round-tab.compact { min-width: 52px; padding: 6px 8px; }
 
 /* Synopsis */
 .syn-sentences { display: grid; gap: 10px; margin: 0; padding-left: 26px; font-size: 17px; line-height: 1.6; }
@@ -784,7 +783,6 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 }
 .tl-year { flex: none; font-family: var(--dp-typography-display); font-size: 30px; font-weight: 800; }
 .tl-moves { flex: none; display: flex; justify-content: center; gap: 10px; }
-.tl-moves button { padding: 8px 18px; font-size: 18px; }
 /* ▲ ▼ point left and right while the cards run left to right. */
 .tl-arrow { display: inline-block; transform: rotate(-90deg); }
 .tl-row.draggable { cursor: grab; user-select: none; transition: box-shadow var(--dp-motion-interaction), transform var(--dp-motion-interaction); }
@@ -792,7 +790,6 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 /* The touch handle (phones only, see responsive): the rest of the row still scrolls the page. */
 .tl-grip { display: none; flex: none; padding: 8px 2px; font-size: 24px; line-height: 1; color: var(--muted); touch-action: none; cursor: grab; }
 .tl-row .thumb { pointer-events: none; }
-.tl-list ~ .cx-controls .primary { padding: 12px 22px; font-size: 18px; }
 
 /* Opening / Ending */
 .stage-card { display: grid; gap: 18px; }
@@ -976,7 +973,6 @@ canvas.clue-media { filter: none; }
 .show-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px 16px; margin: 6px 0 0; }
 .show-stats dt { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 .show-stats dd { margin: 2px 0 0; font-weight: 650; }
-.show-tabs { flex-wrap: wrap; }
 .show-card { padding: 18px 20px; }
 .show-panel { display: grid; gap: 16px; }
 .show-panel .anidle-clues { margin: 0; }
@@ -1045,6 +1041,7 @@ canvas.clue-media { filter: none; }
   .page { padding: 24px 18px 52px; }
   /* Anidle board: each guess becomes its title over a 3 × 2 grid of labelled cells. */
   .anidle-head { display: none; }
+  .anidle .anidle-head + * { border-top-left-radius: calc(var(--radius) - var(--dp-border-outline-width)); border-top-right-radius: calc(var(--radius) - var(--dp-border-outline-width)); }
   .anidle-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .anidle-row-title { grid-column: 1 / -1; padding-bottom: 4px; }
   .anidle-cell { padding: 6px 10px 8px; }
@@ -1064,9 +1061,6 @@ canvas.clue-media { filter: none; }
   .card { padding: 18px; }
   .daily-grid { grid-template-columns: 1fr; }
   .daily-grid .mode-card:first-child { grid-column: auto; }
-  .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .segmented button:first-child { grid-column: span 2; }
-  .segmented.modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cx-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .big-game .cx-board { gap: 8px; }
   .big-game .cx-tile { gap: 8px; padding: 8px; border-width: var(--dp-border-detail-width); }
@@ -1105,9 +1099,7 @@ canvas.clue-media { filter: none; }
   .tl-year { font-size: 22px; }
   /* ▲ over ▼, so the title keeps the width. */
   .tl-moves { flex-direction: column; gap: 4px; }
-  .tl-moves button { padding: 3px 10px; font-size: 13px; }
   .tl-arrow { transform: none; }
-  .segmented.modes button:first-child { grid-column: auto; }
   .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .history-list a { grid-template-columns: 1fr auto; }
   .history-answers, .history-result { grid-column: 1 / -1; grid-row: 2; }
@@ -1115,8 +1107,6 @@ canvas.clue-media { filter: none; }
   .char-grid { grid-template-columns: 1fr; }
   .char-card { grid-template-columns: 96px minmax(0, 1fr); }
   .char-portrait { width: 96px; }
-  .round-tabs { width: 100%; }
-  .round-tab { flex: 1; min-width: 0; }
   .anidle-clues, .anidle-clues.open-clues { grid-template-columns: 1fr; }
   .open-clues .anidle-clue.synopsis { grid-column: auto; }
   .answer-card { grid-template-columns: minmax(0, 1fr); padding: 14px; border-radius: 24px; box-shadow: 6px 6px 0 var(--accent); }
@@ -1128,7 +1118,6 @@ canvas.clue-media { filter: none; }
   .show-top { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
   .show-cover { width: 96px; }
   .show-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .show-tabs .round-tab { flex: 1 1 30%; }
   .pip { width: 12px; }
   .shot { border-radius: var(--radius); box-shadow: 5px 5px 0 var(--dp-color-accent-warm), 5px 5px 0 3px var(--line); }
   .final { box-shadow: 6px 6px 0 var(--accent); }
@@ -1158,3 +1147,32 @@ canvas.clue-media { filter: none; }
 }
 
 /* ------------------------------------------------------------------ Sakuga: other pages (new rules for the non-game pages go here) */
+/* Text fields fill their slot; in the filter bars they match the selects beside them. */
+.auth-card sakuga-input, .db-filters sakuga-input { display: block; --sk-input-width: 100%; }
+.db-filters sakuga-input::part(input) { padding: 10px 12px; font-size: 15px; }
+/* The sign-in button spans the card, as the old one did. */
+.auth-card sakuga-button { display: block; }
+.auth-card sakuga-button::part(button) { width: 100%; }
+/* Reset filters fills its grid cell (the whole cell answers clicks, so the button must cover it). */
+.db-filters sakuga-button { align-self: end; }
+.db-filters sakuga-button::part(button) { width: 100%; padding-block: 11px; }
+/* Small buttons beside other controls: the component at 70% (zoom scales the button and its effects together). */
+.date-nav sakuga-button, .admin-row sakuga-button, .show-song-play sakuga-button, .mylist-head sakuga-button { zoom: .72; }
+/* On phones the Sakuga buttons are wider than the old small ones: Today goes under the date when the row is full. */
+.date-nav { flex-wrap: wrap; }
+.form-card .start-button { justify-self: start; }
+.start-button .icon { margin-left: 8px; vertical-align: -3px; }
+/* Unlimited's radio groups lay their options out in columns; the picked option's hint sits under the group. */
+sakuga-radio.pick { display: block; font-weight: 600; }
+sakuga-radio.pick::part(group) { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 16px; }
+.pick-hint::first-letter { text-transform: uppercase; }
+.link-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 16px; font-weight: 600; }
+/* Tooltips used inline: no room reserved above (the bubble floats over what is there), a button sized to its content. */
+sakuga-tooltip.beta-tip, sakuga-tooltip.today-tip { margin-top: 0; z-index: 5; }
+.beta-tip::part(button) { width: auto; height: auto; padding: 0; border: 0; border-radius: 999px; background: none; box-shadow: none; font-weight: inherit; }
+.beta-tip .beta-badge { cursor: help; }
+.today-score-row { position: relative; }
+.today-score-row .today-score { padding-right: 46px; }
+.today-tip { position: absolute; right: 16px; top: 50%; translate: 0 calc(-50% - 5px); }
+.today-tip::part(button) { width: 28px; height: 28px; font-size: 14px; box-shadow: 2px 2px 0 var(--line); }
+.today-tip::part(tip) { font-size: 14px; }

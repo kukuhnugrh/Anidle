@@ -3,7 +3,7 @@ import { LINK_KIND_LABELS } from '../shared/connections';
 import { ODD_ONE_OUT_POINTS } from '../shared/oddoneout';
 import { api, errorMessage, type OddOneOutState } from './api';
 import { fmtNumber } from './format';
-import { FinishCard, GameHeader, TitleThumb } from './GameParts';
+import { FinishCard, GameHeader, RoundTabs, TitleThumb } from './GameParts';
 import { useButtonReaction } from './sakuga';
 import { oddOneOutShareText } from './share';
 
@@ -46,23 +46,7 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
       <GameHeader
         puzzle={puzzle}
         intro={`All but one of these anime share something. Pick the one that doesn't. Links in play: ${puzzle.links.map((k) => LINK_KIND_LABELS[k]).join(' · ')}. ${fmtNumber(ODD_ONE_OUT_POINTS)} pts per round.`}
-        aside={
-          <div className="round-tabs" role="tablist">
-            {puzzle.rounds.map((r, i) => (
-              <button
-                key={i}
-                role="tab"
-                aria-selected={i === roundView}
-                className={`round-tab compact${i === roundView ? ' active' : ''}${r.finished ? (r.solved ? ' won' : ' lost') : ''}`}
-                disabled={i > puzzle.current}
-                onClick={() => setRoundView(i)}
-              >
-                <span>{i + 1}</span>
-                <b>{r.finished ? (r.solved ? '✓' : '✗') : i === puzzle.current ? '…' : '—'}</b>
-              </button>
-            ))}
-          </div>
-        }
+        aside={<RoundTabs compact marks={puzzle.rounds.map((r) => (r.finished ? (r.solved ? 'won' : 'lost') : null))} current={puzzle.current} view={roundView} onView={setRoundView} />}
       />
 
       <section className="card cx-card">
@@ -96,9 +80,7 @@ export function OddOneOutGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Od
               The others share <b>{round.label}</b>.
             </span>
             {roundView < puzzle.current && puzzle.current < puzzle.rounds.length && (
-              <button className="primary" onClick={() => setRoundView(puzzle.current)}>
-                Round {puzzle.current + 1}
-              </button>
+              <sakuga-button onClick={() => setRoundView(puzzle.current)}>Round {puzzle.current + 1}</sakuga-button>
             )}
           </div>
         )}

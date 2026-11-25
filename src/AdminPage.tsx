@@ -3,6 +3,7 @@ import type { ReviewKind } from '../server/admin';
 import { MEDIA_KINDS, MEDIA_STATUSES as STATUSES, type MediaKind, type ThemeKind } from '../shared/modes';
 import { api, errorMessage, type AdminPage as AdminData } from './api';
 import { fmtNumber } from './format';
+import { TextField } from './sakuga';
 
 const SONG_KINDS: readonly ThemeKind[] = ['op', 'ed'];
 /** Filter and count rows: media kinds, and the songs of each kind. */
@@ -114,10 +115,11 @@ export function AdminPage() {
       <section className="card db-filters">
         <label className="db-search">
           Search titles
-          <input
+          <TextField
+            label="Search titles"
             value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
+            onValue={(value) => {
+              setQ(value);
               setPage(1);
             }}
             placeholder="Romaji or English title"
@@ -190,14 +192,23 @@ export function AdminPage() {
                       {cell?.error && cell.status !== 'ok' && <span className="small muted">{cell.error}</span>}
                     </div>
                     {cell?.status === 'ok' && (
-                      <button className="ghost small danger" disabled={busy !== null} onClick={() => act(`${item.malId}:${k}`, () => api.setMediaStatus(item.malId, k, 'reject'))}>
+                      <sakuga-button
+                        variant="secondary"
+                        className="danger"
+                        disabled={busy !== null}
+                        onClick={(e) => !e.currentTarget.disabled && act(`${item.malId}:${k}`, () => api.setMediaStatus(item.malId, k, 'reject'))}
+                      >
                         Reject
-                      </button>
+                      </sakuga-button>
                     )}
                     {cell?.status === 'rejected' && (
-                      <button className="ghost small" disabled={busy !== null} onClick={() => act(`${item.malId}:${k}`, () => api.setMediaStatus(item.malId, k, 'restore'))}>
+                      <sakuga-button
+                        variant="secondary"
+                        disabled={busy !== null}
+                        onClick={(e) => !e.currentTarget.disabled && act(`${item.malId}:${k}`, () => api.setMediaStatus(item.malId, k, 'restore'))}
+                      >
                         Restore
-                      </button>
+                      </sakuga-button>
                     )}
                   </div>
                 );
@@ -220,13 +231,22 @@ export function AdminPage() {
                       <audio controls preload="none" src={t.audio} />
                     </div>
                     {t.status === 'ok' ? (
-                      <button className="ghost small danger" disabled={busy !== null} onClick={() => act(`theme:${t.id}`, () => api.setThemeStatus(t.id, 'reject'))}>
+                      <sakuga-button
+                        variant="secondary"
+                        className="danger"
+                        disabled={busy !== null}
+                        onClick={(e) => !e.currentTarget.disabled && act(`theme:${t.id}`, () => api.setThemeStatus(t.id, 'reject'))}
+                      >
                         Reject
-                      </button>
+                      </sakuga-button>
                     ) : (
-                      <button className="ghost small" disabled={busy !== null} onClick={() => act(`theme:${t.id}`, () => api.setThemeStatus(t.id, 'restore'))}>
+                      <sakuga-button
+                        variant="secondary"
+                        disabled={busy !== null}
+                        onClick={(e) => !e.currentTarget.disabled && act(`theme:${t.id}`, () => api.setThemeStatus(t.id, 'restore'))}
+                      >
                         Restore
-                      </button>
+                      </sakuga-button>
                     )}
                   </div>
                 ));
@@ -238,15 +258,15 @@ export function AdminPage() {
 
       {data && pages > 1 && (
         <div className="db-paging">
-          <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
+          <sakuga-button variant="secondary" disabled={page <= 1} onClick={(e) => !e.currentTarget.disabled && setPage(page - 1)}>
             ← Previous
-          </button>
+          </sakuga-button>
           <span className="muted">
             Page {page} of {pages}
           </span>
-          <button disabled={page >= pages} onClick={() => setPage(page + 1)}>
+          <sakuga-button variant="secondary" disabled={page >= pages} onClick={(e) => !e.currentTarget.disabled && setPage(page + 1)}>
             Next →
-          </button>
+          </sakuga-button>
         </div>
       )}
     </div>

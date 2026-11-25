@@ -5,6 +5,7 @@ import { api, errorMessage, type RoundState } from './api';
 import { RoundsSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
+import { RoundTabs } from './GameParts';
 import { GuessInput } from './GuessInput';
 import { HowToPlay } from './HowToPlay';
 import { LockIcon, UnlockIcon } from './icons';
@@ -112,21 +113,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
             screenshots, then the title's initials) takes {fmtNumber(roundMaxPoints(puzzle.mode) * SCREENSHOT_CLUE_COST)} off.
           </p>
         </div>
-        <div className="round-tabs" role="tablist">
-          {puzzle.rounds.map((r, i) => (
-            <button
-              key={i}
-              role="tab"
-              aria-selected={i === roundView}
-              className={`round-tab${i === roundView ? ' active' : ''}${r.finished ? (r.solved ? ' won' : ' lost') : ''}`}
-              disabled={i > puzzle.current}
-              onClick={() => setRoundView(i)}
-            >
-              <span>Round {i + 1}</span>
-              <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
-            </button>
-          ))}
-        </div>
+        <RoundTabs marks={puzzle.rounds.map((r) => (r.finished ? (r.solved ? 'won' : 'lost') : null))} current={puzzle.current} view={roundView} onView={setRoundView} />
       </header>
 
       <RoundTitle round={roundView} difficulties={[round.difficulty]} />
@@ -135,11 +122,13 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
         <div className="card load-error">
           <p>This round's image failed to load.</p>
           <div className="actions">
-            <button onClick={() => retry(roundView)}>Try again</button>
+            <sakuga-button variant="secondary" onClick={() => retry(roundView)}>
+              Try again
+            </sakuga-button>
             {puzzle.canReplace && !round.clues && !round.finished && (
-              <button className="primary" disabled={sending} onClick={() => send(() => api.replaceRound<RoundState>(puzzle.id, roundView))}>
+              <sakuga-button disabled={sending} onClick={(e) => !e.currentTarget.disabled && void send(() => api.replaceRound<RoundState>(puzzle.id, roundView))}>
                 Replace with another title
-              </button>
+              </sakuga-button>
             )}
           </div>
         </div>
@@ -233,9 +222,7 @@ export function RoundGame({ puzzle, onChange, onNewUnlimited }: { puzzle: RoundS
                 Open on MAL ↗
               </a>
               {roundView < puzzle.current && puzzle.current < puzzle.rounds.length && (
-                <button className="primary" onClick={() => setRoundView(puzzle.current)}>
-                  Round {puzzle.current + 1}
-                </button>
+                <sakuga-button onClick={() => setRoundView(puzzle.current)}>Round {puzzle.current + 1}</sakuga-button>
               )}
             </div>
           </div>

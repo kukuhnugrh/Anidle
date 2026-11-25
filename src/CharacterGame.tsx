@@ -5,6 +5,7 @@ import { api, errorMessage, type CharacterPick, type CharacterState } from './ap
 import { CharacterSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
+import { RoundTabs } from './GameParts';
 import { CharacterInput, GuessInput } from './GuessInput';
 import { HowToPlay } from './HowToPlay';
 import { RoundTitle } from './RoundTitle';
@@ -119,21 +120,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             one Guess per round, an empty field counts as wrong. Each right field is worth {fmtNumber(round.fieldPoints)} pts this round.
           </p>
         </div>
-        <div className="round-tabs" role="tablist">
-          {puzzle.rounds.map((r, i) => (
-            <button
-              key={i}
-              role="tab"
-              aria-selected={i === view}
-              className={`round-tab${i === view ? ' active' : ''}${r.finished ? ' won' : ''}`}
-              disabled={i > puzzle.current}
-              onClick={() => setView(i)}
-            >
-              <span>Round {i + 1}</span>
-              <b>{r.finished ? fmtNumber(r.points) : i === puzzle.current ? '…' : '—'}</b>
-            </button>
-          ))}
-        </div>
+        <RoundTabs marks={puzzle.rounds.map((r) => (r.finished ? 'won' : null))} current={puzzle.current} view={view} onView={setView} />
       </header>
 
       <RoundTitle round={view} difficulties={round.difficulties} />
@@ -203,9 +190,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             </ConfirmButton>
           )}
           {round.finished && view < puzzle.current && puzzle.current < puzzle.rounds.length && (
-            <button className="primary" onClick={() => setView(puzzle.current)}>
-              Round {puzzle.current + 1}
-            </button>
+            <sakuga-button onClick={() => setView(puzzle.current)}>Round {puzzle.current + 1}</sakuga-button>
           )}
         </div>
       </div>

@@ -139,13 +139,16 @@ export function Sidebar({
           ))}
         </nav>
         {today && (
-          <a className="today-score" href="/" title="Points from today's five daily puzzles">
-            <span className="muted small">Today's score</span>
-            <span>
-              <b>{fmtNumber(today.score)}</b>
-              <span className="muted small"> / {fmtNumber(today.max)}</span>
-            </span>
-          </a>
+          <div className="today-score-row">
+            <a className="today-score" href="/">
+              <span className="muted small">Today's score</span>
+              <span>
+                <b>{fmtNumber(today.score)}</b>
+                <span className="muted small"> / {fmtNumber(today.max)}</span>
+              </span>
+            </a>
+            <sakuga-tooltip className="today-tip" label="About today's score" text="Points from today's five daily puzzles" />
+          </div>
         )}
         <div className="sidebar-foot">
           <ThemeToggle />
