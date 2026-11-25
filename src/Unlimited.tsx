@@ -1,11 +1,11 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { MAIN_GENRES, POOL_LABELS, POOL_NEEDS_MAL, POOLS, type Difficulty, type Pool } from '../shared/catalog';
 import { LINK_KIND_LABELS, LINK_KINDS, usesLinks, type LinkKind } from '../shared/connections';
 import { BETA_MODES, DAILY_MODES, MODE_LABELS, type Mode } from '../shared/modes';
 import { api, errorMessage, savedUnlimited, type Account, type UnlimitedOptions } from './api';
 import { ArrowIcon } from './icons';
 import { go } from './route';
-import { useButtonReaction, useElementEvent } from './sakuga';
+import { useButtonReaction } from './sakuga';
 
 const MODE_HINTS: Record<Mode, string> = {
   anidle: 'guess from clues',
@@ -48,52 +48,6 @@ const PAGES = {
   },
 } satisfies Record<string, { modes: readonly Mode[]; eyebrow: string; title: string; intro: string; allHint: string }>;
 
-interface PickProps<V extends string> {
-  /** The group's accessible name. */
-  label: string;
-  options: ReadonlyArray<{ value: V; label: string }>;
-  value: V;
-  onChange: (value: V) => void;
-}
-
-/** A <sakuga-radio> group. It reads its options once, so it is built again whenever their labels change. */
-function Pick<V extends string>(props: PickProps<V>) {
-  return <PickGroup key={props.options.map((o) => o.label).join('\n')} {...props} />;
-}
-
-function PickGroup<V extends string>({ label, options, value, onChange }: PickProps<V>) {
-  const ref = useRef<SakugaRadioElement>(null);
-  // Only when it differs: setting it snaps the dot, which would cut short the spring a click just started.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (el && el.value !== value) el.value = value;
-  }, [value]);
-  useElementEvent(ref, 'change', (el) => {
-    const picked = options.find((o) => o.value === el.value);
-    if (picked) onChange(picked.value);
-  });
-  return (
-    <sakuga-radio ref={ref} className="pick" label={label}>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </sakuga-radio>
-  );
-}
-
-/** One link kind's <sakuga-checkbox>. */
-function LinkCheck({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
-  const ref = useRef<SakugaCheckboxElement>(null);
-  useElementEvent(ref, 'change', (el) => onChange(el.checked));
-  return (
-    <sakuga-checkbox ref={ref} checked={checked}>
-      {label}
-    </sakuga-checkbox>
-  );
-}
-
 export function Unlimited({ account, page }: { account: Account | null; page: keyof typeof PAGES }) {
   const { modes, eyebrow, title, intro, allHint } = PAGES[page];
   const [saved] = useState(savedUnlimited.load);
@@ -111,7 +65,6 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
   const hasMal = Boolean(account?.mal);
   const poolLocked = POOL_NEEDS_MAL[pool] && !hasMal;
   const blocked = busy || poolLocked || linksMissing;
-  const difficultyHint = difficulty === 'all' ? (mode === 'synopsis' ? DIFFICULTY_CHOICES.all!.hint : allHint) : DIFFICULTY_CHOICES[difficulty]!.hint;
 
   const start = async () => {
     if (blocked) return;
@@ -147,13 +100,26 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
       <section className="card form-card">
         <div className="field">
           <span className="field-label">Mode</span>
-          <Pick label="Mode" options={modes.map((m) => ({ value: m, label: MODE_LABELS[m] }))} value={mode} onChange={setMode} />
-          <p className="muted small pick-hint">{MODE_HINTS[mode]}</p>
+          <div className="segmented modes" role="radiogroup" aria-label="Mode">
+            {modes.map((m) => (
+              <button key={m} type="button" role="radio" aria-checked={mode === m} className={mode === m ? 'selected' : ''} onClick={() => setMode(m)}>
+                <b>{MODE_LABELS[m]}</b>
+                <span>{MODE_HINTS[m]}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="field">
           <span className="field-label">Pool</span>
-          <Pick label="Pool" options={POOLS.map((p) => ({ value: p, label: `${POOL_LABELS[p]}${POOL_NEEDS_MAL[p] && !hasMal ? ' (needs MAL)' : ''}` }))} value={pool} onChange={setPool} />
+          <div className="option-grid" role="radiogroup" aria-label="Pool">
+            {POOLS.map((p) => (
+              <button key={p} type="button" role="radio" aria-checked={pool === p} className={`option${pool === p ? ' selected' : ''}`} onClick={() => setPool(p)}>
+                <span>{POOL_LABELS[p]}</span>
+                {POOL_NEEDS_MAL[p] && !hasMal && <span className="lock">needs MAL</span>}
+              </button>
+            ))}
+          </div>
           {poolLocked && (
             <p className="muted small">
               This pool uses your MAL completed list. {account ? <a href="/akun">Link your MAL account first.</a> : <a href="/api/oauth/login">Sign in with MyAnimeList first.</a>}
@@ -164,15 +130,22 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
         {usesLinks(mode) && (
           <div className="field">
             <span className="field-label">Links</span>
-            <div className="link-picks" role="group" aria-label={mode === 'connections' ? 'What the groups may share' : 'What the four may share'}>
-              {LINK_KINDS.map((k) => (
-                <LinkCheck
-                  key={k}
-                  label={LINK_KIND_LABELS[k]}
-                  checked={links.includes(k)}
-                  onChange={(on) => setLinks((cur) => (on ? LINK_KINDS.filter((l) => l === k || cur.includes(l)) : cur.filter((l) => l !== k)))}
-                />
-              ))}
+            <div className="option-grid link-picks" role="group" aria-label={mode === 'connections' ? 'What the groups may share' : 'What the four may share'}>
+              {LINK_KINDS.map((k) => {
+                const on = links.includes(k);
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={on}
+                    className={`option${on ? ' selected' : ''}`}
+                    onClick={() => setLinks((cur) => (cur.includes(k) ? cur.filter((l) => l !== k) : LINK_KINDS.filter((l) => l === k || cur.includes(l))))}
+                  >
+                    <span>{LINK_KIND_LABELS[k]}</span>
+                    <span className="link-check">{on ? '✓' : ''}</span>
+                  </button>
+                );
+              })}
             </div>
             <p className="muted small">
               {mode === 'connections' ? 'What the hidden groups may share.' : 'What the four titles that belong together may share.'} Tags are MAL demographics (Shounen, Seinen, Shoujo…).
@@ -183,8 +156,14 @@ export function Unlimited({ account, page }: { account: Account | null; page: ke
 
         <div className="field">
           <span className="field-label">Difficulty</span>
-          <Pick label="Difficulty" options={Object.entries(DIFFICULTY_CHOICES).map(([key, c]) => ({ value: key, label: c.label }))} value={difficulty} onChange={setDifficulty} />
-          <p className="muted small pick-hint">{difficultyHint}</p>
+          <div className="segmented" role="radiogroup" aria-label="Difficulty">
+            {Object.entries(DIFFICULTY_CHOICES).map(([key, c]) => (
+              <button key={key} type="button" role="radio" aria-checked={difficulty === key} className={difficulty === key ? 'selected' : ''} onClick={() => setDifficulty(key)}>
+                <b>{c.label}</b>
+                <span>{key === 'all' ? (mode === 'synopsis' ? c.hint : allHint) : c.hint}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <label className="field">

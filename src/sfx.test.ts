@@ -15,9 +15,6 @@ describe('soundFor', () => {
     expect(soundFor('change', control('sakuga-slider'))).toBe('shu');
     expect(soundFor('change', control('sakuga-toggle', {}, { checked: true }))).toBe('pon');
     expect(soundFor('change', control('sakuga-toggle', {}, { checked: false }))).toBe('pon-off');
-    expect(soundFor('change', control('sakuga-radio'))).toBe('pon');
-    expect(soundFor('change', control('sakuga-checkbox', {}, { checked: true }))).toBe('zuza');
-    expect(soundFor('change', control('sakuga-checkbox', {}, { checked: false }))).toBe('kachi');
     expect(soundFor('click', control('sakuga-tooltip'))).toBe('kachi');
   });
 
@@ -30,7 +27,6 @@ describe('soundFor', () => {
     expect(soundFor('click', control('button'))).toBeNull();
     expect(soundFor('change', control('input'))).toBeNull();
     expect(soundFor('change', control('sakuga-input'))).toBeNull();
-    expect(soundFor('change', control('sakuga-radio', {}, { disabled: true }))).toBeNull();
   });
 });
 

@@ -17,7 +17,6 @@ import {
   type Mode,
 } from '../shared/modes';
 import { SYNOPSIS_GUESSES, SYNOPSIS_MAX_SENTENCES } from '../shared/synopsis';
-import { BetaBadge } from './BetaBadge';
 import { fmtNumber } from './format';
 import { CloseIcon } from './icons';
 import { SCORING_RULES } from './scoring';
@@ -143,33 +142,40 @@ export function HowToPlay({ mode }: { mode: Mode }) {
         <div className="confirm-box">
           <div className="help-head">
             <h2 id={`how-to-${mode}`}>
-              How to play {MODE_LABELS[mode]} <BetaBadge mode={mode} />
+              {/* A plain label: a tooltip's bubble opens above the heading, off the window's top when the box is tall; the note below says what beta means. */}
+              How to play {MODE_LABELS[mode]} {isBetaMode(mode) && <span className="beta-badge">Beta</span>}
             </h2>
             <button className="icon-button" onClick={() => dialog.current?.close()} aria-label="Close">
               <CloseIcon />
             </button>
           </div>
-          <ol className="help-rules">
-            {rules.map((rule, i) => (
-              <li key={i}>{rule}</li>
-            ))}
-          </ol>
-          <section className="help-scoring">
-            <h3>
-              How scoring works · max {fmtNumber(MODE_MAX_POINTS[mode])} pts
-            </h3>
-            <ul>
-              {SCORING_RULES[mode].map((rule, i) => (
-                <li key={i}>{rule}</li>
+          {/* The rules scroll here, between the fixed heading and Got it: the box itself does not scroll, so Got it's burst may leave it. */}
+          <div className="help-body">
+            <ol className="help-rules">
+              {rules.map((rule, i) => (
+                // One grid cell beside the number: bare text and inline tags (<b>, chips) would each take a cell of their own.
+                <li key={i}>
+                  <span>{rule}</span>
+                </li>
               ))}
-            </ul>
-            {!isBetaMode(mode) && <p className="muted small">All five daily puzzles together: {fmtNumber(DAILY_MAX_POINTS)} pts.</p>}
-          </section>
-          <p className="muted small">
-            {isBetaMode(mode)
-              ? 'This mode is in beta: play it from Beta modes. It does not count for the daily total or the leaderboard yet.'
-              : 'The daily puzzle is the same for everyone and changes at 00:00 UTC+7.'}
-          </p>
+            </ol>
+            <section className="help-scoring">
+              <h3>
+                How scoring works · max {fmtNumber(MODE_MAX_POINTS[mode])} pts
+              </h3>
+              <ul>
+                {SCORING_RULES[mode].map((rule, i) => (
+                  <li key={i}>{rule}</li>
+                ))}
+              </ul>
+              {!isBetaMode(mode) && <p className="muted small">All five daily puzzles together: {fmtNumber(DAILY_MAX_POINTS)} pts.</p>}
+            </section>
+            <p className="muted small">
+              {isBetaMode(mode)
+                ? 'This mode is in beta: play it from Beta modes. It does not count for the daily total or the leaderboard yet.'
+                : 'The daily puzzle is the same for everyone and changes at 00:00 UTC+7.'}
+            </p>
+          </div>
           <div className="actions">
             <sakuga-button ref={gotIt} onClick={() => dialog.current?.close()}>
               Got it

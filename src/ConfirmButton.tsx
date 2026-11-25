@@ -2,13 +2,13 @@ import { useRef, type ReactNode } from 'react';
 import { useButtonReaction } from './sakuga';
 
 /**
- * The Sakuga button for one of the app's button class lists: `primary` (or `danger-fill`, red) is a primary
- * button, anything else a secondary one; `danger` makes it red, `small` smaller.
+ * The Sakuga button for one of the app's button class lists: `primary` is a primary button, anything else a
+ * secondary one; `danger` makes it red, `small` smaller.
  */
 export function buttonLook(className: string): { primary: boolean; className: string | undefined } {
   const classes = className.split(/\s+/);
-  const look = [(classes.includes('danger') || classes.includes('danger-fill')) && 'danger', classes.includes('small') && 'small'].filter(Boolean).join(' ');
-  return { primary: classes.includes('primary') || classes.includes('danger-fill'), className: look || undefined };
+  const look = [classes.includes('danger') && 'danger', classes.includes('small') && 'small'].filter(Boolean).join(' ');
+  return { primary: classes.includes('primary'), className: look || undefined };
 }
 
 /**

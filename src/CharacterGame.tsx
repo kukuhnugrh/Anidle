@@ -5,7 +5,7 @@ import { api, errorMessage, type CharacterPick, type CharacterState } from './ap
 import { CharacterSummary } from './AnswerSummary';
 import { ConfirmButton } from './ConfirmButton';
 import { fmtDate, fmtNumber } from './format';
-import { RoundTabs } from './GameParts';
+import { RoundTabs, type RoundMark } from './GameParts';
 import { CharacterInput, GuessInput } from './GuessInput';
 import { HowToPlay } from './HowToPlay';
 import { RoundTitle } from './RoundTitle';
@@ -13,6 +13,13 @@ import { characterShareText, ShareButton } from './share';
 
 type Slot = CharacterState['rounds'][number]['slots'][number];
 type Field = Slot['name'] | Slot['anime'];
+
+/** A guessed round's tab: ✓ when every name and anime was right, ✗ when none was, no mark for a part-right round. */
+export function characterRoundMark(round: { finished: boolean; slots: ReadonlyArray<{ name: { solved: boolean }; anime: { solved: boolean } }> }): RoundMark {
+  if (!round.finished) return null;
+  const right = round.slots.flatMap((s) => [s.name.solved, s.anime.solved]);
+  return right.every(Boolean) ? 'won' : right.some(Boolean) ? null : 'lost';
+}
 
 /** An open field: its label and picker (a round's fields are all answered by its one Guess). */
 function PickField({ label, children }: { label: string; children: ReactNode }) {
@@ -120,7 +127,7 @@ export function CharacterGame({ puzzle, onChange, onNewUnlimited }: { puzzle: Ch
             one Guess per round, an empty field counts as wrong. Each right field is worth {fmtNumber(round.fieldPoints)} pts this round.
           </p>
         </div>
-        <RoundTabs marks={puzzle.rounds.map((r) => (r.finished ? 'won' : null))} current={puzzle.current} view={view} onView={setView} />
+        <RoundTabs marks={puzzle.rounds.map(characterRoundMark)} current={puzzle.current} view={view} onView={setView} />
       </header>
 
       <RoundTitle round={view} difficulties={round.difficulties} />

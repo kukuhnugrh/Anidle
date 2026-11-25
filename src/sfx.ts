@@ -175,7 +175,7 @@ export function playSfx(name: SfxName) {
 // ------------------------------------------------------------------ which control makes which sound
 
 /** The Sakuga tags that make a sound of their own (the toast's is played by whoever shows it). */
-const SOUNDING = 'sakuga-button, sakuga-tabs, sakuga-slider, sakuga-toggle, sakuga-radio, sakuga-checkbox, sakuga-tooltip';
+const SOUNDING = 'sakuga-button, sakuga-tabs, sakuga-slider, sakuga-toggle, sakuga-tooltip';
 
 interface Control {
   localName: string;
@@ -187,7 +187,7 @@ interface Control {
 /**
  * The sound an event on a Sakuga control makes, or null: a button's click (ドン, カチッ for a secondary one),
  * a tab or a slider settling (シュッ, on change: a tab picked, a slider let go), a toggle flipped (ポン up or down),
- * a radio picked (ポン), a checkbox ticked (ズザッ) or cleared (カチッ), a tooltip's "?" pressed (カチッ).
+ * a tooltip's "?" pressed (カチッ).
  * Text fields stay quiet: a sound per key would be noise.
  */
 export function soundFor(type: string, el: Control): SfxName | null {
@@ -200,10 +200,6 @@ export function soundFor(type: string, el: Control): SfxName | null {
       return type === 'change' ? 'shu' : null;
     case 'sakuga-toggle':
       return type === 'change' ? (el.checked ? 'pon' : 'pon-off') : null;
-    case 'sakuga-radio':
-      return type === 'change' ? 'pon' : null;
-    case 'sakuga-checkbox':
-      return type === 'change' ? (el.checked ? 'zuza' : 'kachi') : null;
     case 'sakuga-tooltip':
       return type === 'click' ? 'kachi' : null;
     default:

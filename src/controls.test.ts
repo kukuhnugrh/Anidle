@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { characterRoundMark } from './CharacterGame';
 import { buttonLook } from './ConfirmButton';
 import { roundTabOptions } from './GameParts';
 
@@ -21,10 +22,23 @@ describe('roundTabOptions', () => {
   });
 });
 
+describe('characterRoundMark', () => {
+  const slot = (name: boolean, anime: boolean) => ({ name: { solved: name }, anime: { solved: anime } });
+
+  it('ticks a round only when every field was right, crosses one with none right', () => {
+    expect(characterRoundMark({ finished: true, slots: [slot(true, true), slot(true, true)] })).toBe('won');
+    expect(characterRoundMark({ finished: true, slots: [slot(false, false), slot(false, false)] })).toBe('lost');
+  });
+
+  it('leaves a part-right or open round unmarked', () => {
+    expect(characterRoundMark({ finished: true, slots: [slot(true, false), slot(false, false)] })).toBeNull();
+    expect(characterRoundMark({ finished: false, slots: [slot(false, false)] })).toBeNull();
+  });
+});
+
 describe('buttonLook', () => {
   it('maps the app button classes to a Sakuga button', () => {
     expect(buttonLook('primary')).toEqual({ primary: true, className: undefined });
-    expect(buttonLook('danger-fill')).toEqual({ primary: true, className: 'danger' });
     expect(buttonLook('ghost danger')).toEqual({ primary: false, className: 'danger' });
     expect(buttonLook('ghost small')).toEqual({ primary: false, className: 'small' });
     expect(buttonLook('ghost')).toEqual({ primary: false, className: undefined });

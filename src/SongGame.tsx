@@ -371,10 +371,11 @@ export function SongGame({ puzzle, onChange, onNewUnlimited }: { puzzle: SongSta
                 <div className="actions">
                   {!round.clue.opened && (
                     <>
+                      {/* Before its button: its bubble grows rightwards from it, above the button (styles.css), so it fits wherever the row wraps. */}
+                      <sakuga-tooltip className="clue-hint" text="Shows the blurred music video; its sound takes over from the song" label="About the clue" />
                       <sakuga-button variant="secondary" disabled={sending} onClick={(e) => !e.currentTarget.disabled && void send(() => api.roundClue<SongState>(puzzle.id, view))}>
                         Show clue (−{fmtNumber(round.max * (1 - SONG_CLUE_SHARE))} pts)
                       </sakuga-button>
-                      <sakuga-tooltip className="clue-hint" text="Shows the blurred music video; its sound takes over from the song" label="About the clue" />
                     </>
                   )}
                   <ConfirmButton

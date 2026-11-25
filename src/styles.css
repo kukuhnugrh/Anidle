@@ -210,7 +210,7 @@ input:focus-visible, select:focus-visible { outline: none; }
   font-family: var(--dp-typography-display); font-size: 19px; font-weight: 800; line-height: 1; background: var(--dp-color-accent-warm);
 }
 .confirm.help { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
-.help .confirm-box { gap: 14px; }
+.help .confirm-box { gap: 14px; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
 .help-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .help-head h2 { margin: 0; font-size: 24px; }
 .help-rules { list-style: none; counter-reset: rule; margin: 0; padding: 0; display: grid; gap: 12px; }
@@ -302,16 +302,17 @@ input:focus-visible, select:focus-visible { outline: none; }
 }
 /* Sakuga controls draw their outlines in --sk-ink and inherit their text colour: outlines in the line colour
    (black at night), text in the ink colour, like the app's own controls. */
-sakuga-tabs, sakuga-slider, sakuga-toast, sakuga-input, sakuga-tooltip, sakuga-radio, sakuga-checkbox { --sk-ink: var(--line); color: var(--ink); }
+sakuga-tabs, sakuga-slider, sakuga-toast, sakuga-input, sakuga-tooltip { --sk-ink: var(--line); color: var(--ink); }
 /* A primary Sakuga button is filled with the accent, like the app's .primary buttons. */
 sakuga-button:not([variant='secondary']) { --sk-card: var(--accent); --sk-ink: #fff; }
-/* Destructive actions (the app's .danger / .danger-fill): a red fill for a primary one, red text for a secondary one. */
+/* Destructive actions (the app's .danger): a red fill for a primary one, red text for a secondary one. */
 sakuga-button.danger:not([variant='secondary']) { --sk-card: var(--bad-fill); --sk-ink: var(--on-fill); }
 sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 /* Sakuga tabs scroll sideways inside this when wider than the page (inline-size containment: the tabs never
    widen the page); the padding keeps the raised tab, the shadow and the first tab's focus ring. */
 .tab-strip { contain: inline-size; overflow-x: auto; padding: 10px 8px 8px 6px; }
-.board-bar .tab-strip { flex: 1 1 300px; }
+/* The leaderboard's mode tabs take their own row under the date: beside it (with Today shown) they were cut off behind a scrollbar. */
+.board-bar .tab-strip { flex: 1 1 100%; }
 .auth-card .tab-strip { text-align: center; }
 /* ---- Sakuga: game screens (new rules for the game screens go here) */
 /* Round tabs in a game's head: as wide as the tabs, so they wrap under the intro when they don't fit beside it; a
@@ -326,12 +327,25 @@ sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 sakuga-button.small { zoom: .8; }
 /* Synopsis' clue button sits in the stage's grid at its own width. */
 .stage-controls > sakuga-button { justify-self: start; }
-/* The song clue's "?" beside its button, at the row's height: the bubble opens over the guess field above. */
+/* The song clue's "?" before its button, at the row's height: the bubble opens over the guess field above. It grows
+   rightwards from the "?" (its tail on the "?"), over the Show clue button that always follows: centred, it was cut
+   off by the window's edge on phones, where the "?" ends up near either edge of the wrapped row. */
 .clue-hint { margin-top: 0; align-self: center; }
 .clue-hint::part(button) { width: 34px; height: 34px; }
-/* How to play scrolls up and down; Got it's burst layer, wider than the box, must not add a sideways scrollbar
-   (beats the `overflow: auto` of .confirm.help above on specificity). */
-dialog.confirm.help { overflow-x: hidden; }
+.clue-hint::part(tip) { left: -12px; translate: none; transform-origin: 29px 120%; }
+.clue-hint::part(tip)::before, .clue-hint::part(tip)::after { left: 29px; }
+/* A beta mode's Beta badge beside its title. Wide screens: a wider bubble, three lines instead of four, so its top stays
+   inside the window (the title sits close to the top of the page). Phones: a narrower one, so it stays inside the window's
+   sides when the badge wraps to the right end of a long title. */
+.game-head .beta-tip::part(tip) { max-width: 300px; }
+@media (max-width: 900px) {
+  .game-head .beta-tip::part(tip) { max-width: 170px; font-size: 14px; }
+}
+/* How to play: the box itself does not scroll, so Got it's burst layer (wider and taller than the box) may leave it, as in
+   the confirm dialogs, instead of adding scrollbars; the rules scroll between the heading and Got it (beats the
+   `overflow: auto` of .confirm.help above on specificity). Only while open: a closed dialog stays display: none. */
+dialog.confirm.help[open] { overflow: visible; display: flex; flex-direction: column; }
+.help-body { display: grid; gap: 14px; align-content: start; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* Anidle's ↑ / ↓ toward the answer: a tooltip whose button looks like the old pill; its bubble says which way. */
 .anidle-pill { margin-left: 6px; margin-top: 0; vertical-align: 1px; }
 .anidle-pill::part(button) {
@@ -1159,11 +1173,27 @@ canvas.clue-media { filter: none; }
 .date-nav { flex-wrap: wrap; }
 .form-card .start-button { justify-self: start; }
 .start-button .icon { margin-left: 8px; vertical-align: -3px; }
-/* Unlimited's radio groups lay their options out in columns; the picked option's hint sits under the group. */
-sakuga-radio.pick { display: block; font-weight: 600; }
-sakuga-radio.pick::part(group) { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 16px; }
-.pick-hint::first-letter { text-transform: uppercase; }
-.link-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 16px; font-weight: 600; }
+/* Unlimited's pickers (as before the radio/checkbox swap): Mode and Difficulty segmented, Pool and Links option cards. */
+.option-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.option { justify-content: space-between; text-align: left; font-weight: 600; padding: 11px 13px; box-shadow: none; }
+.option:hover:not(:disabled) { box-shadow: var(--shadow-sm); }
+.option.selected { background: var(--dp-color-selection); box-shadow: 3px 3px 0 var(--accent); }
+.option-grid.link-picks { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.link-check { font-weight: 800; color: var(--accent-ink); }
+.lock { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: var(--dp-border-detail-width) solid var(--dp-color-rule-muted); border-radius: 6px; padding: 0 6px; white-space: nowrap; }
+.segmented { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; padding: 6px; background: var(--ground); border: var(--detail); border-radius: 16px; }
+.segmented.modes { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.segmented button { display: grid; gap: 0; padding: 8px 6px; background: transparent; border-color: transparent; box-shadow: none; text-align: center; }
+.segmented button:hover:not(:disabled) { background: var(--panel); border-color: var(--dp-color-rule-muted); box-shadow: none; transform: none; }
+.segmented button span { font-size: 11.5px; font-weight: 500; color: var(--muted); }
+.segmented button.selected { background: var(--accent); border-color: var(--line); color: #fff; box-shadow: var(--shadow-sm); }
+.segmented button.selected span { color: #e7defe; }
+@media (max-width: 760px) {
+  .segmented { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .segmented button:first-child { grid-column: span 2; }
+  .segmented.modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .segmented.modes button:first-child { grid-column: auto; }
+}
 /* Tooltips used inline: no room reserved above (the bubble floats over what is there), a button sized to its content. */
 sakuga-tooltip.beta-tip, sakuga-tooltip.today-tip { margin-top: 0; z-index: 5; }
 .beta-tip::part(button) { width: auto; height: auto; padding: 0; border: 0; border-radius: 999px; background: none; box-shadow: none; font-weight: inherit; }
@@ -1173,3 +1203,8 @@ sakuga-tooltip.beta-tip, sakuga-tooltip.today-tip { margin-top: 0; z-index: 5; }
 .today-tip { position: absolute; right: 16px; top: 50%; translate: 0 calc(-50% - 5px); }
 .today-tip::part(button) { width: 28px; height: 28px; font-size: 14px; box-shadow: 2px 2px 0 var(--line); }
 .today-tip::part(tip) { font-size: 14px; }
+/* Previous / Next on phones: one line each, at the small buttons' size (they wrapped to two lines). */
+@media (max-width: 520px) {
+  .db-paging sakuga-button { zoom: .72; }
+  .db-paging sakuga-button::part(button) { white-space: nowrap; }
+}

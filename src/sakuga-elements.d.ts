@@ -35,15 +35,6 @@ declare global {
     readonly open: boolean;
     show(on?: boolean): void;
   }
-  interface SakugaRadioElement extends HTMLElement {
-    value: string;
-    disabled: boolean;
-  }
-  interface SakugaCheckboxElement extends HTMLElement {
-    checked: boolean;
-    disabled: boolean;
-    readonly value: string;
-  }
   interface HTMLElementTagNameMap {
     'sakuga-button': SakugaButtonElement;
     'sakuga-tabs': SakugaTabsElement;
@@ -52,8 +43,6 @@ declare global {
     'sakuga-toggle': SakugaToggleElement;
     'sakuga-input': SakugaInputElement;
     'sakuga-tooltip': SakugaTooltipElement;
-    'sakuga-radio': SakugaRadioElement;
-    'sakuga-checkbox': SakugaCheckboxElement;
   }
 }
 
@@ -73,8 +62,6 @@ declare module 'react' {
         { type?: 'text' | 'email' | 'search' | 'url' | 'tel' | 'password'; value?: string; placeholder?: string; label?: string; name?: string; autocomplete?: string; disabled?: boolean }
       >;
       'sakuga-tooltip': Props<SakugaTooltipElement, { text?: string; label?: string }>;
-      'sakuga-radio': Props<SakugaRadioElement, { label?: string; value?: string; name?: string; disabled?: boolean }>;
-      'sakuga-checkbox': Props<SakugaCheckboxElement, { checked?: boolean; name?: string; value?: string; disabled?: boolean }>;
     }
   }
 }
