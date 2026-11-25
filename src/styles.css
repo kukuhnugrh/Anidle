@@ -271,11 +271,12 @@ input:focus-visible, select:focus-visible { outline: none; }
 .today-score b { font-family: var(--dp-typography-display); font-size: 19px; font-variant-numeric: tabular-nums; }
 .sidebar-foot { border-top: var(--dp-border-detail-width) dashed var(--dp-color-rule-muted); padding-top: 12px; }
 .account-row { display: flex; align-items: center; gap: 4px; }
-/* Night mode switch. Its margins are the measured extent of its 43 drawn frames around the 108×54 switch
+/* Night mode switch, drawn at half size (zoom scales the switch, its drawing and these margins together: 54×27
+   on screen). The margins are the measured extent of its 43 drawn frames around the full 108×54 switch
    (crown 81px above, splashes 15px left and 19px right, 9px below), so the whole flip shows inside them. */
 .theme-row { display: flex; align-items: flex-end; justify-content: space-between; padding-left: 4px; font-weight: 650; white-space: nowrap; }
-.theme-row > span { line-height: 54px; margin-bottom: 9px; }
-.theme-row sakuga-toggle { margin: 81px 19px 9px 15px; }
+.theme-row > span { line-height: 27px; margin-bottom: 4.5px; }
+.theme-row sakuga-toggle { zoom: 0.5; margin: 81px 19px 9px 15px; }
 .account-chip { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius-sm); border: var(--dp-border-detail-width) solid transparent; color: var(--ink); font-weight: 500; }
 .account-chip:hover, .account-chip.active { text-decoration: none; background: var(--dp-color-selection); border-color: var(--line); }
 .account-text { display: grid; min-width: 0; line-height: 1.3; }
