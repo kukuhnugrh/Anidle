@@ -305,14 +305,19 @@ input:focus-visible, select:focus-visible { outline: none; }
 }
 /* Sakuga controls draw their outlines in --sk-ink and inherit their text colour: outlines in the line colour
    (black at night), text in the ink colour, like the app's own controls. */
-sakuga-tabs, sakuga-slider, sakuga-toast { --sk-ink: var(--line); color: var(--ink); }
+sakuga-tabs, sakuga-slider, sakuga-toast, sakuga-input, sakuga-tooltip, sakuga-radio, sakuga-checkbox { --sk-ink: var(--line); color: var(--ink); }
 /* A primary Sakuga button is filled with the accent, like the app's .primary buttons. */
 sakuga-button:not([variant='secondary']) { --sk-card: var(--accent); --sk-ink: #fff; }
+/* Destructive actions (the app's .danger / .danger-fill): a red fill for a primary one, red text for a secondary one. */
+sakuga-button.danger:not([variant='secondary']) { --sk-card: var(--bad-fill); --sk-ink: var(--on-fill); }
+sakuga-button.danger[variant='secondary'] { --sk-ink: var(--bad); }
 /* Sakuga tabs scroll sideways inside this when wider than the page (inline-size containment: the tabs never
    widen the page); the padding keeps the raised tab, the shadow and the first tab's focus ring. */
 .tab-strip { contain: inline-size; overflow-x: auto; padding: 10px 8px 8px 6px; }
 .board-bar .tab-strip { flex: 1 1 300px; }
 .auth-card .tab-strip { text-align: center; }
+/* ---- Sakuga: game screens (new rules for the game screens go here) */
+
 
 /* ------------------------------------------------------------------ page building blocks */
 .stack { display: grid; gap: 24px; }
@@ -1151,3 +1156,5 @@ canvas.clue-media { filter: none; }
   button:hover:not(:disabled), .button:hover, button:active:not(:disabled), .button:active,
   .mode-card:hover, .tile:hover, .db-card:hover, .char-portrait-button:hover:not(:disabled) { transform: none; }
 }
+
+/* ------------------------------------------------------------------ Sakuga: other pages (new rules for the non-game pages go here) */

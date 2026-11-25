@@ -1,5 +1,5 @@
 // React glue for the Sakuga VFX components (element types in sakuga-elements.d.ts, sounds in sfx.ts).
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type JSX, type RefObject } from 'react';
 import { playSfx } from './sfx';
 
 /**
@@ -108,4 +108,31 @@ function TabStrip<V extends string>({ label, options, value, onChange }: TabsPro
       </sakuga-tabs>
     </div>
   );
+}
+
+type TextFieldProps = Omit<JSX.IntrinsicElements['sakuga-input'], 'ref' | 'value' | 'onChange' | 'onInput'> & {
+  value: string;
+  /** Every edit, with the field's new text. */
+  onValue: (value: string) => void;
+  /** Focuses the field once it is on the page (React's autoFocus only covers built-in fields). */
+  autoFocus?: boolean;
+  ref?: RefObject<SakugaInputElement | null>;
+};
+
+/**
+ * A <sakuga-input> kept in step with React state. The text is written into the field only when it differs, so
+ * typing is never reset mid-word. Keys (onKeyDown) and focus reach the host as usual: the field delegates focus.
+ */
+export function TextField({ value, onValue, autoFocus = false, ref: outer, ...rest }: TextFieldProps) {
+  const own = useRef<SakugaInputElement>(null);
+  const ref = outer ?? own;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && el.value !== value) el.value = value;
+  }, [ref, value]);
+  useEffect(() => {
+    if (autoFocus) ref.current?.focus();
+  }, [ref, autoFocus]);
+  useElementEvent(ref, 'input', (el) => onValue(el.value));
+  return <sakuga-input ref={ref} {...rest} />;
 }
