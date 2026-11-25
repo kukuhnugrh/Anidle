@@ -52,9 +52,8 @@ export function useButtonReaction() {
       hold(DONE_MS);
       button.done();
       playSfx('kira');
-      const { promise, resolve } = Promise.withResolvers<void>();
-      setTimeout(resolve, LAND_BEAT_MS);
-      return promise;
+      // Not Promise.withResolvers: it is missing before Safari 17.4, and a throw here turns a right answer into an error.
+      return new Promise<void>((resolve) => setTimeout(resolve, LAND_BEAT_MS));
     },
     [hold],
   );
