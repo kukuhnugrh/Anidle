@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Account } from './api';
+import type { Account, TodayScore } from './api';
+import { fmtNumber } from './format';
 import { ListIcon, LogoutIcon, SettingsIcon, ShieldIcon, UserIcon } from './icons';
 import type { Route } from './route';
 import { useElementEvent } from './sakuga';
@@ -42,10 +43,22 @@ export function Avatar({ account }: { account: Account }) {
 }
 
 /**
- * The bar over every page: the brand (to Home) on the left; settings and the account on the right, each a
- * native popover (light dismiss and Escape for free) that closes again on in-app navigation.
+ * The bar over every page: the brand (to Home) on the left; today's score, settings and the account on the right,
+ * the last two each a native popover (light dismiss and Escape for free) that closes again on in-app navigation.
  */
-export function TopBar({ route, account, admin, onLogout }: { route: Route; account: Account | null; admin: boolean; onLogout: () => void }) {
+export function TopBar({
+  route,
+  account,
+  admin,
+  today,
+  onLogout,
+}: {
+  route: Route;
+  account: Account | null;
+  admin: boolean;
+  today: TodayScore | null;
+  onLogout: () => void;
+}) {
   const settings = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   // The volume slider draws its effects on a canvas even while hidden (at the page's corner), so it only
@@ -61,6 +74,13 @@ export function TopBar({ route, account, admin, onLogout }: { route: Route; acco
       <div className="topbar-inner">
         <Brand />
         <div className="topbar-actions">
+          {today && (
+            <a className="today-chip" href="/" title="Points from today's five daily puzzles">
+              <span className="today-label">Today</span>
+              <b>{fmtNumber(today.score)}</b>
+              <span className="today-max">/ {fmtNumber(today.max)}</span>
+            </a>
+          )}
           <button className="icon-button topbar-button" popoverTarget="settings-panel" aria-label="Settings" title="Settings">
             <SettingsIcon />
           </button>
