@@ -202,13 +202,15 @@ input:focus-visible, select:focus-visible { outline: none; }
 .confirm-box p { margin: 0; }
 .confirm-box .actions { justify-content: flex-end; margin-top: 10px; }
 
-/* How to play: the "?" beside a mode's title and its dialog */
+/* How to play: the "?" beside a mode's title (a Sakuga tooltip, in the old pill's size and yellow) and its dialog */
 .title-row { display: flex; align-items: center; gap: 12px; }
 .title-row h1 { margin: 0; }
-.help-button {
-  width: 36px; height: 36px; padding: 0; flex: none; border-radius: 50%; border-width: var(--dp-border-outline-width);
-  font-family: var(--dp-typography-display); font-size: 19px; font-weight: 800; line-height: 1; background: var(--dp-color-accent-warm);
+sakuga-tooltip.help-tip { margin-top: 0; flex: none; }
+.help-tip::part(button) {
+  width: 36px; height: 36px; background: var(--dp-color-accent-warm); color: var(--on-fill); box-shadow: 3px 3px 0 var(--line);
+  font-family: var(--dp-typography-display); font-size: 19px; line-height: 1;
 }
+.help-tip::part(tip) { min-width: 0; font-size: 14px; white-space: nowrap; }
 .confirm.help { width: min(580px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
 .help .confirm-box { gap: 14px; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
 .help-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -1010,7 +1012,7 @@ canvas.clue-media { filter: none; }
 .show-entries { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
 
 /* Light accent fills keep dark text in night mode too (the page ink turns light there). */
-.help-button, .help-rules li::before, .nav-score, .book-tab, .mode-status.won,
+.help-rules li::before, .nav-score, .book-tab, .mode-status.won,
 .chip.hit, .char-field.ok, .clue-tab.locked:not(:disabled),
 .board-row.top1 .board-rank, .board-row.top2 .board-rank, .board-row.top3 .board-rank,
 .admin-status.ok, .admin-status.broken, .admin-status.rejected, .db-chips button.chip:hover:not(:disabled) { color: var(--on-fill); }

@@ -119,24 +119,26 @@ const HOW_TO: Record<Mode, ReactNode[]> = {
   ],
 };
 
-/** The "?" next to a mode's title: opens its rules in an in-app dialog (Escape, the close button, or a click beside it closes). */
+/**
+ * The "?" next to a mode's title, a Sakuga tooltip ("How to play" bubbles out on hover or focus): a click opens its rules
+ * in an in-app dialog (Escape, the close button, or a click beside it closes). Opening moves focus into the dialog,
+ * which closes the bubble.
+ */
 export function HowToPlay({ mode }: { mode: Mode }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const gotIt = useRef<SakugaButtonElement>(null);
   const rules = HOW_TO[mode];
   return (
     <>
-      <button
-        className="help-button"
+      <sakuga-tooltip
+        className="help-tip"
+        text="How to play"
+        label={`How to play ${MODE_LABELS[mode]}`}
         onClick={() => {
           dialog.current?.showModal();
           gotIt.current?.focus();
         }}
-        aria-label={`How to play ${MODE_LABELS[mode]}`}
-        title="How to play"
-      >
-        ?
-      </button>
+      />
       {/* The box fills the <dialog>, so a click on the element itself landed on the backdrop. */}
       <dialog ref={dialog} className="confirm help" aria-labelledby={`how-to-${mode}`} onClick={(e) => e.target === dialog.current && dialog.current.close()}>
         <div className="confirm-box">
