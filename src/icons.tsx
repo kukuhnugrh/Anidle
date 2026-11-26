@@ -9,21 +9,6 @@ function Icon({ children }: { children: ReactNode }) {
   );
 }
 
-export const HomeIcon = () => (
-  <Icon>
-    <path d="M3 10.5 12 3l9 7.5" />
-    <path d="M5 9.5V20h5v-6h4v6h5V9.5" />
-  </Icon>
-);
-
-export const CalendarIcon = () => (
-  <Icon>
-    <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
-    <path d="M3.5 10h17M8 3v4M16 3v4" />
-    <path d="M8.5 14.5h3" />
-  </Icon>
-);
-
 export const ShuffleIcon = () => (
   <Icon>
     <path d="M16 4h4v4M4 20 20 4M20 16v4h-4M15 15l5 5M4 4l5 5" />
@@ -50,12 +35,6 @@ export const LogoutIcon = () => (
   <Icon>
     <path d="M15 4h3.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H15" />
     <path d="M10 8l-4 4 4 4M6 12h10" />
-  </Icon>
-);
-
-export const MenuIcon = () => (
-  <Icon>
-    <path d="M4 7h16M4 12h16M4 17h16" />
   </Icon>
 );
 
@@ -181,6 +160,15 @@ export const ListIcon = () => (
     <circle cx="4.75" cy="6.5" r="1.25" />
     <circle cx="4.75" cy="12" r="1.25" />
     <circle cx="4.75" cy="17.5" r="1.25" />
+  </Icon>
+);
+
+/** Settings: two sliders. */
+export const SettingsIcon = () => (
+  <Icon>
+    <path d="M4 7.5h8.5M17.5 7.5H20M4 16.5h2.5M11.5 16.5H20" />
+    <circle cx="15" cy="7.5" r="2.5" />
+    <circle cx="9" cy="16.5" r="2.5" />
   </Icon>
 );
 

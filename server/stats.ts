@@ -1,5 +1,5 @@
 import { linkLabel } from '../shared/connections.js';
-import { DAILY_MAX_POINTS, DAILY_MODES, PERFECT_SOLVED, todayUtc7, type DailyMode, type Mode } from '../shared/modes.js';
+import { DAILY_MODES, PERFECT_SOLVED, todayUtc7, type DailyMode, type Mode } from '../shared/modes.js';
 import { all } from './db.js';
 
 /** Anidle guesses (play.guesses is number[] there). The round modes report rounds solved instead, so this is unused for them. */
@@ -12,23 +12,6 @@ function attemptCount(guesses: string): number {
  * Replaying an earlier day from the archive is just for fun: it stays out of leaderboards, streaks and stats.
  */
 const ON_THE_DAY = "substr(datetime(g.finished_at, '+7 hours'), 1, 10) = p.date";
-
-export interface TodayScore {
-  score: number;
-  max: number;
-  /** Points per mode for today's finished daily puzzles; a mode not finished yet is absent. */
-  modes: Partial<Record<DailyMode, number>>;
-}
-
-/** The player's points over today's daily puzzles (out of DAILY_MAX_POINTS), in total and per mode. */
-export async function todayScore(playerKey: string): Promise<TodayScore> {
-  const rows = await all<{ mode: Mode; score: number | null }>(
-    'SELECT p.mode, g.score FROM play g JOIN puzzle p ON p.id = g.puzzle_id WHERE g.username = ? AND p.date = ? AND g.finished_at IS NOT NULL',
-    [playerKey, todayUtc7()],
-  );
-  const modes = Object.fromEntries(rows.map((r) => [r.mode, Number(r.score ?? 0)]));
-  return { score: rows.reduce((sum, r) => sum + Number(r.score ?? 0), 0), max: DAILY_MAX_POINTS, modes };
-}
 
 export interface LeaderboardEntry {
   username: string;

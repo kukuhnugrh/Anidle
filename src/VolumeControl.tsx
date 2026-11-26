@@ -1,31 +1,15 @@
-import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState } from 'react';
 import { MuteIcon, SfxIcon, SfxOffIcon, VolumeIcon, VolumeLowIcon } from './icons';
 import { useElementEvent } from './sakuga';
 import { setSfxOn, useSfxOn } from './sfx';
 import { setVolume, useVolume } from './volume';
 
-/** The layout's breakpoint (styles.css): the sidebar folds into a drawer and the volume moves to the top bar. */
-const NARROW = '(max-width: 900px)';
-
-function useNarrow() {
-  const subscribe = useCallback((onChange: () => void) => {
-    const query = matchMedia(NARROW);
-    query.addEventListener('change', onChange);
-    return () => query.removeEventListener('change', onChange);
-  }, []);
-  return useSyncExternalStore(subscribe, () => matchMedia(NARROW).matches);
-}
-
 /**
  * Mute button and slider for the site-wide song volume (see volume.ts), and the sound-effects switch
- * (sfx.ts). Rendered only in the layout `on` names: a hidden slider would still draw its effects, at the
- * page's corner.
+ * (sfx.ts). Shown in the top bar's settings panel, only while it is open: a hidden slider would still
+ * draw its effects, at the page's corner.
  */
-export function VolumeControl({ className = '', on }: { className?: string; on: 'wide' | 'narrow' }) {
-  return useNarrow() === (on === 'narrow') ? <Volume className={className} /> : null;
-}
-
-function Volume({ className }: { className: string }) {
+export function Volume() {
   const { level, muted } = useVolume();
   const sfxOn = useSfxOn();
   // The mute button makes the value jump; a slider following it would throw its fast-drag clouds. A new
@@ -34,7 +18,7 @@ function Volume({ className }: { className: string }) {
   const silent = muted || level === 0;
   const pct = Math.round(level * 100);
   return (
-    <div className={`volume ${className}`} title={`Song volume: ${silent ? 'Muted' : `${pct}%`}`}>
+    <div className="volume" title={`Song volume: ${silent ? 'Muted' : `${pct}%`}`}>
       <button
         className="icon-button"
         onClick={() => {

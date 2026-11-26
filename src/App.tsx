@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
-import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type TodayScore } from './api';
+import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } from './api';
 import { isBetaMode, type DailyMode, type Mode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
 import { ConnectionsGame } from './ConnectionsGame';
@@ -20,13 +20,11 @@ import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
 import { Home } from './Home';
 import { MalListPage } from './MalList';
-import { MenuIcon } from './icons';
 import { DayBar, UnlimitedBar } from './ModeBar';
 import { go, readRoute } from './route';
 import { installSfx } from './sfx';
-import { Brand, Sidebar } from './Sidebar';
+import { TopBar } from './TopBar';
 import { Unlimited } from './Unlimited';
-import { VolumeControl } from './VolumeControl';
 import { syncPageAudio } from './volume';
 
 /** Elements showing a blurred clue (styles.css also turns off long-press menus and selection on them). */
@@ -64,21 +62,18 @@ function inAppLink(e: MouseEvent): string | null {
 export function App() {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [admin, setAdmin] = useState(false);
-  const [today, setToday] = useState<TodayScore | null>(null);
   const [route, setRoute] = useState(readRoute);
   const [notice] = useState(takeRedirectNotice);
-  const [navOpen, setNavOpen] = useState(false);
-  // Whether the unlimited puzzle on screen is a beta mode (null until it loads): its back link and sidebar entry.
+  // Whether the unlimited puzzle on screen is a beta mode (null until it loads): its back link.
   const [playBeta, setPlayBeta] = useState<boolean | null>(null);
 
-  // The admin flag follows the session, so it is re-read after logging in; today's score after every finished puzzle.
+  // The admin flag follows the session, so it is re-read after logging in and out.
   const refreshMe = useCallback(
     () =>
       api.me().then(
         (r) => {
           setAccount(r.account);
           setAdmin(r.admin);
-          setToday(r.today);
         },
         () => setAccount(null),
       ),
@@ -90,7 +85,6 @@ export function App() {
     const onNavigate = () => {
       setRoute(readRoute());
       setPlayBeta(null);
-      setNavOpen(false);
       scrollTo({ top: 0 });
     };
     const onClick = (e: MouseEvent) => {
@@ -99,7 +93,6 @@ export function App() {
       e.preventDefault();
       go(href);
     };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setNavOpen(false);
     // Clue posters and videos: no "Open image/video in new tab" or drag to a new tab, where the
     // sharp file would show. Best effort: the URL still shows in the browser's developer tools.
     const onProtected = (e: Event) => e.target instanceof Element && e.target.closest(PROTECTED_MEDIA) && e.preventDefault();
@@ -107,13 +100,11 @@ export function App() {
     document.addEventListener('click', onClick);
     document.addEventListener('contextmenu', onProtected);
     document.addEventListener('dragstart', onProtected);
-    addEventListener('keydown', onKey);
     return () => {
       removeEventListener('popstate', onNavigate);
       document.removeEventListener('click', onClick);
       document.removeEventListener('contextmenu', onProtected);
       document.removeEventListener('dragstart', onProtected);
-      removeEventListener('keydown', onKey);
     };
   }, [refreshMe]);
   // Database and admin song players follow the site-wide volume (the games' players are detached, see volume.ts).
@@ -130,14 +121,10 @@ export function App() {
 
   return (
     <div className="shell">
-      <Sidebar
+      <TopBar
         route={route}
-        playBeta={playBeta === true}
         account={account}
-        today={today}
         admin={admin}
-        open={navOpen}
-        onClose={() => setNavOpen(false)}
         onLogout={() =>
           api.logout().then(() => {
             setAccount(null);
@@ -147,51 +134,42 @@ export function App() {
           })
         }
       />
-      <div className="content">
-        <header className="mobile-bar">
-          <button className="icon-button" onClick={() => setNavOpen(true)} aria-label="Open menu">
-            <MenuIcon />
-          </button>
-          <Brand />
-          <VolumeControl className="mobile-volume" on="narrow" />
-        </header>
-        <main className="page">
-          <ErrorBoundary key={JSON.stringify(route)}>
-            {route.view === 'home' && <Home account={account} />}
-            {route.view === 'daily' && (
-              <>
-                <DayBar mode={route.mode} date={route.date} />
-                <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshMe} />
-              </>
-            )}
-            {route.view === 'play' && (
-              <>
-                {playBeta !== null && <UnlimitedBar beta={playBeta} />}
-                <PuzzleLoader key={route.id} id={route.id} onFinished={refreshMe} onLoaded={(mode) => setPlayBeta(isBetaMode(mode))} />
-              </>
-            )}
-            {route.view === 'unlimited' && <Unlimited key="unlimited" account={account} page="unlimited" />}
-            {route.view === 'beta' && <Unlimited key="beta" account={account} page="beta" />}
-            {route.view === 'database' && <Database />}
-            {route.view === 'anime' && <AnimeDetail key={route.id} id={route.id} />}
-            {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
-            {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
-            {route.view === 'history' && <HistoryPage account={account} />}
-            {route.view === 'mylist' && <MalListPage account={account} />}
-            {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
-            {route.view === 'auth' && (
-              <AuthPage
-                notice={notice}
-                onDone={(a) => {
-                  setAccount(a);
-                  void refreshMe();
-                  go('/');
-                }}
-              />
-            )}
-          </ErrorBoundary>
-        </main>
-      </div>
+      <main className="page">
+        <ErrorBoundary key={JSON.stringify(route)}>
+          {route.view === 'home' && <Home />}
+          {route.view === 'daily' && (
+            <>
+              <DayBar mode={route.mode} date={route.date} />
+              <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} />
+            </>
+          )}
+          {route.view === 'play' && (
+            <>
+              {playBeta !== null && <UnlimitedBar beta={playBeta} />}
+              <PuzzleLoader key={route.id} id={route.id} onLoaded={(mode) => setPlayBeta(isBetaMode(mode))} />
+            </>
+          )}
+          {route.view === 'unlimited' && <Unlimited key="unlimited" account={account} page="unlimited" />}
+          {route.view === 'beta' && <Unlimited key="beta" account={account} page="beta" />}
+          {route.view === 'database' && <Database />}
+          {route.view === 'anime' && <AnimeDetail key={route.id} id={route.id} />}
+          {route.view === 'account' && <AccountPage account={account} onAccount={setAccount} initialNotice={notice} />}
+          {route.view === 'leaderboard' && <LeaderboardPage account={account} />}
+          {route.view === 'history' && <HistoryPage account={account} />}
+          {route.view === 'mylist' && <MalListPage account={account} />}
+          {route.view === 'admin' && (admin ? <AdminPage /> : <div className="error-box">This page is for admins only.</div>)}
+          {route.view === 'auth' && (
+            <AuthPage
+              notice={notice}
+              onDone={(a) => {
+                setAccount(a);
+                void refreshMe();
+                go('/');
+              }}
+            />
+          )}
+        </ErrorBoundary>
+      </main>
     </div>
   );
 }
@@ -200,7 +178,7 @@ export function App() {
  * A mode's daily puzzle (today, or `date` from the archive), or the puzzle `id` (unlimited, resumable after reload because the id is in the URL).
  * `onLoaded` hears the puzzle's mode once it is known.
  */
-function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onFinished: () => void; onLoaded?: (mode: Mode) => void }) {
+function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onLoaded?: (mode: Mode) => void }) {
   const [puzzle, setPuzzle] = useState<PuzzleState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const source = 'id' in props ? props.id : `${props.daily}:${props.date}`;
@@ -215,15 +193,6 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
   useEffect(() => {
     if (mode) props.onLoaded?.(mode);
   }, [mode]);
-  // A finished daily puzzle changes today's score in the sidebar.
-  const { onFinished } = props;
-  const change = useCallback(
-    (p: PuzzleState) => {
-      setPuzzle(p);
-      if (p.finished) onFinished();
-    },
-    [onFinished],
-  );
 
   if (error)
     return (
@@ -242,13 +211,13 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
     );
   // "Play unlimited" after a game keeps the last unlimited filters but stays in this mode.
   const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`/play/${p.id}`));
-  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'connections') return <ConnectionsGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'synopsis') return <SynopsisGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'higherlower') return <HigherLowerGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'oddoneout') return <OddOneOutGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'timeline') return <TimelineGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
-  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'connections') return <ConnectionsGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'synopsis') return <SynopsisGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'higherlower') return <HigherLowerGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'oddoneout') return <OddOneOutGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'timeline') return <TimelineGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
 }
