@@ -1,10 +1,10 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { ANIDLE_MAX_GUESSES } from '../shared/catalog';
 import { DAILY_MAX_POINTS, DAILY_MODES, DAILY_UTC_OFFSET_MS, MODE_LABELS, todayUtc7, type DailyMode } from '../shared/modes';
-import { api, type Account, type DailyPuzzleState } from './api';
+import { api, type DailyPuzzleState } from './api';
 import { DatePicker } from './DatePicker';
 import { fmtDate, fmtNumber } from './format';
-import { ArrowIcon, DatabaseIcon, DiscIcon, FlaskIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, UserIcon, UsersIcon } from './icons';
+import { ArrowIcon, ClockIcon, DatabaseIcon, DiscIcon, FlaskIcon, ImageIcon, MusicIcon, PuzzleIcon, ShuffleIcon, TrophyIcon, UsersIcon } from './icons';
 import { archiveDate, dailyHref } from './route';
 import { ScoringGuide } from './scoring';
 
@@ -30,6 +30,25 @@ const MODE_CARDS: Record<DailyMode, { Icon: ComponentType; text: string }> = {
   character: { Icon: UsersIcon, text: '3 rounds of 4 characters from different anime. Pick each name and anime, then one Guess.' },
   screenshot: { Icon: ImageIcon, text: '3 rounds, one screenshot from an opening or ending. Unlock two more screenshots and a title hint if you need them.' },
 };
+
+/** Everything past the daily puzzles; Home is the only place that links them all (the top bar holds settings and the account). */
+const MORE: { title: string; links: { href: string; label: string; Icon: ComponentType; text: string; isNew?: boolean }[] }[] = [
+  {
+    title: 'Free play',
+    links: [
+      { href: '/unlimited', label: 'Unlimited', Icon: ShuffleIcon, text: 'As many random puzzles as you like in any daily mode. Set the pool, genre, and difficulty.' },
+      { href: '/beta', label: 'Beta modes', Icon: FlaskIcon, text: 'New modes in testing: Connections, Synopsis, Higher or Lower, Odd One Out, Timeline.', isNew: true },
+      { href: '/database', label: 'Database', Icon: DatabaseIcon, text: 'Every title that can show up, with genre, studio, and source filters.' },
+    ],
+  },
+  {
+    title: 'Community',
+    links: [
+      { href: '/leaderboard', label: 'Leaderboard', Icon: TrophyIcon, text: 'Daily puzzle scores by date, played on the day itself.' },
+      { href: '/riwayat', label: 'History', Icon: ClockIcon, text: 'Your stats and the puzzles you have finished.' },
+    ],
+  },
+];
 
 /** A daily puzzle that could not load (e.g. the mode's pool is still empty). */
 type DailyResult = DailyPuzzleState | 'unavailable' | null;
@@ -58,7 +77,7 @@ function dailyStatus(p: DailyResult): { cta: string; text: string; won?: boolean
   return { cta: 'Play', text: 'Not played yet' };
 }
 
-export function Home({ account }: { account: Account | null }) {
+export function Home() {
   // null = today; an earlier day replays the archive (`/?date=`).
   const [date, setDate] = useState<string | null>(() => archiveDate(new URLSearchParams(location.search).get('date')));
   const [daily, setDaily] = useState<Record<DailyMode, DailyResult>>({ anidle: null, opening: null, ending: null, character: null, screenshot: null });
@@ -150,42 +169,28 @@ export function Home({ account }: { account: Account | null }) {
         </div>
       </section>
 
-      <div className="tiles">
-        <a className="tile" href="/unlimited">
-          <span className="tile-icon">
-            <ShuffleIcon />
-          </span>
-          <h3>Unlimited</h3>
-          <p className="muted">As many random puzzles as you like in any daily mode. Set the pool, genre, and difficulty.</p>
-        </a>
-        <a className="tile" href="/beta">
-          <span className="tile-icon">
-            <FlaskIcon />
-          </span>
-          <h3>Beta modes</h3>
-          <p className="muted">New modes in testing: Connections, Synopsis, Higher or Lower, Odd One Out, Timeline.</p>
-        </a>
-        <a className="tile" href="/database">
-          <span className="tile-icon">
-            <DatabaseIcon />
-          </span>
-          <h3>Database</h3>
-          <p className="muted">Every title that can show up, with genre, studio, and source filters.</p>
-        </a>
-        <a className="tile" href={account ? '/akun' : '/masuk'}>
-          <span className="tile-icon">
-            <UserIcon />
-          </span>
-          <h3>{account ? 'Account & MAL' : 'Sign in / Sign up'}</h3>
-          <p className="muted">
-            {account?.mal
-              ? `Linked to ${account.mal.username}, ${account.mal.completed} anime completed.`
-              : account
-                ? 'Link MAL to unlock pools from your completed list.'
-                : 'Save progress across devices and unlock pools from your MAL list.'}
-          </p>
-        </a>
-      </div>
+      <section className="book more">
+        <h2 className="book-tab">More</h2>
+        {MORE.map((group) => (
+          <div key={group.title} className="more-group">
+            <span className="field-label">{group.title}</span>
+            <div className="tiles">
+              {group.links.map(({ href, label, Icon, text, isNew }) => (
+                <a key={href} className="tile" href={href}>
+                  <span className="tile-icon">
+                    <Icon />
+                  </span>
+                  <h3>
+                    {label}
+                    {isNew && <span className="beta-badge">New</span>}
+                  </h3>
+                  <p className="muted">{text}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
 
       <ScoringGuide />
     </div>

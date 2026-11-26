@@ -4,7 +4,7 @@ export type Theme = 'dark' | 'light';
 const COOKIE = 'anidle_theme';
 // Browsers cap cookie lifetime at 400 days.
 const MAX_AGE = 400 * 86_400;
-const THEME_COLOR: Record<Theme, string> = { dark: '#161824', light: '#fffdf5' };
+const THEME_COLOR: Record<Theme, string> = { dark: '#111113', light: '#fffdf5' };
 
 export const currentTheme = (): Theme => (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, errorMessage, type Account } from './api';
 import { ConfirmButton } from './ConfirmButton';
 import { useButtonReaction } from './sakuga';
-import { Avatar } from './Sidebar';
+import { Avatar } from './TopBar';
 
 export type Notice = { kind: 'ok' | 'error'; text: string } | null;
 
