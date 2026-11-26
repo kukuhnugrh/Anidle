@@ -51,3 +51,15 @@ export function UnlimitedBar({ beta }: { beta: boolean }) {
     </nav>
   );
 }
+
+/** Above the pages reached from Home (Unlimited, Database, Leaderboard…): back to Home, lined up with a `narrow` page. */
+export function HomeBar({ narrow }: { narrow: boolean }) {
+  return (
+    <nav className={`mode-bar${narrow ? ' narrow' : ''}`} aria-label="Back">
+      <a className="button ghost small back-link" href="/">
+        <BackIcon />
+        Home
+      </a>
+    </nav>
+  );
+}

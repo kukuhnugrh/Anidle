@@ -128,7 +128,7 @@ server/     db (libSQL), env, MAL API + OAuth, session/cookie, enkripsi token, l
 shared/     logika murni + test: aturan pool, normalisasi judul + autocomplete, perbandingan Anidle, franchise
 pipeline/   CLI pengisi database + sources/ (jikan-edge) + rate limiter
 db/         schema.sql
-src/        React app: bar atas (TopBar.tsx: brand, Settings, menu akun), Beranda (Home.tsx, hub ke semua halaman), Anidle.tsx, mode ronde (RoundGame.tsx), Unlimited, Database, Leaderboard, Riwayat (HistoryPage.tsx), Akun & MAL (AccountPage.tsx), Admin (AdminPage.tsx), share.tsx
+src/        React app: bar atas (TopBar.tsx: brand, skor hari ini, Settings, menu akun), Beranda (Home.tsx, hub ke semua halaman; halaman lain punya tombol kembali ke Beranda), Anidle.tsx, mode ronde (RoundGame.tsx), Unlimited, Database, Leaderboard, Riwayat (HistoryPage.tsx), Akun & MAL (AccountPage.tsx), Admin (AdminPage.tsx), share.tsx
 ```
 
 Semua `/api/*` (dan `/oauth/callback`) di-rewrite ke `api/router.ts` oleh `vercel.json`; lokal, plugin di `vite.config.ts` melakukan hal yang sama. Alasannya batas paket Hobby: maksimal 12 Serverless Function per deployment, dan setiap file di `api/` dihitung satu function. Route baru cukup ditambah di `routes/` lalu didaftarkan di `ROUTES` pada `api/router.ts`.

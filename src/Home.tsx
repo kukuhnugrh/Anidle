@@ -32,22 +32,12 @@ const MODE_CARDS: Record<DailyMode, { Icon: ComponentType; text: string }> = {
 };
 
 /** Everything past the daily puzzles; Home is the only place that links them all (the top bar holds settings and the account). */
-const MORE: { title: string; links: { href: string; label: string; Icon: ComponentType; text: string; isNew?: boolean }[] }[] = [
-  {
-    title: 'Free play',
-    links: [
-      { href: '/unlimited', label: 'Unlimited', Icon: ShuffleIcon, text: 'As many random puzzles as you like in any daily mode. Set the pool, genre, and difficulty.' },
-      { href: '/beta', label: 'Beta modes', Icon: FlaskIcon, text: 'New modes in testing: Connections, Synopsis, Higher or Lower, Odd One Out, Timeline.', isNew: true },
-      { href: '/database', label: 'Database', Icon: DatabaseIcon, text: 'Every title that can show up, with genre, studio, and source filters.' },
-    ],
-  },
-  {
-    title: 'Community',
-    links: [
-      { href: '/leaderboard', label: 'Leaderboard', Icon: TrophyIcon, text: 'Daily puzzle scores by date, played on the day itself.' },
-      { href: '/riwayat', label: 'History', Icon: ClockIcon, text: 'Your stats and the puzzles you have finished.' },
-    ],
-  },
+const MORE: { href: string; label: string; Icon: ComponentType; text: string; isNew?: boolean }[] = [
+  { href: '/unlimited', label: 'Unlimited', Icon: ShuffleIcon, text: 'As many random puzzles as you like in any daily mode. Set the pool, genre, and difficulty.' },
+  { href: '/beta', label: 'Beta modes', Icon: FlaskIcon, text: 'New modes in testing: Connections, Synopsis, Higher or Lower, Odd One Out, Timeline.', isNew: true },
+  { href: '/database', label: 'Database', Icon: DatabaseIcon, text: 'Every title that can show up, with genre, studio, and source filters.' },
+  { href: '/leaderboard', label: 'Leaderboard', Icon: TrophyIcon, text: 'Daily puzzle scores by date, played on the day itself.' },
+  { href: '/riwayat', label: 'History', Icon: ClockIcon, text: 'Your stats and the puzzles you have finished.' },
 ];
 
 /** A daily puzzle that could not load (e.g. the mode's pool is still empty). */
@@ -145,7 +135,7 @@ export function Home() {
 
       <section className="book">
         <h2 className="book-tab">Daily puzzles</h2>
-        <div className="daily-grid">
+        <div className="mode-grid">
           {DAILY_MODES.map((mode) => {
             const { Icon, text } = MODE_CARDS[mode];
             const status = dailyStatus(daily[mode]);
@@ -169,27 +159,27 @@ export function Home() {
         </div>
       </section>
 
-      <section className="book more">
+      {/* The same book and cards as the daily puzzles, so both grids line up. */}
+      <section className="book">
         <h2 className="book-tab">More</h2>
-        {MORE.map((group) => (
-          <div key={group.title} className="more-group">
-            <span className="field-label">{group.title}</span>
-            <div className="tiles">
-              {group.links.map(({ href, label, Icon, text, isNew }) => (
-                <a key={href} className="tile" href={href}>
-                  <span className="tile-icon">
-                    <Icon />
-                  </span>
-                  <h3>
-                    {label}
-                    {isNew && <span className="beta-badge">New</span>}
-                  </h3>
-                  <p className="muted">{text}</p>
-                </a>
-              ))}
-            </div>
-          </div>
-        ))}
+        <div className="mode-grid">
+          {MORE.map(({ href, label, Icon, text, isNew }) => (
+            <a key={href} className="mode-card" href={href}>
+              <div className="mode-card-head">
+                <span className="tile-icon">
+                  <Icon />
+                </span>
+                {isNew && <span className="mode-status new">New</span>}
+              </div>
+              <h3>{label}</h3>
+              <p className="muted">{text}</p>
+              <span className="mode-cta">
+                Open
+                <ArrowIcon />
+              </span>
+            </a>
+          ))}
+        </div>
       </section>
 
       <ScoringGuide />

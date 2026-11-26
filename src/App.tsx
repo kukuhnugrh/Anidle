@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AccountPage, type Notice } from './AccountPage';
 import { Anidle } from './Anidle';
-import { api, errorMessage, savedUnlimited, type Account, type PuzzleState } from './api';
+import { api, errorMessage, savedUnlimited, type Account, type PuzzleState, type TodayScore } from './api';
 import { isBetaMode, type DailyMode, type Mode } from '../shared/modes';
 import { CharacterGame } from './CharacterGame';
 import { ConnectionsGame } from './ConnectionsGame';
@@ -20,8 +20,8 @@ import { HistoryPage } from './HistoryPage';
 import { LeaderboardPage } from './Leaderboard';
 import { Home } from './Home';
 import { MalListPage } from './MalList';
-import { DayBar, UnlimitedBar } from './ModeBar';
-import { go, readRoute } from './route';
+import { DayBar, HomeBar, UnlimitedBar } from './ModeBar';
+import { go, readRoute, type View } from './route';
 import { installSfx } from './sfx';
 import { TopBar } from './TopBar';
 import { Unlimited } from './Unlimited';
@@ -29,6 +29,18 @@ import { syncPageAudio } from './volume';
 
 /** Elements showing a blurred clue (styles.css also turns off long-press menus and selection on them). */
 const PROTECTED_MEDIA = '.clue-media, .clue-cover, .clue-frame, .anidle-cover-frame';
+
+/** Pages reached from Home get a back link to it; `true` = a single-column (`narrow`) page the link lines up with. */
+const HOME_BAR: Partial<Record<View, boolean>> = {
+  unlimited: true,
+  beta: true,
+  account: true,
+  database: false,
+  leaderboard: false,
+  history: false,
+  mylist: false,
+  admin: false,
+};
 
 /** One-shot message from the MAL redirect (?mal=linked / ?mal_error=…), then those params are cleaned from the URL. */
 function takeRedirectNotice(): Notice {
@@ -62,6 +74,7 @@ function inAppLink(e: MouseEvent): string | null {
 export function App() {
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
   const [admin, setAdmin] = useState(false);
+  const [today, setToday] = useState<TodayScore | null>(null);
   const [route, setRoute] = useState(readRoute);
   const [notice] = useState(takeRedirectNotice);
   // Whether the unlimited puzzle on screen is a beta mode (null until it loads): its back link.
@@ -74,11 +87,16 @@ export function App() {
         (r) => {
           setAccount(r.account);
           setAdmin(r.admin);
+          setToday(r.today);
         },
         () => setAccount(null),
       ),
     [],
   );
+  // A finished daily puzzle changes today's score. Only the score is taken: if the call fails, the chip keeps its
+  // last value rather than signing the player out on screen.
+  const refreshToday = useCallback(() => api.me().then((r) => setToday(r.today), () => undefined), []);
+  const homeBar = HOME_BAR[route.view];
 
   useEffect(() => {
     void refreshMe();
@@ -125,6 +143,7 @@ export function App() {
         route={route}
         account={account}
         admin={admin}
+        today={today}
         onLogout={() =>
           api.logout().then(() => {
             setAccount(null);
@@ -136,11 +155,12 @@ export function App() {
       />
       <main className="page">
         <ErrorBoundary key={JSON.stringify(route)}>
+          {homeBar !== undefined && <HomeBar narrow={homeBar} />}
           {route.view === 'home' && <Home />}
           {route.view === 'daily' && (
             <>
               <DayBar mode={route.mode} date={route.date} />
-              <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} />
+              <PuzzleLoader key={`daily:${route.mode}:${route.date}`} daily={route.mode} date={route.date} onFinished={refreshToday} />
             </>
           )}
           {route.view === 'play' && (
@@ -176,9 +196,11 @@ export function App() {
 
 /**
  * A mode's daily puzzle (today, or `date` from the archive), or the puzzle `id` (unlimited, resumable after reload because the id is in the URL).
- * `onLoaded` hears the puzzle's mode once it is known.
+ * `onLoaded` hears the puzzle's mode once it is known; `onFinished` hears the puzzle finish (a daily one changes today's score).
  */
-function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onLoaded?: (mode: Mode) => void }) {
+function PuzzleLoader(
+  props: ({ daily: DailyMode; date: string | null } | { id: string }) & { onFinished?: () => void; onLoaded?: (mode: Mode) => void },
+) {
   const [puzzle, setPuzzle] = useState<PuzzleState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const source = 'id' in props ? props.id : `${props.daily}:${props.date}`;
@@ -193,6 +215,14 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
   useEffect(() => {
     if (mode) props.onLoaded?.(mode);
   }, [mode]);
+  const { onFinished } = props;
+  const change = useCallback(
+    (p: PuzzleState) => {
+      setPuzzle(p);
+      if (p.finished) onFinished?.();
+    },
+    [onFinished],
+  );
 
   if (error)
     return (
@@ -211,13 +241,13 @@ function PuzzleLoader(props: ({ daily: DailyMode; date: string | null } | { id: 
     );
   // "Play unlimited" after a game keeps the last unlimited filters but stays in this mode.
   const newUnlimited = () => api.unlimited({ ...(savedUnlimited.load() ?? { pool: puzzle.pool }), mode: puzzle.mode }).then((p) => go(`/play/${p.id}`));
-  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'connections') return <ConnectionsGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'synopsis') return <SynopsisGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'higherlower') return <HigherLowerGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'oddoneout') return <OddOneOutGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  if (puzzle.mode === 'timeline') return <TimelineGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
-  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={setPuzzle} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'anidle') return <Anidle puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'character') return <CharacterGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'screenshot') return <RoundGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'connections') return <ConnectionsGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'synopsis') return <SynopsisGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'higherlower') return <HigherLowerGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'oddoneout') return <OddOneOutGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  if (puzzle.mode === 'timeline') return <TimelineGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
+  return <SongGame key={puzzle.id} puzzle={puzzle} onChange={change} onNewUnlimited={newUnlimited} />;
 }

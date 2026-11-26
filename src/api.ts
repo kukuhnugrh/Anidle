@@ -8,7 +8,7 @@ import type { OddOneOutState } from '../server/oddoneout';
 import type { PuzzleState } from '../server/puzzles';
 import type { RoundState } from '../server/rounds';
 import type { SongState } from '../server/songs';
-import type { History, Leaderboard } from '../server/stats';
+import type { History, Leaderboard, TodayScore } from '../server/stats';
 import type { SynopsisState } from '../server/synopsis';
 import type { TimelineState } from '../server/timeline';
 import type { HigherLowerPick } from '../shared/higherlower';
@@ -36,6 +36,7 @@ export type {
   SongState,
   SynopsisState,
   TimelineState,
+  TodayScore,
 };
 
 /** A daily puzzle: any mode but the beta ones, which have none. */
@@ -118,7 +119,7 @@ async function call<T>(path: string, init?: { method?: string; body?: unknown })
 }
 
 export const api = {
-  me: () => call<{ account: Account | null; admin: boolean }>('/api/me'),
+  me: () => call<{ account: Account | null; admin: boolean; today: TodayScore }>('/api/me'),
   register: (username: string, password: string) => call<{ account: Account }>('/api/auth/register', { method: 'POST', body: { username, password } }),
   login: (username: string, password: string) => call<{ account: Account }>('/api/auth/login', { method: 'POST', body: { username, password } }),
   logout: () => call('/api/logout', { method: 'POST' }),
